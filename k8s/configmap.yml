@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gaffer-config
+  namespace: gaffer
+data:
+  ENVIRONMENT: "production"
+  SERVER_PORT: "8000"
+  PINECONE_INDEX_NAME: "the-gaffer"
