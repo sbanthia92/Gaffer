@@ -1,8 +1,9 @@
 name: CD
 
 on:
-  push:
-    branches: [main]
+  # Triggered manually until AWS infrastructure is provisioned.
+  # Switch to push/branches:[main] once ECR + EKS are live.
+  workflow_dispatch:
 
 jobs:
   deploy:
