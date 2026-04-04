@@ -1,9 +1,8 @@
 name: CD
 
 on:
-  # Triggered manually until AWS infrastructure is provisioned.
-  # Switch to push/branches:[main] once ECR + EKS are live.
-  workflow_dispatch:
+  push:
+    branches: [main]
 
 jobs:
   deploy:
@@ -39,15 +38,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig \
-            --name ${{ secrets.EKS_CLUSTER_NAME }} \
-            --region ${{ secrets.AWS_REGION }}
-
-      - name: Rolling deploy to EKS
-        env:
-          IMAGE: ${{ steps.login-ecr.outputs.registry }}/gaffer-api:${{ github.sha }}
-        run: |
-          kubectl set image deployment/gaffer-api gaffer-api=$IMAGE -n gaffer
-          kubectl rollout status deployment/gaffer-api -n gaffer --timeout=300s
+      # EKS steps are skipped until the cluster is provisioned via Terraform.
+      # Uncomment once `terraform apply` includes the EKS module.
+      # - name: Update kubeconfig
+      #   run: |
+      #     aws eks update-kubeconfig \
+      #       --name ${{ secrets.EKS_CLUSTER_NAME }} \
+      #       --region ${{ secrets.AWS_REGION }}
+      #
+      # - name: Rolling deploy to EKS
+      #   env:
+      #     IMAGE: ${{ steps.login-ecr.outputs.registry }}/gaffer-api:${{ github.sha }}
+      #   run: |
+      #     kubectl set image deployment/gaffer-api gaffer-api=$IMAGE -n gaffer
+      #     kubectl rollout status deployment/gaffer-api -n gaffer --timeout=300s
