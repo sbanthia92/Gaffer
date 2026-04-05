@@ -1,8 +1,9 @@
 from unittest.mock import AsyncMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
-from server.main import app
+from server.main import _fpl_tool_handler, app
 
 client = TestClient(app)
 
@@ -58,3 +59,9 @@ def test_fpl_ask_passes_question_to_claude() -> None:
     call_kwargs = mock_ask.call_args.kwargs
     assert call_kwargs["question"] == "Who should I transfer in?"
     assert call_kwargs["league"] == "fpl"
+
+
+@pytest.mark.asyncio
+async def test_fpl_tool_handler_unknown_tool_raises() -> None:
+    with pytest.raises(ValueError, match="Unknown tool"):
+        await _fpl_tool_handler("nonexistent_tool", {})

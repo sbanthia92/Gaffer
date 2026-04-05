@@ -60,5 +60,5 @@ async def _fpl_tool_handler(tool_name: str, tool_input: dict) -> dict:
     }
     handler = handlers.get(tool_name)
     if handler is None:
-        raise HTTPException(status_code=500, detail=f"Unknown tool: {tool_name}")
+        raise ValueError(f"Unknown tool: {tool_name}")
     return await handler(tool_input)
