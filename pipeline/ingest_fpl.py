@@ -36,6 +36,7 @@ _POSITION_MAP = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _doc_id(key: str) -> str:
     return hashlib.md5(key.encode()).hexdigest()
 
@@ -49,6 +50,7 @@ async def _fetch(client: httpx.AsyncClient, url: str) -> dict:
 # ---------------------------------------------------------------------------
 # Document builders — pure functions, easy to test
 # ---------------------------------------------------------------------------
+
 
 def build_player_season_doc(player: dict, team_name: str) -> tuple[str, str, dict]:
     """Return (id, text, metadata) for a player's season stats."""
@@ -96,9 +98,7 @@ def build_player_gw_history_doc(
     ]
 
     if hauls:
-        haul_str = ", ".join(
-            f"GW{gw['round']}({gw['total_points']}pts)" for gw in hauls[-3:]
-        )
+        haul_str = ", ".join(f"GW{gw['round']}({gw['total_points']}pts)" for gw in hauls[-3:])
         lines.append(f"Recent hauls: {haul_str}")
 
     recent_10 = history[-10:]
@@ -124,13 +124,10 @@ def build_player_gw_history_doc(
     return _doc_id(f"player_gw_{player_id}"), text, meta
 
 
-def build_team_fdr_doc(
-    team: dict, upcoming_fixtures: list
-) -> tuple[str, str, dict] | None:
+def build_team_fdr_doc(team: dict, upcoming_fixtures: list) -> tuple[str, str, dict] | None:
     """Return (id, text, metadata) for a team's upcoming fixture difficulty."""
     team_fixtures = [
-        f for f in upcoming_fixtures
-        if f["team_h"] == team["id"] or f["team_a"] == team["id"]
+        f for f in upcoming_fixtures if f["team_h"] == team["id"] or f["team_a"] == team["id"]
     ][:5]
 
     if not team_fixtures:
@@ -193,6 +190,7 @@ def build_fixture_result_docs(
 # Embed + upsert
 # ---------------------------------------------------------------------------
 
+
 def _upsert(pc: Pinecone, index, docs: list[tuple[str, str, dict]]) -> int:
     """Embed and upsert docs in batches. Returns number of vectors upserted."""
     total = 0
@@ -220,6 +218,7 @@ def _upsert(pc: Pinecone, index, docs: list[tuple[str, str, dict]]) -> int:
 # Main
 # ---------------------------------------------------------------------------
 
+
 async def run() -> None:
     pc = Pinecone(api_key=settings.pinecone_api_key)
     index = pc.Index(settings.pinecone_index_name)
@@ -230,9 +229,7 @@ async def run() -> None:
         all_fixtures = await _fetch(client, f"{_FPL_BASE}/fixtures/")
 
     teams_by_id = {t["id"]: t for t in bootstrap["teams"]}
-    players_sorted = sorted(
-        bootstrap["elements"], key=lambda p: p["total_points"], reverse=True
-    )
+    players_sorted = sorted(bootstrap["elements"], key=lambda p: p["total_points"], reverse=True)
     top_players = players_sorted[:_TOP_N_PLAYERS]
     print(f"Selected top {len(top_players)} players by total FPL points.")
 
@@ -267,19 +264,13 @@ async def run() -> None:
 
     # 3 — Team FDR
     upcoming = [f for f in all_fixtures if not f.get("finished")]
-    fdr_docs = [
-        build_team_fdr_doc(team, upcoming)
-        for team in bootstrap["teams"]
-    ]
+    fdr_docs = [build_team_fdr_doc(team, upcoming) for team in bootstrap["teams"]]
     fdr_docs = [d for d in fdr_docs if d is not None]
     all_docs.extend(fdr_docs)
     print(f"Built {len(fdr_docs)} team FDR docs.")
 
     # 4 — Fixture results
-    finished = [
-        f for f in all_fixtures
-        if f.get("finished") and f.get("team_h_score") is not None
-    ]
+    finished = [f for f in all_fixtures if f.get("finished") and f.get("team_h_score") is not None]
     result_docs = build_fixture_result_docs(finished, teams_by_id)
     all_docs.extend(result_docs)
     print(f"Built {len(result_docs)} fixture result docs.")

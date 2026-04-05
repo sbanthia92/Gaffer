@@ -78,6 +78,7 @@ _TEAMS_BY_ID = {43: {"name": "Man City"}, 14: {"name": "Liverpool"}}
 # Player season stats
 # ---------------------------------------------------------------------------
 
+
 def test_player_season_doc_contains_key_fields():
     doc_id, text, meta = build_player_season_doc(_PLAYER, "Man City")
     assert "Erling Haaland" in text
@@ -105,6 +106,7 @@ def test_player_season_doc_id_is_stable():
 # ---------------------------------------------------------------------------
 # Player GW history
 # ---------------------------------------------------------------------------
+
 
 def test_gw_history_doc_hauls_and_blanks():
     _, text, meta = build_player_gw_history_doc("Erling Haaland", "Man City", 276, _GW_HISTORY)
@@ -134,6 +136,7 @@ def test_gw_history_doc_empty_history_returns_none():
 # Team FDR
 # ---------------------------------------------------------------------------
 
+
 def test_team_fdr_doc_contains_upcoming_fixtures():
     _, text, meta = build_team_fdr_doc(_TEAM, _UPCOMING_FIXTURES)
     assert "Man City" in text
@@ -157,6 +160,7 @@ def test_team_fdr_doc_no_upcoming_returns_none():
 # ---------------------------------------------------------------------------
 # Fixture results
 # ---------------------------------------------------------------------------
+
 
 def test_fixture_result_docs_score_and_teams():
     docs = build_fixture_result_docs(_FINISHED_FIXTURES, _TEAMS_BY_ID)
