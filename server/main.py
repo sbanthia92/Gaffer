@@ -1,3 +1,4 @@
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -61,4 +62,13 @@ async def _fpl_tool_handler(tool_name: str, tool_input: dict) -> dict:
     handler = handlers.get(tool_name)
     if handler is None:
         raise ValueError(f"Unknown tool: {tool_name}")
-    return await handler(tool_input)
+    try:
+        return await handler(tool_input)
+    except httpx.HTTPStatusError as e:
+        # Return the error as data so Claude can acknowledge it and work around it
+        return {
+            "error": True,
+            "status_code": e.response.status_code,
+            "message": f"API request failed: {e.response.status_code}. "
+            "This data is unavailable — use what you have to answer.",
+        }
