@@ -14,6 +14,7 @@ import httpx
 from server.config import settings
 
 _BASE_URL = "https://v3.football.api-sports.io"
+_FPL_BASE_URL = "https://fantasy.premierleague.com/api"
 _PREMIER_LEAGUE_ID = 39
 _CURRENT_SEASON = "2025"  # 2025-26 season
 
@@ -396,9 +397,91 @@ async def get_odds(fixture_id: int) -> dict:
         return {"fixture_id": fixture_id, "odds": "unavailable"}
 
 
+async def get_my_fpl_team() -> dict:
+    """
+    Fetch the user's current FPL squad and active chip from the official FPL API.
+    Returns player names, positions, selling price, and captain/vice-captain picks.
+    """
+    team_id = settings.fpl_team_id
+    if not team_id:
+        return {"error": "FPL_TEAM_ID is not set in config."}
+
+    async with httpx.AsyncClient(base_url=_FPL_BASE_URL, timeout=10.0) as client:
+        # Fetch bootstrap to get current gameweek and player name mapping
+        bootstrap = await client.get("/bootstrap-static/")
+        bootstrap.raise_for_status()
+        bootstrap_data = bootstrap.json()
+
+        # Find the current gameweek
+        current_gw = next(
+            (e["id"] for e in bootstrap_data["events"] if e["is_current"]),
+            None,
+        )
+        if not current_gw:
+            # Fall back to next gameweek if between gameweeks
+            current_gw = next(
+                (e["id"] for e in bootstrap_data["events"] if e["is_next"]),
+                1,
+            )
+
+        # Build player ID → name/team/position map
+        position_map = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
+        team_map = {t["id"]: t["name"] for t in bootstrap_data["teams"]}
+        player_map = {
+            p["id"]: {
+                "name": f"{p['first_name']} {p['second_name']}",
+                "team": team_map.get(p["team"], ""),
+                "position": position_map.get(p["element_type"], ""),
+            }
+            for p in bootstrap_data["elements"]
+        }
+
+        # Fetch the team's picks for the current gameweek
+        picks_resp = await client.get(f"/entry/{team_id}/event/{current_gw}/picks/")
+        picks_resp.raise_for_status()
+        picks_data = picks_resp.json()
+
+    squad = []
+    for pick in picks_data.get("picks", []):
+        pid = pick["element"]
+        info = player_map.get(pid, {})
+        squad.append(
+            {
+                "name": info.get("name"),
+                "team": info.get("team"),
+                "position": info.get("position"),
+                "selling_price": pick.get("selling_price", 0) / 10,
+                "multiplier": pick.get("multiplier"),  # 2 = captain, 3 = TC, 0 = benched
+                "is_captain": pick.get("is_captain"),
+                "is_vice_captain": pick.get("is_vice_captain"),
+            }
+        )
+
+    active_chip = picks_data.get("active_chip")
+    return {
+        "gameweek": current_gw,
+        "active_chip": active_chip,
+        "squad": squad,
+    }
+
+
 # Tool definitions in Anthropic tool-use format.
 # Claude receives these and decides which to call based on the question.
 TOOL_DEFINITIONS = [
+    {
+        "name": "get_my_fpl_team",
+        "description": (
+            "Get the user's current FPL squad — player names, positions, teams, "
+            "selling prices, and who is currently set as captain. "
+            "Always call this first when the user asks about their team, transfers, "
+            "captaincy, or anything personalised to their FPL squad."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
     {
         "name": "search_player",
         "description": (

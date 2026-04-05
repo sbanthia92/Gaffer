@@ -6,6 +6,7 @@ from server.tools.fpl import (
     TOOL_DEFINITIONS,
     get_fixtures,
     get_head_to_head,
+    get_my_fpl_team,
     get_odds,
     get_player_recent_form,
     get_player_stats,
@@ -306,6 +307,52 @@ async def test_get_player_vs_opponent_returns_per_game_stats():
     assert result["player_vs_opponent"][0]["minutes"] == 90
 
 
+_FPL_BASE = "https://fantasy.premierleague.com/api"
+
+_BOOTSTRAP = {
+    "events": [{"id": 36, "is_current": True, "is_next": False}],
+    "teams": [{"id": 43, "name": "Man City"}],
+    "elements": [
+        {
+            "id": 350,
+            "first_name": "Erling",
+            "second_name": "Haaland",
+            "team": 43,
+            "element_type": 4,
+        }
+    ],
+}
+
+_PICKS = {
+    "active_chip": None,
+    "picks": [
+        {
+            "element": 350,
+            "selling_price": 140,
+            "multiplier": 2,
+            "is_captain": True,
+            "is_vice_captain": False,
+        }
+    ],
+}
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_my_fpl_team_returns_squad():
+    respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
+        return_value=httpx.Response(200, json=_BOOTSTRAP)
+    )
+    respx.get(f"{_FPL_BASE}/entry/5402482/event/36/picks/").mock(
+        return_value=httpx.Response(200, json=_PICKS)
+    )
+    result = await get_my_fpl_team()
+    assert result["gameweek"] == 36
+    assert result["squad"][0]["name"] == "Erling Haaland"
+    assert result["squad"][0]["is_captain"] is True
+    assert result["squad"][0]["selling_price"] == 14.0
+
+
 @respx.mock
 @pytest.mark.asyncio
 async def test_api_error_raises():
@@ -317,6 +364,7 @@ async def test_api_error_raises():
 def test_tool_definitions_structure():
     names = {t["name"] for t in TOOL_DEFINITIONS}
     assert names == {
+        "get_my_fpl_team",
         "search_player",
         "search_team",
         "get_fixtures",
