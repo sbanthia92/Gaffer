@@ -23,26 +23,6 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.environment}
 
 
-@app.get("/fpl/debug")
-async def fpl_debug() -> dict:
-    """Temporary debug endpoint — shows key info and raw API response."""
-    key = settings.api_sports_key
-    key_preview = f"{key[:4]}...{key[-4:]}" if len(key) >= 8 else f"length={len(key)}"
-    try:
-        fixtures = await fpl.get_fixtures(next_n=3)
-        return {
-            "api_key_preview": key_preview,
-            "fixtures_errors": fixtures.get("errors"),
-            "fixtures_results": fixtures.get("results"),
-        }
-    except httpx.HTTPStatusError as e:
-        return {
-            "api_key_preview": key_preview,
-            "http_error": e.response.status_code,
-            "response_body": e.response.text,
-        }
-
-
 @app.post("/fpl/ask", response_model=AskResponse)
 async def fpl_ask(request: AskRequest) -> AskResponse:
     if not request.question.strip():
