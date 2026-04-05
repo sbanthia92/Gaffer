@@ -14,7 +14,7 @@ from server.config import settings
 
 _BASE_URL = "https://v3.football.api-sports.io"
 _PREMIER_LEAGUE_ID = 39
-_CURRENT_SEASON = "2024"  # 2024-25 season
+_CURRENT_SEASON = "2025"  # 2025-26 season
 
 
 def _headers() -> dict[str, str]:
