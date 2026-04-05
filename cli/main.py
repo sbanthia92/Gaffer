@@ -40,7 +40,7 @@ def ask(
             response = httpx.post(
                 f"{_server_url()}/{league}/ask",
                 json={"question": question},
-                timeout=60.0,
+                timeout=180.0,
             )
             response.raise_for_status()
         except httpx.ConnectError:
@@ -49,6 +49,16 @@ def ask(
                     f"[red]Could not connect to the server at {_server_url()}.\n"
                     "Make sure it's running: [bold]uvicorn server.main:app --reload[/bold][/red]",
                     title="Connection Error",
+                    border_style="red",
+                )
+            )
+            raise typer.Exit(code=1)
+        except httpx.ReadTimeout:
+            console.print(
+                Panel(
+                    "[red]Request timed out — the question required too many data lookups.\n"
+                    "Try a more specific question, e.g. ask about one player at a time.[/red]",
+                    title="Timeout",
                     border_style="red",
                 )
             )
