@@ -9,7 +9,9 @@ from server.tools.fpl import (
     get_odds,
     get_player_recent_form,
     get_player_stats,
+    get_player_vs_opponent,
     get_standings,
+    get_team_all_fixtures,
     get_team_recent_fixtures,
     search_player,
     search_team,
@@ -261,6 +263,51 @@ async def test_get_odds_returns_trimmed_response():
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_get_team_all_fixtures_returns_all_competitions():
+    respx.get(f"{_BASE}/fixtures").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "response": [
+                    {
+                        "fixture": {
+                            "id": 99,
+                            "date": "2026-04-15T20:00:00+00:00",
+                            "venue": {"name": "Etihad"},
+                        },
+                        "league": {"name": "UEFA Champions League", "round": "QF"},
+                        "teams": {
+                            "home": {"name": "Man City"},
+                            "away": {"name": "Real Madrid"},
+                        },
+                    }
+                ]
+            },
+        )
+    )
+    result = await get_team_all_fixtures(team_id=50, next_n=7)
+    assert "all_fixtures" in result
+    assert result["all_fixtures"][0]["competition"] == "UEFA Champions League"
+    assert result["all_fixtures"][0]["away"] == "Real Madrid"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_player_vs_opponent_returns_per_game_stats():
+    respx.get(f"{_BASE}/fixtures/headtohead").mock(
+        return_value=httpx.Response(200, json={"response": [_FIXTURE_ITEM]})
+    )
+    respx.get(f"{_BASE}/fixtures/players").mock(
+        return_value=httpx.Response(200, json=_PLAYER_FIXTURE_STATS)
+    )
+    result = await get_player_vs_opponent(player_id=276, team1_id=50, team2_id=49, last_n=5)
+    assert "player_vs_opponent" in result
+    assert result["player_vs_opponent"][0]["goals"] == 1
+    assert result["player_vs_opponent"][0]["minutes"] == 90
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_api_error_raises():
     respx.get(f"{_BASE}/fixtures").mock(return_value=httpx.Response(401))
     with pytest.raises(httpx.HTTPStatusError):
@@ -277,7 +324,9 @@ def test_tool_definitions_structure():
         "get_player_stats",
         "get_player_recent_form",
         "get_team_recent_fixtures",
+        "get_team_all_fixtures",
         "get_head_to_head",
+        "get_player_vs_opponent",
         "get_odds",
     }
     for tool in TOOL_DEFINITIONS:

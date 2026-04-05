@@ -88,6 +88,16 @@ async def _fpl_tool_handler(tool_name: str, tool_input: dict) -> dict:
             team2_id=i["team2_id"],
             last_n=i.get("last_n", 5),
         ),
+        "get_team_all_fixtures": lambda i: fpl.get_team_all_fixtures(
+            team_id=i["team_id"],
+            next_n=i.get("next_n", 7),
+        ),
+        "get_player_vs_opponent": lambda i: fpl.get_player_vs_opponent(
+            player_id=i["player_id"],
+            team1_id=i["team1_id"],
+            team2_id=i["team2_id"],
+            last_n=i.get("last_n", 5),
+        ),
         "get_odds": lambda i: fpl.get_odds(fixture_id=i["fixture_id"]),
     }
     handler = handlers.get(tool_name)

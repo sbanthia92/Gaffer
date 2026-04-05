@@ -294,6 +294,88 @@ async def get_head_to_head(team1_id: int, team2_id: int, last_n: int = 5) -> dic
     return {"h2h": fixtures}
 
 
+async def get_team_all_fixtures(team_id: int, next_n: int = 7) -> dict:
+    """
+    Fetch a team's next N fixtures across ALL competitions — PL, UCL, FA Cup etc.
+    Use this to assess fixture congestion and rotation risk.
+    """
+    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
+        response = await client.get(
+            "/fixtures",
+            params={
+                "team": team_id,
+                "next": next_n,
+                "season": _CURRENT_SEASON,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    fixtures = []
+    for item in data.get("response", []):
+        f = item.get("fixture", {})
+        teams = item.get("teams", {})
+        league = item.get("league", {})
+        fixtures.append(
+            {
+                "date": f.get("date", "")[:10],
+                "competition": league.get("name"),
+                "round": league.get("round"),
+                "home": teams.get("home", {}).get("name"),
+                "away": teams.get("away", {}).get("name"),
+                "venue": f.get("venue", {}).get("name"),
+            }
+        )
+    return {"all_fixtures": fixtures}
+
+
+async def get_player_vs_opponent(
+    player_id: int, team1_id: int, team2_id: int, last_n: int = 5
+) -> dict:
+    """
+    Fetch a player's individual stats in past h2h games between their team and the opponent.
+    Returns goals, assists, minutes and rating per match.
+    """
+    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
+        # Step 1: get h2h fixture IDs
+        h2h_resp = await client.get(
+            "/fixtures/headtohead",
+            params={"h2h": f"{team1_id}-{team2_id}", "last": last_n},
+        )
+        h2h_resp.raise_for_status()
+        h2h_data = h2h_resp.json()
+        fixture_items = h2h_data.get("response", [])
+        fixture_ids = [item["fixture"]["id"] for item in fixture_items]
+
+        # Step 2: fetch player stats for each fixture
+        games = []
+        for fid in fixture_ids:
+            pr = await client.get("/fixtures/players", params={"fixture": fid})
+            if pr.status_code != 200:
+                continue
+            for team in pr.json().get("response", []):
+                for player in team.get("players", []):
+                    if player.get("player", {}).get("id") == player_id:
+                        s = player.get("statistics", [{}])[0]
+                        meta = next((f for f in fixture_items if f["fixture"]["id"] == fid), {})
+                        teams = meta.get("teams", {})
+                        goals_data = meta.get("goals", {})
+                        games.append(
+                            {
+                                "date": meta.get("fixture", {}).get("date", "")[:10],
+                                "home": teams.get("home", {}).get("name"),
+                                "away": teams.get("away", {}).get("name"),
+                                "result": (f"{goals_data.get('home')}-{goals_data.get('away')}"),
+                                "minutes": s.get("games", {}).get("minutes"),
+                                "goals": s.get("goals", {}).get("total") or 0,
+                                "assists": s.get("goals", {}).get("assists") or 0,
+                                "shots_on": s.get("shots", {}).get("on") or 0,
+                                "rating": s.get("games", {}).get("rating"),
+                            }
+                        )
+    return {"player_vs_opponent": games}
+
+
 async def get_odds(fixture_id: int) -> dict:
     """Fetch current odds for a fixture."""
     async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
@@ -484,6 +566,59 @@ TOOL_DEFINITIONS = [
                 },
             },
             "required": ["team1_id", "team2_id"],
+        },
+    },
+    {
+        "name": "get_team_all_fixtures",
+        "description": (
+            "Get a team's upcoming fixtures across ALL competitions — Premier League, "
+            "Champions League, FA Cup, etc. Use this to assess fixture congestion and "
+            "rotation risk when a team has midweek European games."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "team_id": {
+                    "type": "integer",
+                    "description": "The API-Sports team ID.",
+                },
+                "next_n": {
+                    "type": "integer",
+                    "description": "Number of upcoming fixtures to return. Defaults to 7.",
+                    "default": 7,
+                },
+            },
+            "required": ["team_id"],
+        },
+    },
+    {
+        "name": "get_player_vs_opponent",
+        "description": (
+            "Get a player's individual stats (goals, assists, rating) in past games "
+            "against a specific opponent. Use this for h2h player performance analysis."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "player_id": {
+                    "type": "integer",
+                    "description": "The API-Sports player ID.",
+                },
+                "team1_id": {
+                    "type": "integer",
+                    "description": "The player's team ID.",
+                },
+                "team2_id": {
+                    "type": "integer",
+                    "description": "The opponent's team ID.",
+                },
+                "last_n": {
+                    "type": "integer",
+                    "description": "Number of past h2h games to look at. Defaults to 5.",
+                    "default": 5,
+                },
+            },
+            "required": ["player_id", "team1_id", "team2_id"],
         },
     },
 ]
