@@ -5,3 +5,4 @@ import os
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
 os.environ.setdefault("PINECONE_API_KEY", "test-key")
 os.environ.setdefault("API_SPORTS_KEY", "test-key")
+os.environ.setdefault("FPL_TEAM_ID", "123")

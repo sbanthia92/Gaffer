@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import httpx
 import pytest
 import respx
@@ -343,14 +345,26 @@ async def test_get_my_fpl_team_returns_squad():
     respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
         return_value=httpx.Response(200, json=_BOOTSTRAP)
     )
-    respx.get(f"{_FPL_BASE}/entry/5402482/event/36/picks/").mock(
+    respx.get(f"{_FPL_BASE}/entry/123/event/36/picks/").mock(
         return_value=httpx.Response(200, json=_PICKS)
     )
-    result = await get_my_fpl_team()
+    with patch("server.tools.fpl.settings") as mock_settings:
+        mock_settings.fpl_team_id = 123
+        mock_settings.api_sports_key = "test-key"
+        result = await get_my_fpl_team()
     assert result["gameweek"] == 36
     assert result["squad"][0]["name"] == "Erling Haaland"
     assert result["squad"][0]["is_captain"] is True
     assert result["squad"][0]["selling_price"] == 14.0
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_my_fpl_team_no_team_id():
+    with patch("server.tools.fpl.settings") as mock_settings:
+        mock_settings.fpl_team_id = None
+        result = await get_my_fpl_team()
+    assert "error" in result
 
 
 @respx.mock
