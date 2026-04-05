@@ -35,6 +35,11 @@ def _build_system_prompt(rag_context: str, league: str) -> str:
         "2. Historical context from the knowledge base below — past seasons and h2h records.\n\n"
         "Use both sources together to give the most accurate, data-driven answer possible.\n"
         "Be specific and cite the data you used. If data is missing or unclear, say so.\n\n"
+        "Always structure your response in this exact order:\n"
+        "1. VERDICT — one line, yes or no, e.g. '✅ Yes, captain him' or '❌ No, look elsewhere'\n"
+        "2. THE DATA — the facts, stats, fixture context, and odds that inform the verdict\n"
+        "3. THE REASONING — a detailed explanation of why the verdict is what it is, "
+        "weighing the data and any alternatives\n\n"
         f"--- HISTORICAL CONTEXT ---\n{context_block}\n--- END HISTORICAL CONTEXT ---"
     )
 
