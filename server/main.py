@@ -71,14 +71,24 @@ async def fpl_ask(request: AskRequest) -> AskResponse:
 async def _fpl_tool_handler(tool_name: str, tool_input: dict) -> dict:
     handlers = {
         "search_player": lambda i: fpl.search_player(name=i["name"]),
+        "search_team": lambda i: fpl.search_team(name=i["name"]),
         "get_fixtures": lambda i: fpl.get_fixtures(next_n=i.get("next_n", 10)),
         "get_standings": lambda i: fpl.get_standings(),
         "get_player_stats": lambda i: fpl.get_player_stats(player_id=i["player_id"]),
-        "get_odds": lambda i: fpl.get_odds(fixture_id=i["fixture_id"]),
-        "get_player_recent_fixtures": lambda i: fpl.get_player_recent_fixtures(
+        "get_player_recent_form": lambda i: fpl.get_player_recent_form(
             player_id=i["player_id"],
-            last_n=i.get("last_n", 10),
+            last_n=i.get("last_n", 5),
         ),
+        "get_team_recent_fixtures": lambda i: fpl.get_team_recent_fixtures(
+            team_id=i["team_id"],
+            last_n=i.get("last_n", 5),
+        ),
+        "get_head_to_head": lambda i: fpl.get_head_to_head(
+            team1_id=i["team1_id"],
+            team2_id=i["team2_id"],
+            last_n=i.get("last_n", 5),
+        ),
+        "get_odds": lambda i: fpl.get_odds(fixture_id=i["fixture_id"]),
     }
     handler = handlers.get(tool_name)
     if handler is None:

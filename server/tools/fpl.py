@@ -148,8 +148,84 @@ async def get_player_stats(player_id: int) -> dict:
         return {"error": "Player stats not found"}
 
 
-async def get_player_recent_fixtures(player_id: int, last_n: int = 10) -> dict:
-    """Fetch a player's last N fixtures in the Premier League."""
+async def get_player_recent_form(player_id: int, last_n: int = 5) -> dict:
+    """
+    Fetch a player's recent form — goals, assists, minutes, and rating per game.
+    Uses /fixtures/players to get individual stats per match.
+    """
+    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
+        # Step 1: get the last N fixture IDs the player appeared in
+        fix_resp = await client.get(
+            "/fixtures",
+            params={
+                "league": _PREMIER_LEAGUE_ID,
+                "season": _CURRENT_SEASON,
+                "last": last_n,
+                "player": player_id,
+            },
+        )
+        fix_resp.raise_for_status()
+        fixture_data = fix_resp.json()
+
+        fixture_ids = [item["fixture"]["id"] for item in fixture_data.get("response", [])]
+
+        # Step 2: for each fixture, fetch individual player stats
+        games = []
+        for fid in fixture_ids:
+            pr = await client.get("/fixtures/players", params={"fixture": fid})
+            if pr.status_code != 200:
+                continue
+            pr_data = pr.json()
+            for team in pr_data.get("response", []):
+                for player in team.get("players", []):
+                    if player.get("player", {}).get("id") == player_id:
+                        s = player.get("statistics", [{}])[0]
+                        fix_meta = fixture_data["response"]
+                        meta = next((f for f in fix_meta if f["fixture"]["id"] == fid), {})
+                        teams = meta.get("teams", {})
+                        games.append(
+                            {
+                                "fixture_id": fid,
+                                "date": meta.get("fixture", {}).get("date", "")[:10],
+                                "home": teams.get("home", {}).get("name"),
+                                "away": teams.get("away", {}).get("name"),
+                                "result": (
+                                    f"{meta.get('goals', {}).get('home')}-"
+                                    f"{meta.get('goals', {}).get('away')}"
+                                ),
+                                "minutes": s.get("games", {}).get("minutes"),
+                                "goals": s.get("goals", {}).get("total") or 0,
+                                "assists": s.get("goals", {}).get("assists") or 0,
+                                "shots_on": s.get("shots", {}).get("on") or 0,
+                                "rating": s.get("games", {}).get("rating"),
+                            }
+                        )
+    return {"recent_form": games}
+
+
+async def search_team(name: str) -> dict:
+    """Search for a Premier League team by name to get their team ID."""
+    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
+        response = await client.get(
+            "/teams",
+            params={
+                "search": name,
+                "league": _PREMIER_LEAGUE_ID,
+                "season": _CURRENT_SEASON,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    teams = []
+    for item in data.get("response", [])[:5]:
+        t = item.get("team", {})
+        teams.append({"id": t.get("id"), "name": t.get("name")})
+    return {"teams": teams}
+
+
+async def get_team_recent_fixtures(team_id: int, last_n: int = 5) -> dict:
+    """Fetch a team's last N results in the Premier League."""
     async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
         response = await client.get(
             "/fixtures",
@@ -157,7 +233,7 @@ async def get_player_recent_fixtures(player_id: int, last_n: int = 10) -> dict:
                 "league": _PREMIER_LEAGUE_ID,
                 "season": _CURRENT_SEASON,
                 "last": last_n,
-                "player": player_id,
+                "team": team_id,
             },
         )
         response.raise_for_status()
@@ -168,16 +244,54 @@ async def get_player_recent_fixtures(player_id: int, last_n: int = 10) -> dict:
         f = item.get("fixture", {})
         teams = item.get("teams", {})
         goals = item.get("goals", {})
+        home = teams.get("home", {})
+        away = teams.get("away", {})
         fixtures.append(
             {
-                "date": f.get("date"),
-                "home": teams.get("home", {}).get("name"),
-                "away": teams.get("away", {}).get("name"),
+                "date": f.get("date", "")[:10],
+                "home": home.get("name"),
+                "away": away.get("name"),
                 "home_goals": goals.get("home"),
                 "away_goals": goals.get("away"),
+                "home_winner": home.get("winner"),
+                "away_winner": away.get("winner"),
             }
         )
     return {"recent_fixtures": fixtures}
+
+
+async def get_head_to_head(team1_id: int, team2_id: int, last_n: int = 5) -> dict:
+    """Fetch head-to-head results between two teams."""
+    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
+        response = await client.get(
+            "/fixtures/headtohead",
+            params={
+                "h2h": f"{team1_id}-{team2_id}",
+                "last": last_n,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    fixtures = []
+    for item in data.get("response", []):
+        f = item.get("fixture", {})
+        teams = item.get("teams", {})
+        goals = item.get("goals", {})
+        home = teams.get("home", {})
+        away = teams.get("away", {})
+        fixtures.append(
+            {
+                "date": f.get("date", "")[:10],
+                "home": home.get("name"),
+                "away": away.get("name"),
+                "home_goals": goals.get("home"),
+                "away_goals": goals.get("away"),
+                "home_winner": home.get("winner"),
+                "away_winner": away.get("winner"),
+            }
+        )
+    return {"h2h": fixtures}
 
 
 async def get_odds(fixture_id: int) -> dict:
@@ -286,10 +400,10 @@ TOOL_DEFINITIONS = [
         },
     },
     {
-        "name": "get_player_recent_fixtures",
+        "name": "get_player_recent_form",
         "description": (
-            "Get a player's last N fixtures in the Premier League. "
-            "Use this to assess recent form — goals, assists, and minutes in recent games."
+            "Get a player's recent form — goals, assists, minutes, and rating per game. "
+            "Use this to assess whether a player is in form for captaincy or transfer decisions."
         ),
         "input_schema": {
             "type": "object",
@@ -300,11 +414,76 @@ TOOL_DEFINITIONS = [
                 },
                 "last_n": {
                     "type": "integer",
-                    "description": "Number of recent fixtures to return. Defaults to 10.",
-                    "default": 10,
+                    "description": "Number of recent games to return. Defaults to 5.",
+                    "default": 5,
                 },
             },
             "required": ["player_id"],
+        },
+    },
+    {
+        "name": "search_team",
+        "description": (
+            "Search for a Premier League team by name to get their team ID. "
+            "Call this before get_team_recent_fixtures or get_head_to_head."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Team name to search for, e.g. 'Chelsea' or 'Arsenal'.",
+                }
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "get_team_recent_fixtures",
+        "description": (
+            "Get a team's last N Premier League results. "
+            "Use this for opponent form analysis — not just the player's team."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "team_id": {
+                    "type": "integer",
+                    "description": "The API-Sports team ID.",
+                },
+                "last_n": {
+                    "type": "integer",
+                    "description": "Number of recent fixtures to return. Defaults to 5.",
+                    "default": 5,
+                },
+            },
+            "required": ["team_id"],
+        },
+    },
+    {
+        "name": "get_head_to_head",
+        "description": (
+            "Get head-to-head results between two teams. "
+            "Use this for historical matchup context between the player's team and their opponent."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "team1_id": {
+                    "type": "integer",
+                    "description": "The API-Sports team ID for the first team.",
+                },
+                "team2_id": {
+                    "type": "integer",
+                    "description": "The API-Sports team ID for the second team.",
+                },
+                "last_n": {
+                    "type": "integer",
+                    "description": "Number of recent h2h fixtures to return. Defaults to 5.",
+                    "default": 5,
+                },
+            },
+            "required": ["team1_id", "team2_id"],
         },
     },
 ]

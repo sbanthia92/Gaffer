@@ -5,14 +5,45 @@ import respx
 from server.tools.fpl import (
     TOOL_DEFINITIONS,
     get_fixtures,
+    get_head_to_head,
     get_odds,
-    get_player_recent_fixtures,
+    get_player_recent_form,
     get_player_stats,
     get_standings,
+    get_team_recent_fixtures,
     search_player,
+    search_team,
 )
 
 _BASE = "https://v3.football.api-sports.io"
+
+_FIXTURE_ITEM = {
+    "fixture": {"id": 42, "date": "2026-03-30T15:00:00+00:00"},
+    "teams": {
+        "home": {"name": "Man City", "winner": True},
+        "away": {"name": "Chelsea", "winner": False},
+    },
+    "goals": {"home": 2, "away": 1},
+}
+
+_PLAYER_FIXTURE_STATS = {
+    "response": [
+        {
+            "players": [
+                {
+                    "player": {"id": 276},
+                    "statistics": [
+                        {
+                            "games": {"minutes": 90, "rating": "8.2"},
+                            "goals": {"total": 1, "assists": 0},
+                            "shots": {"on": 3},
+                        }
+                    ],
+                }
+            ]
+        }
+    ]
+}
 
 
 @respx.mock
@@ -28,6 +59,21 @@ async def test_search_player_returns_trimmed_response():
     assert "players" in result
     assert result["players"][0]["id"] == 1100
     assert result["players"][0]["name"] == "Erling Haaland"
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_search_team_returns_trimmed_response():
+    respx.get(f"{_BASE}/teams").mock(
+        return_value=httpx.Response(
+            200,
+            json={"response": [{"team": {"id": 49, "name": "Chelsea"}}]},
+        )
+    )
+    result = await search_team(name="Chelsea")
+    assert "teams" in result
+    assert result["teams"][0]["id"] == 49
+    assert result["teams"][0]["name"] == "Chelsea"
 
 
 @respx.mock
@@ -141,28 +187,41 @@ async def test_get_player_stats_returns_trimmed_response():
 
 @respx.mock
 @pytest.mark.asyncio
-async def test_get_player_recent_fixtures_returns_trimmed_response():
+async def test_get_player_recent_form_returns_per_game_stats():
     respx.get(f"{_BASE}/fixtures").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "response": [
-                    {
-                        "fixture": {"id": 42, "date": "2026-03-30"},
-                        "teams": {
-                            "home": {"name": "Man City"},
-                            "away": {"name": "Chelsea"},
-                        },
-                        "goals": {"home": 2, "away": 1},
-                    }
-                ]
-            },
-        )
+        return_value=httpx.Response(200, json={"response": [_FIXTURE_ITEM]})
     )
-    result = await get_player_recent_fixtures(player_id=276, last_n=5)
+    respx.get(f"{_BASE}/fixtures/players").mock(
+        return_value=httpx.Response(200, json=_PLAYER_FIXTURE_STATS)
+    )
+    result = await get_player_recent_form(player_id=276, last_n=1)
+    assert "recent_form" in result
+    assert result["recent_form"][0]["goals"] == 1
+    assert result["recent_form"][0]["minutes"] == 90
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_team_recent_fixtures_returns_trimmed_response():
+    respx.get(f"{_BASE}/fixtures").mock(
+        return_value=httpx.Response(200, json={"response": [_FIXTURE_ITEM]})
+    )
+    result = await get_team_recent_fixtures(team_id=50, last_n=5)
     assert "recent_fixtures" in result
     assert result["recent_fixtures"][0]["home"] == "Man City"
     assert result["recent_fixtures"][0]["home_goals"] == 2
+
+
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_head_to_head_returns_trimmed_response():
+    respx.get(f"{_BASE}/fixtures/headtohead").mock(
+        return_value=httpx.Response(200, json={"response": [_FIXTURE_ITEM]})
+    )
+    result = await get_head_to_head(team1_id=50, team2_id=49, last_n=5)
+    assert "h2h" in result
+    assert result["h2h"][0]["home"] == "Man City"
+    assert result["h2h"][0]["away"] == "Chelsea"
 
 
 @respx.mock
@@ -212,11 +271,14 @@ def test_tool_definitions_structure():
     names = {t["name"] for t in TOOL_DEFINITIONS}
     assert names == {
         "search_player",
+        "search_team",
         "get_fixtures",
         "get_standings",
         "get_player_stats",
+        "get_player_recent_form",
+        "get_team_recent_fixtures",
+        "get_head_to_head",
         "get_odds",
-        "get_player_recent_fixtures",
     }
     for tool in TOOL_DEFINITIONS:
         assert "name" in tool
