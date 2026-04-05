@@ -27,7 +27,7 @@ _NAMESPACE = "fpl"
 _SEASON = "2024/25"
 _TOP_N_PLAYERS = 400
 _EMBED_MODEL = "multilingual-e5-large"
-_UPSERT_BATCH = 100
+_UPSERT_BATCH = 96
 
 _POSITION_MAP = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
 
