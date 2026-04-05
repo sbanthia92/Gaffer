@@ -3,6 +3,12 @@ name = "the-gaffer"
 version = "0.1.0"
 requires-python = ">=3.11"
 
+[project.scripts]
+gaffer = "cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["server*", "cli*", "pipeline*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
