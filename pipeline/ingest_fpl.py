@@ -90,7 +90,8 @@ def build_player_gw_history_doc(
 
     lines = [
         f"Player: {player_name} | Team: {team_name} | GW History {_SEASON}",
-        f"Played {len(history)} GWs | Hauls (12+ pts): {len(hauls)} | Blanks (≤2 pts): {len(blanks)}",
+        f"Played {len(history)} GWs | Hauls (12+ pts): {len(hauls)}"
+        f" | Blanks (≤2 pts): {len(blanks)}",
         f"Last 5 GW points: {[gw['total_points'] for gw in last_5]} (total: {last_5_pts})",
     ]
 
