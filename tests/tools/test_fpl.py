@@ -9,6 +9,7 @@ from server.tools.fpl import (
     get_player_recent_fixtures,
     get_player_stats,
     get_standings,
+    search_player,
 )
 
 _BASE = "https://v3.football.api-sports.io"
@@ -69,6 +70,19 @@ async def test_get_player_recent_fixtures_returns_response():
 
 @respx.mock
 @pytest.mark.asyncio
+async def test_search_player_returns_response():
+    respx.get(f"{_BASE}/players").mock(
+        return_value=httpx.Response(
+            200,
+            json={"response": [{"player": {"id": 1100, "name": "Erling Haaland"}}]},
+        )
+    )
+    result = await search_player(name="Haaland")
+    assert result["response"][0]["player"]["name"] == "Erling Haaland"
+
+
+@respx.mock
+@pytest.mark.asyncio
 async def test_api_error_raises():
     respx.get(f"{_BASE}/fixtures").mock(return_value=httpx.Response(401))
     with pytest.raises(httpx.HTTPStatusError):
@@ -78,6 +92,7 @@ async def test_api_error_raises():
 def test_tool_definitions_structure():
     names = {t["name"] for t in TOOL_DEFINITIONS}
     assert names == {
+        "search_player",
         "get_fixtures",
         "get_standings",
         "get_player_stats",

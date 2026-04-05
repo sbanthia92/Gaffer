@@ -50,6 +50,7 @@ async def fpl_ask(request: AskRequest) -> AskResponse:
 
 async def _fpl_tool_handler(tool_name: str, tool_input: dict) -> dict:
     handlers = {
+        "search_player": lambda i: fpl.search_player(name=i["name"]),
         "get_fixtures": lambda i: fpl.get_fixtures(next_n=i.get("next_n", 10)),
         "get_standings": lambda i: fpl.get_standings(),
         "get_player_stats": lambda i: fpl.get_player_stats(player_id=i["player_id"]),

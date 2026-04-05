@@ -76,6 +76,21 @@ async def get_odds(fixture_id: int) -> dict:
         return response.json()
 
 
+async def search_player(name: str) -> dict:
+    """Search for a player by name and return their ID and basic info."""
+    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
+        response = await client.get(
+            "/players",
+            params={
+                "search": name,
+                "league": _PREMIER_LEAGUE_ID,
+                "season": _CURRENT_SEASON,
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+
 async def get_player_recent_fixtures(player_id: int, last_n: int = 10) -> dict:
     """Fetch a player's last N fixtures in the Premier League."""
     async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
@@ -95,6 +110,23 @@ async def get_player_recent_fixtures(player_id: int, last_n: int = 10) -> dict:
 # Tool definitions in Anthropic tool-use format.
 # Claude receives these and decides which to call based on the question.
 TOOL_DEFINITIONS = [
+    {
+        "name": "search_player",
+        "description": (
+            "Search for a Premier League player by name to get their player ID. "
+            "Always call this first when you need stats or recent fixtures for a specific player."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Player name to search for, e.g. 'Haaland' or 'Salah'.",
+                }
+            },
+            "required": ["name"],
+        },
+    },
     {
         "name": "get_fixtures",
         "description": (
