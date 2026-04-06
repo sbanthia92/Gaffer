@@ -1,20 +1,19 @@
+output "elastic_ip" {
+  description = "Public Elastic IP — set this as EC2_HOST in GitHub secrets"
+  value       = aws_eip.gaffer.public_ip
+}
+
+output "sslip_domain" {
+  description = "Auto-generated HTTPS domain via sslip.io (no domain purchase needed)"
+  value       = "https://${replace(aws_eip.gaffer.public_ip, ".", "-")}.sslip.io"
+}
+
+output "ssh_command" {
+  description = "SSH command to connect to the server"
+  value       = "ssh -i ~/.ssh/gaffer_ec2 ec2-user@${aws_eip.gaffer.public_ip}"
+}
+
 output "ecr_repository_url" {
-  description = "ECR repository URL for the API image"
+  description = "ECR repository URL (for future ECS/EKS migration)"
   value       = aws_ecr_repository.gaffer_api.repository_url
 }
-
-output "ecr_repository_arn" {
-  description = "ECR repository ARN"
-  value       = aws_ecr_repository.gaffer_api.arn
-}
-
-# Uncomment once EKS module is enabled:
-# output "eks_cluster_name" {
-#   description = "EKS cluster name"
-#   value       = module.eks.cluster_name
-# }
-#
-# output "eks_cluster_endpoint" {
-#   description = "EKS cluster API endpoint"
-#   value       = module.eks.cluster_endpoint
-# }

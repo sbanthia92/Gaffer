@@ -6,49 +6,46 @@ on:
 
 jobs:
   deploy:
-    name: Build → ECR → EKS
+    name: Deploy to EC2
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/setup-node@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
 
-      - name: Login to ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build UI
+        run: npm ci && npm run build
+        working-directory: ui
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push API image
-        uses: docker/build-push-action@v5
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          context: .
-          file: docker/Dockerfile.api
-          push: true
-          tags: |
-            ${{ steps.login-ecr.outputs.registry }}/gaffer-api:${{ github.sha }}
-            ${{ steps.login-ecr.outputs.registry }}/gaffer-api:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /home/ec2-user/gaffer
 
-      # EKS steps are skipped until the cluster is provisioned via Terraform.
-      # Uncomment once `terraform apply` includes the EKS module.
-      # - name: Update kubeconfig
-      #   run: |
-      #     aws eks update-kubeconfig \
-      #       --name ${{ secrets.EKS_CLUSTER_NAME }} \
-      #       --region ${{ secrets.AWS_REGION }}
-      #
-      # - name: Rolling deploy to EKS
-      #   env:
-      #     IMAGE: ${{ steps.login-ecr.outputs.registry }}/gaffer-api:${{ github.sha }}
-      #   run: |
-      #     kubectl set image deployment/gaffer-api gaffer-api=$IMAGE -n gaffer
-      #     kubectl rollout status deployment/gaffer-api -n gaffer --timeout=300s
+            echo "==> Pulling latest code..."
+            git pull origin main
+
+            echo "==> Installing Python dependencies..."
+            .venv/bin/pip install -r requirements.txt -q
+            .venv/bin/pip install -e . -q
+
+            echo "==> Building React UI..."
+            cd ui && npm ci --prefer-offline && npm run build
+            sudo cp -r dist/. /var/www/gaffer/
+            cd ..
+
+            echo "==> Restarting Gaffer service..."
+            sudo systemctl restart gaffer
+            sleep 3
+            sudo systemctl is-active --quiet gaffer && echo "Service is running." || (sudo journalctl -u gaffer -n 20 && exit 1)
