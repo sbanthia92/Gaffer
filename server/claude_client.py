@@ -93,7 +93,11 @@ async def ask(
 
             async def _call(block):
                 result = await tool_handler(block.name, block.input)
-                return {"type": "tool_result", "tool_use_id": block.id, "content": json.dumps(result)}
+                return {
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": json.dumps(result),
+                }
 
             tool_results = await asyncio.gather(*(_call(b) for b in tool_blocks))
 
