@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     pinecone_index_name: str = "the-gaffer"
     api_sports_key: str
     fpl_team_id: int | None = None
+    feedback_email: str = ""
     server_port: int = 8000
     environment: str = "development"
 

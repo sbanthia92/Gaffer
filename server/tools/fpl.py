@@ -393,12 +393,13 @@ async def get_odds(fixture_id: int) -> dict:
         return {"fixture_id": fixture_id, "odds": "unavailable"}
 
 
-async def get_my_fpl_team() -> dict:
+async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
     """
     Fetch the user's current FPL squad and active chip from the official FPL API.
     Returns player names, positions, selling price, and captain/vice-captain picks.
+    team_id_override takes precedence over the FPL_TEAM_ID env var.
     """
-    team_id = settings.fpl_team_id
+    team_id = team_id_override or settings.fpl_team_id
     if not team_id:
         return {"error": "FPL_TEAM_ID is not set in config."}
 

@@ -54,6 +54,44 @@ resource "aws_ecr_lifecycle_policy" "gaffer_api" {
   })
 }
 
+# ── IAM role for EC2 (SES send access) ────────────────────────────────────────
+
+resource "aws_iam_role" "gaffer_ec2" {
+  name = "gaffer-ec2-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Project = "the-gaffer"
+  }
+}
+
+resource "aws_iam_role_policy" "gaffer_ses" {
+  name = "gaffer-ses-send"
+  role = aws_iam_role.gaffer_ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["ses:SendEmail", "ses:SendRawEmail"]
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_iam_instance_profile" "gaffer_ec2" {
+  name = "gaffer-ec2-profile"
+  role = aws_iam_role.gaffer_ec2.name
+}
+
 # ── Security group ─────────────────────────────────────────────────────────────
 
 resource "aws_security_group" "gaffer" {
@@ -119,6 +157,7 @@ resource "aws_instance" "gaffer" {
   instance_type          = var.ec2_instance_type
   key_name               = var.ec2_key_name
   vpc_security_group_ids = [aws_security_group.gaffer.id]
+  iam_instance_profile   = aws_iam_instance_profile.gaffer_ec2.name
 
   root_block_device {
     volume_size = 20

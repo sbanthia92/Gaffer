@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { askGaffer } from "./api";
+import { askGaffer, submitFeedback } from "./api";
 import {
   appendMessage,
   deleteSession,
@@ -14,6 +14,168 @@ import {
 import type { ChatSession, Message } from "./types";
 import "./App.css";
 
+const FPL_TEAM_ID_KEY = "gaffer_fpl_team_id";
+
+function loadFplTeamId(): number | null {
+  const raw = localStorage.getItem(FPL_TEAM_ID_KEY);
+  const n = raw ? parseInt(raw, 10) : NaN;
+  return isNaN(n) ? null : n;
+}
+
+function saveFplTeamId(id: number): void {
+  localStorage.setItem(FPL_TEAM_ID_KEY, String(id));
+}
+
+// ── Onboarding modal ──────────────────────────────────────────────────────────
+
+function OnboardingModal({ onSave }: { onSave: (id: number) => void }) {
+  const [value, setValue] = useState("");
+  const [err, setErr] = useState("");
+
+  function handleSubmit() {
+    const n = parseInt(value.trim(), 10);
+    if (isNaN(n) || n <= 0) {
+      setErr("Please enter a valid numeric team ID.");
+      return;
+    }
+    saveFplTeamId(n);
+    onSave(n);
+  }
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <h2>Welcome to gaffer.io</h2>
+        <p className="modal-subtitle">
+          Enter your FPL Team ID so The Gaffer can personalise advice for your
+          squad.
+        </p>
+
+        <div className="modal-how">
+          <p className="modal-how-title">How to find your Team ID:</p>
+          <ol>
+            <li>
+              Go to{" "}
+              <a
+                href="https://fantasy.premierleague.com/my-team"
+                target="_blank"
+                rel="noreferrer"
+              >
+                fantasy.premierleague.com/my-team
+              </a>
+            </li>
+            <li>Look at the URL — it will show your team ID after logging in</li>
+            <li>
+              Or go to <strong>Points</strong> tab → the URL is{" "}
+              <code>fantasy.premierleague.com/entry/&#123;YOUR_ID&#125;/event/...</code>
+            </li>
+          </ol>
+        </div>
+
+        <input
+          className="modal-input"
+          type="number"
+          placeholder="e.g. 5402482"
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setErr("");
+          }}
+          onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+          autoFocus
+        />
+        {err && <p className="modal-error">{err}</p>}
+        <button className="modal-btn" onClick={handleSubmit}>
+          Let's go
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Bug report modal ──────────────────────────────────────────────────────────
+
+function FeedbackModal({ onClose }: { onClose: () => void }) {
+  const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function handleSubmit() {
+    if (!message.trim()) {
+      setErr("Please describe the issue.");
+      return;
+    }
+    setSending(true);
+    setErr("");
+    try {
+      await submitFeedback(message.trim(), email.trim());
+      setSent(true);
+    } catch {
+      setErr("Failed to send — please try again.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        {sent ? (
+          <>
+            <h2>Thanks for the feedback!</h2>
+            <p className="modal-subtitle">We'll look into it.</p>
+            <button className="modal-btn" onClick={onClose}>
+              Close
+            </button>
+          </>
+        ) : (
+          <>
+            <h2>Report a bug</h2>
+            <p className="modal-subtitle">
+              Describe what went wrong and we'll fix it.
+            </p>
+            <textarea
+              className="modal-textarea"
+              placeholder="What happened? What did you expect?"
+              value={message}
+              onChange={(e) => {
+                setMessage(e.target.value);
+                setErr("");
+              }}
+              rows={4}
+              autoFocus
+            />
+            <input
+              className="modal-input"
+              type="email"
+              placeholder="Your email (optional)"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            {err && <p className="modal-error">{err}</p>}
+            <div className="modal-actions">
+              <button className="modal-btn-secondary" onClick={onClose}>
+                Cancel
+              </button>
+              <button
+                className="modal-btn"
+                onClick={handleSubmit}
+                disabled={sending}
+              >
+                {sending ? "Sending…" : "Send report"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main app ──────────────────────────────────────────────────────────────────
+
 export default function App() {
   const [sessions, setSessions] = useState<ChatSession[]>(() => loadSessions());
   const [activeId, setActiveId] = useState<string | null>(
@@ -23,6 +185,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [fplTeamId, setFplTeamId] = useState<number | null>(() =>
+    loadFplTeamId()
+  );
+  const [showOnboarding, setShowOnboarding] = useState(() => !loadFplTeamId());
+  const [showFeedback, setShowFeedback] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -36,7 +203,6 @@ export default function App() {
     saveActiveSessionId(activeId);
   }, [activeId]);
 
-  // Auto-resize textarea as content grows
   function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setInput(e.target.value);
     e.target.style.height = "auto";
@@ -101,7 +267,7 @@ export default function App() {
     setLoading(true);
 
     try {
-      const answer = await askGaffer(question, "fpl");
+      const answer = await askGaffer(question, "fpl", fplTeamId);
       const assistantMsg: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -133,6 +299,19 @@ export default function App() {
 
   return (
     <div className="app">
+      {showOnboarding && (
+        <OnboardingModal
+          onSave={(id) => {
+            setFplTeamId(id);
+            setShowOnboarding(false);
+          }}
+        />
+      )}
+
+      {showFeedback && (
+        <FeedbackModal onClose={() => setShowFeedback(false)} />
+      )}
+
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
@@ -167,6 +346,20 @@ export default function App() {
             </div>
           ))}
         </nav>
+        <div className="sidebar-footer">
+          <button
+            className="sidebar-footer-btn"
+            onClick={() => setShowOnboarding(true)}
+          >
+            FPL ID: {fplTeamId ?? "not set"}
+          </button>
+          <button
+            className="sidebar-footer-btn"
+            onClick={() => setShowFeedback(true)}
+          >
+            Report a bug
+          </button>
+        </div>
       </aside>
 
       {/* Main chat area */}
@@ -177,6 +370,7 @@ export default function App() {
           </button>
           <span className="mobile-logo">⚽ gaffer.io</span>
         </div>
+
         {!activeSession || activeSession.messages.length === 0 ? (
           <div className="empty-state">
             <h1>The Gaffer</h1>
