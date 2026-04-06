@@ -103,11 +103,15 @@ async def ask(
         break
 
     # ── Stream the final answer ────────────────────────────────────────────
+    # Pass tools + tool_choice=none so Claude knows tools exist (for context)
+    # but must answer with what it has rather than requesting more calls.
     async def _stream() -> AsyncIterator[str]:
         async with client.messages.stream(
             model=_MODEL,
             max_tokens=_MAX_TOKENS,
             system=system,
+            tools=tool_definitions,
+            tool_choice={"type": "none"},
             messages=messages,
         ) as stream:
             async for chunk in stream.text_stream:
