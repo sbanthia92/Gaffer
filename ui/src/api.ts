@@ -1,9 +1,16 @@
 const BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
+/**
+ * Ask The Gaffer a question. Streams the answer via SSE.
+ *
+ * @param onChunk  Called with each text chunk as it arrives
+ * @returns        The full answer string once streaming is complete
+ */
 export async function askGaffer(
   question: string,
   league: string = "fpl",
-  fplTeamId: number | null = null
+  fplTeamId: number | null = null,
+  onChunk: (chunk: string) => void = () => {}
 ): Promise<string> {
   const res = await fetch(`${BASE_URL}/api/${league}/ask`, {
     method: "POST",
@@ -11,13 +18,44 @@ export async function askGaffer(
     body: JSON.stringify({ question, fpl_team_id: fplTeamId }),
   });
 
-  if (!res.ok) {
+  if (!res.ok || !res.body) {
     const text = await res.text().catch(() => "Unknown error");
     throw new Error(`Server error ${res.status}: ${text}`);
   }
 
-  const data = await res.json();
-  return data.answer as string;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let fullAnswer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE frames are separated by \n\n
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+
+    for (const frame of frames) {
+      const eventLine = frame.match(/^event: (\w+)/m)?.[1];
+      const dataLine = frame.match(/^data: (.+)/m)?.[1];
+      if (!dataLine) continue;
+
+      const data: string = JSON.parse(dataLine);
+
+      if (eventLine === "chunk") {
+        fullAnswer += data;
+        onChunk(data);
+      } else if (eventLine === "error") {
+        throw new Error(data);
+      }
+      // "done" event — nothing to do, loop exits naturally
+    }
+  }
+
+  return fullAnswer;
 }
 
 export async function submitFeedback(

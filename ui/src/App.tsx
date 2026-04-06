@@ -270,21 +270,47 @@ export default function App() {
     setLoading(true);
 
     try {
-      const answer = await askGaffer(question, "fpl", fplTeamId);
+      // Create a placeholder assistant message to stream into
+      const assistantMsgId = crypto.randomUUID();
       const assistantMsg: Message = {
-        id: crypto.randomUUID(),
+        id: assistantMsgId,
         role: "assistant",
-        content: answer,
+        content: "",
         timestamp: Date.now(),
         league: "fpl",
       };
-      const updatedWithAnswer = appendMessage(updatedWithUser, assistantMsg);
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === updatedWithAnswer.id ? updatedWithAnswer : s
-        )
-      );
-      saveSession(updatedWithAnswer);
+      const updatedWithPlaceholder = appendMessage(updatedWithUser, assistantMsg);
+      setSessions((prev) => {
+        const exists = prev.find((s) => s.id === updatedWithPlaceholder.id);
+        return exists
+          ? prev.map((s) =>
+              s.id === updatedWithPlaceholder.id ? updatedWithPlaceholder : s
+            )
+          : [updatedWithPlaceholder, ...prev];
+      });
+
+      let accumulated = "";
+      await askGaffer(question, "fpl", fplTeamId, (chunk) => {
+        accumulated += chunk;
+        setSessions((prev) =>
+          prev.map((s) => {
+            if (s.id !== updatedWithPlaceholder.id) return s;
+            return {
+              ...s,
+              messages: s.messages.map((m) =>
+                m.id === assistantMsgId ? { ...m, content: accumulated } : m
+              ),
+            };
+          })
+        );
+      });
+
+      // Persist the final answer
+      setSessions((prev) => {
+        const session = prev.find((s) => s.id === updatedWithPlaceholder.id);
+        if (session) saveSession(session);
+        return prev;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -424,7 +450,7 @@ export default function App() {
                 )}
               </div>
             ))}
-            {loading && (
+            {loading && activeSession.messages[activeSession.messages.length - 1]?.role !== "assistant" && (
               <div className="message assistant">
                 <div className="assistant-bubble thinking">
                   <span className="dot" />

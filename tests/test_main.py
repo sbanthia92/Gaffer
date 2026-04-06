@@ -8,6 +8,28 @@ from server.main import _fpl_tool_handler, app
 client = TestClient(app)
 
 
+def _mock_stream(text: str):
+    """Return an async generator that yields the given text as a single chunk."""
+
+    async def _gen():
+        yield text
+
+    return _gen()
+
+
+def _parse_sse(content: str) -> str:
+    """Extract concatenated chunk data from an SSE response body."""
+    result = ""
+    for frame in content.split("\n\n"):
+        if "event: chunk" in frame:
+            data_line = next((ln for ln in frame.splitlines() if ln.startswith("data:")), None)
+            if data_line:
+                import json
+
+                result += json.loads(data_line[5:].strip())
+    return result
+
+
 def test_health_returns_ok() -> None:
     response = client.get("/health")
     assert response.status_code == 200
@@ -19,20 +41,19 @@ def test_health_returns_environment() -> None:
     assert "environment" in response.json()
 
 
-def test_fpl_ask_returns_answer() -> None:
+def test_fpl_ask_streams_answer() -> None:
     with (
-        patch("server.main.rag.retrieve", new=AsyncMock(return_value="Salah scored 2 vs City.")),
+        patch("server.main.rag.retrieve", new=AsyncMock(return_value="")),
         patch(
             "server.main.claude_client.ask",
-            new=AsyncMock(return_value="Captain Salah this week."),
+            new=AsyncMock(return_value=_mock_stream("Captain Salah this week.")),
         ),
     ):
         response = client.post("/fpl/ask", json={"question": "Should I captain Salah?"})
 
     assert response.status_code == 200
-    data = response.json()
-    assert data["answer"] == "Captain Salah this week."
-    assert data["league"] == "fpl"
+    assert "text/event-stream" in response.headers["content-type"]
+    assert _parse_sse(response.text) == "Captain Salah this week."
 
 
 def test_fpl_ask_empty_question_returns_422() -> None:
@@ -47,7 +68,7 @@ def test_fpl_ask_missing_question_returns_422() -> None:
 
 def test_fpl_ask_passes_question_to_claude() -> None:
     mock_retrieve = AsyncMock(return_value="")
-    mock_ask = AsyncMock(return_value="Transfer in Haaland.")
+    mock_ask = AsyncMock(return_value=_mock_stream("Transfer in Haaland."))
 
     with (
         patch("server.main.rag.retrieve", new=mock_retrieve),

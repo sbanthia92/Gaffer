@@ -1,6 +1,9 @@
+import json
+
 import boto3
 import httpx
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from server import claude_client, rag
@@ -23,6 +26,11 @@ class FeedbackRequest(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     league: str
+
+
+def _sse(event: str, data: str) -> str:
+    """Format a server-sent event."""
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
 @app.get("/health")
@@ -53,29 +61,46 @@ async def feedback(request: FeedbackRequest) -> dict[str, str]:
     return {"status": "sent"}
 
 
-@app.post("/fpl/ask", response_model=AskResponse)
-async def fpl_ask(request: AskRequest) -> AskResponse:
+@app.post("/fpl/ask")
+async def fpl_ask(request: AskRequest) -> StreamingResponse:
     if not request.question.strip():
         raise HTTPException(status_code=422, detail="Question must not be empty.")
 
-    # Layer 1 — RAG: retrieve historical context from Pinecone
-    context = await rag.retrieve(
-        query=request.question,
-        namespace="fpl",
-        top_k=5,
-        recency_weight=0.3,
-    )
+    async def _generate():
+        try:
+            # Layer 1 — RAG
+            context = await rag.retrieve(
+                query=request.question,
+                namespace="fpl",
+                top_k=5,
+                recency_weight=0.3,
+            )
 
-    # Layer 2 — Claude: answer using live tools + RAG context
-    answer = await claude_client.ask(
-        question=request.question,
-        tool_definitions=fpl.TOOL_DEFINITIONS,
-        tool_handler=lambda name, inp: _fpl_tool_handler(name, inp, request.fpl_team_id),
-        rag_context=context,
-        league="fpl",
-    )
+            # Layer 2 — Claude tool-use loop + streamed answer
+            stream = await claude_client.ask(
+                question=request.question,
+                tool_definitions=fpl.TOOL_DEFINITIONS,
+                tool_handler=lambda name, inp: _fpl_tool_handler(name, inp, request.fpl_team_id),
+                rag_context=context,
+                league="fpl",
+            )
 
-    return AskResponse(answer=answer, league="fpl")
+            async for chunk in stream:
+                yield _sse("chunk", chunk)
+
+            yield _sse("done", "")
+
+        except Exception as e:
+            yield _sse("error", str(e))
+
+    return StreamingResponse(
+        _generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # disable nginx buffering
+        },
+    )
 
 
 async def _fpl_tool_handler(
