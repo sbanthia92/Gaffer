@@ -141,7 +141,7 @@ export default function App() {
       {/* Sidebar */}
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-header">
-          <span className="logo">⚽ The Gaffer</span>
+          <span className="logo">⚽ gaffer.io</span>
           <button className="new-chat-btn" onClick={startNewSession}>
             + New
           </button>
@@ -175,7 +175,7 @@ export default function App() {
           <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
             ☰
           </button>
-          <span className="mobile-logo">⚽ The Gaffer</span>
+          <span className="mobile-logo">⚽ gaffer.io</span>
         </div>
         {!activeSession || activeSession.messages.length === 0 ? (
           <div className="empty-state">
