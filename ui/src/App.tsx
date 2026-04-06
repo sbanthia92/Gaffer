@@ -202,6 +202,7 @@ export default function App() {
   const [showLanding, setShowLanding] = useState(() => loadSessions().length === 0);
   const [showFplModal, setShowFplModal] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [statusText, setStatusText] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -278,6 +279,7 @@ export default function App() {
     if (inputRef.current) inputRef.current.style.height = "auto";
     setError(null);
     setLoading(true);
+    setStatusText(null);
 
     try {
       // Create a placeholder assistant message to stream into
@@ -300,20 +302,29 @@ export default function App() {
       });
 
       let accumulated = "";
-      await askGaffer(question, "fpl", fplTeamId, (chunk) => {
-        accumulated += chunk;
-        setSessions((prev) =>
-          prev.map((s) => {
-            if (s.id !== updatedWithPlaceholder.id) return s;
-            return {
-              ...s,
-              messages: s.messages.map((m) =>
-                m.id === assistantMsgId ? { ...m, content: accumulated } : m
-              ),
-            };
-          })
-        );
-      });
+      await askGaffer(
+        question,
+        "fpl",
+        fplTeamId,
+        (chunk) => {
+          accumulated += chunk;
+          setStatusText(null);
+          setSessions((prev) =>
+            prev.map((s) => {
+              if (s.id !== updatedWithPlaceholder.id) return s;
+              return {
+                ...s,
+                messages: s.messages.map((m) =>
+                  m.id === assistantMsgId ? { ...m, content: accumulated } : m
+                ),
+              };
+            })
+          );
+        },
+        (status) => {
+          setStatusText(status);
+        }
+      );
 
       // Persist the final answer
       setSessions((prev) => {
@@ -325,6 +336,7 @@ export default function App() {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setLoading(false);
+      setStatusText(null);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }
@@ -461,9 +473,15 @@ export default function App() {
             {loading && activeSession.messages[activeSession.messages.length - 1]?.role !== "assistant" && (
               <div className="message assistant">
                 <div className="assistant-bubble thinking">
-                  <span className="dot" />
-                  <span className="dot" />
-                  <span className="dot" />
+                  {statusText ? (
+                    <span className="status-text">{statusText}</span>
+                  ) : (
+                    <>
+                      <span className="dot" />
+                      <span className="dot" />
+                      <span className="dot" />
+                    </>
+                  )}
                 </div>
               </div>
             )}

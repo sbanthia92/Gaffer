@@ -293,6 +293,17 @@
   40%            { transform: translateY(-6px); opacity: 1; }
 }
 
+.status-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  animation: fade-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes fade-pulse {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1; }
+}
+
 /* ── Error banner ────────────────────────────────────────────────────────── */
 
 .error-banner {

@@ -10,7 +10,8 @@ export async function askGaffer(
   question: string,
   league: string = "fpl",
   fplTeamId: number | null = null,
-  onChunk: (chunk: string) => void = () => {}
+  onChunk: (chunk: string) => void = () => {},
+  onStatus: (status: string) => void = () => {}
 ): Promise<string> {
   const res = await fetch(`${BASE_URL}/api/${league}/ask`, {
     method: "POST",
@@ -48,6 +49,8 @@ export async function askGaffer(
       if (eventLine === "chunk") {
         fullAnswer += data;
         onChunk(data);
+      } else if (eventLine === "status") {
+        onStatus(data);
       } else if (eventLine === "error") {
         throw new Error(data);
       }

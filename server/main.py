@@ -85,10 +85,8 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                 league="fpl",
             )
 
-            async for chunk in stream:
-                yield _sse("chunk", chunk)
-
-            yield _sse("done", "")
+            async for event_type, data in stream:
+                yield _sse(event_type, data)
 
         except Exception as e:
             yield _sse("error", str(e))
