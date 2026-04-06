@@ -22,6 +22,7 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -35,9 +36,17 @@ export default function App() {
     saveActiveSessionId(activeId);
   }, [activeId]);
 
+  // Auto-resize textarea as content grows
+  function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setInput(e.target.value);
+    e.target.style.height = "auto";
+    e.target.style.height = `${e.target.scrollHeight}px`;
+  }
+
   function selectSession(id: string) {
     setActiveId(id);
     setError(null);
+    setSidebarOpen(false);
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
@@ -87,6 +96,7 @@ export default function App() {
     saveSession(updatedWithUser);
     setActiveId(updatedWithUser.id);
     setInput("");
+    if (inputRef.current) inputRef.current.style.height = "auto";
     setError(null);
     setLoading(true);
 
@@ -123,8 +133,13 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* Sidebar */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-header">
           <span className="logo">⚽ The Gaffer</span>
           <button className="new-chat-btn" onClick={startNewSession}>
@@ -156,6 +171,12 @@ export default function App() {
 
       {/* Main chat area */}
       <main className="chat-area">
+        <div className="mobile-header">
+          <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
+            ☰
+          </button>
+          <span className="mobile-logo">⚽ The Gaffer</span>
+        </div>
         {!activeSession || activeSession.messages.length === 0 ? (
           <div className="empty-state">
             <h1>The Gaffer</h1>
@@ -220,7 +241,7 @@ export default function App() {
             className="chat-input"
             placeholder="Ask The Gaffer…"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             rows={1}
             disabled={loading}
