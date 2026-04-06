@@ -73,16 +73,16 @@ resource "aws_iam_role" "gaffer_ec2" {
   }
 }
 
-resource "aws_iam_role_policy" "gaffer_ses" {
-  name = "gaffer-ses-send"
+resource "aws_iam_role_policy" "gaffer_secrets" {
+  name = "gaffer-secrets-read"
   role = aws_iam_role.gaffer_ec2.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = ["ses:SendEmail", "ses:SendRawEmail"]
-      Resource = "*"
+      Action   = ["secretsmanager:GetSecretValue"]
+      Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:gaffer/production*"
     }]
   })
 }
@@ -160,7 +160,7 @@ resource "aws_instance" "gaffer" {
   iam_instance_profile   = aws_iam_instance_profile.gaffer_ec2.name
 
   root_block_device {
-    volume_size = 20
+    volume_size = 30
     volume_type = "gp3"
   }
 
