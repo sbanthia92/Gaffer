@@ -10,20 +10,14 @@ variable "environment" {
   default     = "production"
 }
 
-variable "eks_cluster_name" {
-  description = "Name of the EKS cluster"
+variable "ec2_instance_type" {
+  description = "EC2 instance type for the Gaffer server"
   type        = string
-  default     = "gaffer"
+  default     = "t3.small"
 }
 
-variable "eks_node_instance_type" {
-  description = "EC2 instance type for EKS worker nodes"
+variable "ec2_key_name" {
+  description = "Name of the EC2 key pair for SSH access (must exist in AWS)"
   type        = string
-  default     = "t3.medium"
-}
-
-variable "eks_desired_nodes" {
-  description = "Desired number of EKS worker nodes"
-  type        = number
-  default     = 2
+  default     = "gaffer-ec2"
 }

@@ -8,7 +8,7 @@ terraform {
     }
   }
 
-  # Uncomment and configure once the S3 state bucket exists:
+  # Uncomment once the S3 state bucket exists:
   # backend "s3" {
   #   bucket = "gaffer-terraform-state"
   #   key    = "gaffer/terraform.tfstate"
@@ -21,6 +21,7 @@ provider "aws" {
 }
 
 # ── ECR ────────────────────────────────────────────────────────────────────────
+# Kept for future use (Stage 3/4 ECS/EKS migration).
 
 resource "aws_ecr_repository" "gaffer_api" {
   name                 = "gaffer-api"
@@ -53,27 +54,93 @@ resource "aws_ecr_lifecycle_policy" "gaffer_api" {
   })
 }
 
-# ── EKS ────────────────────────────────────────────────────────────────────────
-# Placeholder — uncomment and configure the EKS module to provision the cluster.
-#
-# module "eks" {
-#   source          = "terraform-aws-modules/eks/aws"
-#   version         = "~> 20.0"
-#
-#   cluster_name    = var.eks_cluster_name
-#   cluster_version = "1.30"
-#
-#   eks_managed_node_groups = {
-#     default = {
-#       instance_types = [var.eks_node_instance_type]
-#       desired_size   = var.eks_desired_nodes
-#       min_size       = 1
-#       max_size       = 5
-#     }
-#   }
-#
-#   tags = {
-#     Environment = var.environment
-#     Project     = "the-gaffer"
-#   }
-# }
+# ── Security group ─────────────────────────────────────────────────────────────
+
+resource "aws_security_group" "gaffer" {
+  name        = "gaffer-ec2"
+  description = "Allow SSH, HTTP, and HTTPS inbound; all outbound"
+
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Environment = var.environment
+    Project     = "the-gaffer"
+  }
+}
+
+# ── EC2 instance ───────────────────────────────────────────────────────────────
+
+data "aws_ami" "amazon_linux_2023" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-x86_64"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
+resource "aws_instance" "gaffer" {
+  ami                    = data.aws_ami.amazon_linux_2023.id
+  instance_type          = var.ec2_instance_type
+  key_name               = var.ec2_key_name
+  vpc_security_group_ids = [aws_security_group.gaffer.id]
+
+  root_block_device {
+    volume_size = 20
+    volume_type = "gp3"
+  }
+
+  tags = {
+    Name        = "gaffer"
+    Environment = var.environment
+    Project     = "the-gaffer"
+  }
+}
+
+# ── Elastic IP ─────────────────────────────────────────────────────────────────
+
+resource "aws_eip" "gaffer" {
+  instance = aws_instance.gaffer.id
+  domain   = "vpc"
+
+  tags = {
+    Name        = "gaffer"
+    Environment = var.environment
+    Project     = "the-gaffer"
+  }
+}
