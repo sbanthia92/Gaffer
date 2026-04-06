@@ -1,3 +1,4 @@
+import boto3
 import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -11,6 +12,12 @@ app = FastAPI(title="The Gaffer", version="0.1.0")
 
 class AskRequest(BaseModel):
     question: str
+    fpl_team_id: int | None = None
+
+
+class FeedbackRequest(BaseModel):
+    message: str
+    email: str = ""
 
 
 class AskResponse(BaseModel):
@@ -21,6 +28,29 @@ class AskResponse(BaseModel):
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.environment}
+
+
+@app.post("/feedback")
+async def feedback(request: FeedbackRequest) -> dict[str, str]:
+    if not request.message.strip():
+        raise HTTPException(status_code=422, detail="Message must not be empty.")
+    if not settings.feedback_email:
+        raise HTTPException(status_code=503, detail="Feedback email not configured.")
+
+    body = f"Message:\n{request.message}"
+    if request.email:
+        body += f"\n\nFrom: {request.email}"
+
+    ses = boto3.client("ses", region_name="us-east-1")
+    ses.send_email(
+        Source=settings.feedback_email,
+        Destination={"ToAddresses": [settings.feedback_email]},
+        Message={
+            "Subject": {"Data": "[gaffer.io] Bug report"},
+            "Body": {"Text": {"Data": body}},
+        },
+    )
+    return {"status": "sent"}
 
 
 @app.post("/fpl/ask", response_model=AskResponse)
@@ -40,7 +70,7 @@ async def fpl_ask(request: AskRequest) -> AskResponse:
     answer = await claude_client.ask(
         question=request.question,
         tool_definitions=fpl.TOOL_DEFINITIONS,
-        tool_handler=_fpl_tool_handler,
+        tool_handler=lambda name, inp: _fpl_tool_handler(name, inp, request.fpl_team_id),
         rag_context=context,
         league="fpl",
     )
@@ -48,9 +78,11 @@ async def fpl_ask(request: AskRequest) -> AskResponse:
     return AskResponse(answer=answer, league="fpl")
 
 
-async def _fpl_tool_handler(tool_name: str, tool_input: dict) -> dict:
+async def _fpl_tool_handler(
+    tool_name: str, tool_input: dict, fpl_team_id: int | None = None
+) -> dict:
     handlers = {
-        "get_my_fpl_team": lambda i: fpl.get_my_fpl_team(),
+        "get_my_fpl_team": lambda i: fpl.get_my_fpl_team(team_id_override=fpl_team_id),
         "search_player": lambda i: fpl.search_player(name=i["name"]),
         "search_team": lambda i: fpl.search_team(name=i["name"]),
         "get_fixtures": lambda i: fpl.get_fixtures(next_n=i.get("next_n", 10)),
