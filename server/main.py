@@ -1,7 +1,7 @@
 import json
 
-import boto3
 import httpx
+import resend
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -42,22 +42,20 @@ async def health() -> dict[str, str]:
 async def feedback(request: FeedbackRequest) -> dict[str, str]:
     if not request.message.strip():
         raise HTTPException(status_code=422, detail="Message must not be empty.")
-    if not settings.feedback_email:
-        raise HTTPException(status_code=503, detail="Feedback email not configured.")
+    if not settings.resend_api_key or not settings.feedback_email:
+        raise HTTPException(status_code=503, detail="Feedback not configured.")
 
     body = f"Message:\n{request.message}"
     if request.email:
         body += f"\n\nFrom: {request.email}"
 
-    ses = boto3.client("ses", region_name="us-east-1")
-    ses.send_email(
-        Source=settings.feedback_email,
-        Destination={"ToAddresses": [settings.feedback_email]},
-        Message={
-            "Subject": {"Data": "[gaffer.io] Bug report"},
-            "Body": {"Text": {"Data": body}},
-        },
-    )
+    resend.api_key = settings.resend_api_key
+    resend.Emails.send({
+        "from": "onboarding@resend.dev",
+        "to": settings.feedback_email,
+        "subject": "[gaffer.io] Bug report",
+        "text": body,
+    })
     return {"status": "sent"}
 
 
