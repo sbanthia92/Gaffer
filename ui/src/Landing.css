@@ -1,0 +1,221 @@
+.landing {
+  width: 100%;
+  min-height: 100svh;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+
+.landing-header {
+  width: 100%;
+  max-width: 900px;
+  padding: 24px 32px;
+  display: flex;
+  align-items: center;
+}
+
+.landing-logo {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-heading);
+  letter-spacing: -0.3px;
+}
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+
+.landing-hero {
+  text-align: center;
+  padding: 60px 24px 80px;
+  max-width: 680px;
+}
+
+.landing-title {
+  font-size: clamp(36px, 6vw, 64px);
+  font-weight: 800;
+  color: var(--text-heading);
+  line-height: 1.1;
+  letter-spacing: -2px;
+  margin: 0 0 20px;
+}
+
+.landing-sub {
+  font-size: 18px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0 0 36px;
+}
+
+.landing-cta {
+  background: var(--accent);
+  color: #0f1117;
+  border: none;
+  border-radius: 12px;
+  padding: 14px 32px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.12s;
+  letter-spacing: -0.2px;
+}
+.landing-cta:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+.landing-cta-sm {
+  padding: 11px 24px;
+  font-size: 14px;
+}
+
+/* ── Features ────────────────────────────────────────────────────────────── */
+
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  width: 100%;
+  max-width: 900px;
+  padding: 0 24px 80px;
+}
+
+.feature-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feature-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.feature-card h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin: 0;
+}
+
+.feature-card p {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── Examples ────────────────────────────────────────────────────────────── */
+
+.landing-examples {
+  width: 100%;
+  max-width: 900px;
+  padding: 0 24px 80px;
+}
+
+.landing-examples h2,
+.landing-how h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-heading);
+  letter-spacing: -0.5px;
+  margin: 0 0 24px;
+}
+
+.example-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.example-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-size: 14px;
+  color: var(--text);
+  display: flex;
+  gap: 8px;
+}
+
+.example-quote {
+  color: var(--accent);
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* ── How it works ────────────────────────────────────────────────────────── */
+
+.landing-how {
+  width: 100%;
+  max-width: 900px;
+  padding: 0 24px 80px;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.step-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.step strong {
+  font-size: 15px;
+  color: var(--text-heading);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.step p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+
+.landing-footer {
+  width: 100%;
+  max-width: 900px;
+  padding: 40px 24px 60px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.landing-footer p {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0;
+}

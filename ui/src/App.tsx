@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { askGaffer, submitFeedback } from "./api";
+import Landing from "./Landing";
 import {
   appendMessage,
   deleteSession,
@@ -188,6 +189,7 @@ export default function App() {
   const [fplTeamId, setFplTeamId] = useState<number | null>(() =>
     loadFplTeamId()
   );
+  const [showLanding, setShowLanding] = useState(() => loadSessions().length === 0);
   const [showOnboarding, setShowOnboarding] = useState(() => !loadFplTeamId());
   const [showFeedback, setShowFeedback] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -221,6 +223,7 @@ export default function App() {
     setSessions((prev) => [session, ...prev]);
     saveSession(session);
     setActiveId(session.id);
+    setShowLanding(false);
     setError(null);
     setTimeout(() => inputRef.current?.focus(), 50);
   }
@@ -297,17 +300,24 @@ export default function App() {
     }
   }
 
+  if (showLanding) {
+    return (
+      <>
+        {showOnboarding && (
+          <OnboardingModal
+            onSave={(id) => {
+              setFplTeamId(id);
+              setShowOnboarding(false);
+            }}
+          />
+        )}
+        <Landing onStart={() => setShowLanding(false)} />
+      </>
+    );
+  }
+
   return (
     <div className="app">
-      {showOnboarding && (
-        <OnboardingModal
-          onSave={(id) => {
-            setFplTeamId(id);
-            setShowOnboarding(false);
-          }}
-        />
-      )}
-
       {showFeedback && (
         <FeedbackModal onClose={() => setShowFeedback(false)} />
       )}
