@@ -456,35 +456,38 @@ export default function App() {
           </div>
         ) : (
           <div className="messages">
-            {activeSession.messages.map((msg) => (
-              <div key={msg.id} className={`message ${msg.role}`}>
-                {msg.role === "assistant" ? (
-                  <div className="assistant-bubble">
-                    <div className="bubble-label">The Gaffer · FPL</div>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {msg.content}
-                    </ReactMarkdown>
-                  </div>
-                ) : (
-                  <div className="user-bubble">{msg.content}</div>
-                )}
-              </div>
-            ))}
-            {loading && activeSession.messages[activeSession.messages.length - 1]?.role !== "assistant" && (
-              <div className="message assistant">
-                <div className="assistant-bubble thinking">
-                  {statusText ? (
-                    <span className="status-text">{statusText}</span>
+            {activeSession.messages.map((msg) => {
+              const isLoadingPlaceholder =
+                loading && msg.role === "assistant" && msg.content === "";
+              return (
+                <div key={msg.id} className={`message ${msg.role}`}>
+                  {msg.role === "assistant" ? (
+                    <div className={`assistant-bubble${isLoadingPlaceholder ? " thinking" : ""}`}>
+                      {isLoadingPlaceholder ? (
+                        statusText ? (
+                          <span className="status-text">{statusText}</span>
+                        ) : (
+                          <>
+                            <span className="dot" />
+                            <span className="dot" />
+                            <span className="dot" />
+                          </>
+                        )
+                      ) : (
+                        <>
+                          <div className="bubble-label">The Gaffer · FPL</div>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {msg.content}
+                          </ReactMarkdown>
+                        </>
+                      )}
+                    </div>
                   ) : (
-                    <>
-                      <span className="dot" />
-                      <span className="dot" />
-                      <span className="dot" />
-                    </>
+                    <div className="user-bubble">{msg.content}</div>
                   )}
                 </div>
-              </div>
-            )}
+              );
+            })}
             {error && <div className="error-banner">⚠ {error}</div>}
             <div ref={bottomRef} />
           </div>
