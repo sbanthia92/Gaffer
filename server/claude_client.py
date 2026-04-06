@@ -3,9 +3,9 @@ Claude client — sport-agnostic Anthropic SDK wrapper.
 
 Handles the full tool-use loop:
   1. Send question + RAG context + tool definitions to Claude
-  2. Execute any tool calls Claude requests
+  2. Execute any tool calls Claude requests (concurrently within each round)
   3. Send results back to Claude
-  4. Return the final answer
+  4. Stream the final text answer token by token
 
 The caller is responsible for providing the right tools and RAG context
 for the sport/league in question. Nothing in here is FPL-specific.
@@ -13,7 +13,7 @@ for the sport/league in question. Nothing in here is FPL-specific.
 
 import asyncio
 import json
-from collections.abc import Callable, Coroutine
+from collections.abc import AsyncIterator, Callable, Coroutine
 from typing import Any
 
 import anthropic
@@ -45,31 +45,45 @@ def _build_system_prompt(rag_context: str, league: str) -> str:
     )
 
 
+async def _run_tool_round(
+    response: anthropic.types.Message,
+    tool_handler: ToolHandler,
+) -> list[dict]:
+    """Execute all tool calls in a response concurrently and return tool_result blocks."""
+    tool_blocks = [b for b in response.content if b.type == "tool_use"]
+
+    async def _call(block):
+        result = await tool_handler(block.name, block.input)
+        return {
+            "type": "tool_result",
+            "tool_use_id": block.id,
+            "content": json.dumps(result),
+        }
+
+    return list(await asyncio.gather(*(_call(b) for b in tool_blocks)))
+
+
 async def ask(
     question: str,
     tool_definitions: list[dict],
     tool_handler: ToolHandler,
     rag_context: str = "",
     league: str = "fpl",
-) -> str:
+) -> AsyncIterator[str]:
     """
-    Send a question to Claude with tools and RAG context, run the tool-use
-    loop until Claude produces a final answer, and return it.
+    Send a question to Claude with tools and RAG context. Runs the tool-use
+    loop until Claude is ready to answer, then streams the final answer
+    token by token.
 
-    Args:
-        question: The natural language question from the user.
-        tool_definitions: List of tool schemas in Anthropic format.
-        tool_handler: Async function that executes a tool by name and input.
-        rag_context: Pre-retrieved historical context from Pinecone.
-        league: The league/sport namespace — used for the system prompt.
-
-    Returns:
-        Claude's final text answer.
+    Yields:
+        Text chunks as Claude generates the final answer.
     """
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     messages: list[dict] = [{"role": "user", "content": question}]
     system = _build_system_prompt(rag_context, league)
 
+    # ── Tool-use loop (non-streaming) ──────────────────────────────────────
+    # Run until Claude stops requesting tools, then stream the final answer.
     while True:
         response = await client.messages.create(
             model=_MODEL,
@@ -79,34 +93,27 @@ async def ask(
             messages=messages,
         )
 
-        # Claude is done — return the text answer
-        if response.stop_reason == "end_turn":
-            return _extract_text(response)
-
-        # Claude wants to call tools
         if response.stop_reason == "tool_use":
-            # Append Claude's response (with tool_use blocks) to the conversation
             messages.append({"role": "assistant", "content": response.content})
-
-            # Execute all tool calls in this round concurrently
-            tool_blocks = [b for b in response.content if b.type == "tool_use"]
-
-            async def _call(block):
-                result = await tool_handler(block.name, block.input)
-                return {
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": json.dumps(result),
-                }
-
-            tool_results = await asyncio.gather(*(_call(b) for b in tool_blocks))
-
-            # Send tool results back to Claude
+            tool_results = await _run_tool_round(response, tool_handler)
             messages.append({"role": "user", "content": tool_results})
             continue
 
-        # Unexpected stop reason — return whatever text we have
-        return _extract_text(response)
+        # Claude is done with tools — stream the final answer
+        break
+
+    # ── Stream the final answer ────────────────────────────────────────────
+    async def _stream() -> AsyncIterator[str]:
+        async with client.messages.stream(
+            model=_MODEL,
+            max_tokens=_MAX_TOKENS,
+            system=system,
+            messages=messages,
+        ) as stream:
+            async for chunk in stream.text_stream:
+                yield chunk
+
+    return _stream()
 
 
 def _extract_text(response: anthropic.types.Message) -> str:
