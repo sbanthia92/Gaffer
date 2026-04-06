@@ -29,7 +29,13 @@ function saveFplTeamId(id: number): void {
 
 // ── Onboarding modal ──────────────────────────────────────────────────────────
 
-function OnboardingModal({ onSave }: { onSave: (id: number) => void }) {
+function FplTeamModal({
+  onSave,
+  onClose,
+}: {
+  onSave: (id: number) => void;
+  onClose: () => void;
+}) {
   const [value, setValue] = useState("");
   const [err, setErr] = useState("");
 
@@ -44,12 +50,12 @@ function OnboardingModal({ onSave }: { onSave: (id: number) => void }) {
   }
 
   return (
-    <div className="modal-overlay">
-      <div className="modal">
-        <h2>Welcome to gaffer.io</h2>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h2>Your FPL Team ID</h2>
         <p className="modal-subtitle">
-          Enter your FPL Team ID so The Gaffer can personalise advice for your
-          squad.
+          Optional — add your Team ID for personalised squad advice. You can
+          skip this and ask about any player or captaincy pick without it.
         </p>
 
         <div className="modal-how">
@@ -65,10 +71,9 @@ function OnboardingModal({ onSave }: { onSave: (id: number) => void }) {
                 fantasy.premierleague.com/my-team
               </a>
             </li>
-            <li>Look at the URL — it will show your team ID after logging in</li>
             <li>
-              Or go to <strong>Points</strong> tab → the URL is{" "}
-              <code>fantasy.premierleague.com/entry/&#123;YOUR_ID&#125;/event/...</code>
+              Click the <strong>Points</strong> tab — your ID is in the URL:{" "}
+              <code>entry/&#123;YOUR_ID&#125;/event/...</code>
             </li>
           </ol>
         </div>
@@ -86,9 +91,14 @@ function OnboardingModal({ onSave }: { onSave: (id: number) => void }) {
           autoFocus
         />
         {err && <p className="modal-error">{err}</p>}
-        <button className="modal-btn" onClick={handleSubmit}>
-          Let's go
-        </button>
+        <div className="modal-actions">
+          <button className="modal-btn-secondary" onClick={onClose}>
+            Skip for now
+          </button>
+          <button className="modal-btn" onClick={handleSubmit}>
+            Save
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -190,7 +200,7 @@ export default function App() {
     loadFplTeamId()
   );
   const [showLanding, setShowLanding] = useState(() => loadSessions().length === 0);
-  const [showOnboarding, setShowOnboarding] = useState(() => !loadFplTeamId());
+  const [showFplModal, setShowFplModal] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -327,23 +337,21 @@ export default function App() {
   }
 
   if (showLanding) {
-    return (
-      <>
-        {showOnboarding && (
-          <OnboardingModal
-            onSave={(id) => {
-              setFplTeamId(id);
-              setShowOnboarding(false);
-            }}
-          />
-        )}
-        <Landing onStart={() => setShowLanding(false)} />
-      </>
-    );
+    return <Landing onStart={() => setShowLanding(false)} />;
   }
 
   return (
     <div className="app">
+      {showFplModal && (
+        <FplTeamModal
+          onSave={(id) => {
+            setFplTeamId(id);
+            setShowFplModal(false);
+          }}
+          onClose={() => setShowFplModal(false)}
+        />
+      )}
+
       {showFeedback && (
         <FeedbackModal onClose={() => setShowFeedback(false)} />
       )}
@@ -385,7 +393,7 @@ export default function App() {
         <div className="sidebar-footer">
           <button
             className="sidebar-footer-btn"
-            onClick={() => setShowOnboarding(true)}
+            onClick={() => setShowFplModal(true)}
           >
             FPL ID: {fplTeamId ?? "not set"}
           </button>
