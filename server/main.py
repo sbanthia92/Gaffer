@@ -50,12 +50,14 @@ async def feedback(request: FeedbackRequest) -> dict[str, str]:
         body += f"\n\nFrom: {request.email}"
 
     resend.api_key = settings.resend_api_key
-    resend.Emails.send({
-        "from": "onboarding@resend.dev",
-        "to": settings.feedback_email,
-        "subject": "[gaffer.io] Bug report",
-        "text": body,
-    })
+    resend.Emails.send(
+        {
+            "from": "onboarding@resend.dev",
+            "to": settings.feedback_email,
+            "subject": "[gaffer.io] Bug report",
+            "text": body,
+        }
+    )
     return {"status": "sent"}
 
 
