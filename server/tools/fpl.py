@@ -209,11 +209,7 @@ async def search_team(name: str) -> dict:
     async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
         response = await client.get(
             "/teams",
-            params={
-                "search": name,
-                "league": _PREMIER_LEAGUE_ID,
-                "season": _CURRENT_SEASON,
-            },
+            params={"search": name},
         )
         response.raise_for_status()
         data = response.json()

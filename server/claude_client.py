@@ -11,6 +11,7 @@ The caller is responsible for providing the right tools and RAG context
 for the sport/league in question. Nothing in here is FPL-specific.
 """
 
+import asyncio
 import json
 from collections.abc import Callable, Coroutine
 from typing import Any
@@ -87,18 +88,18 @@ async def ask(
             # Append Claude's response (with tool_use blocks) to the conversation
             messages.append({"role": "assistant", "content": response.content})
 
-            # Execute each tool call and collect results
-            tool_results = []
-            for block in response.content:
-                if block.type == "tool_use":
-                    result = await tool_handler(block.name, block.input)
-                    tool_results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": json.dumps(result),
-                        }
-                    )
+            # Execute all tool calls in this round concurrently
+            tool_blocks = [b for b in response.content if b.type == "tool_use"]
+
+            async def _call(block):
+                result = await tool_handler(block.name, block.input)
+                return {
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": json.dumps(result),
+                }
+
+            tool_results = await asyncio.gather(*(_call(b) for b in tool_blocks))
 
             # Send tool results back to Claude
             messages.append({"role": "user", "content": tool_results})
