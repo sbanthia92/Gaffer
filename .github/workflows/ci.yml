@@ -63,28 +63,3 @@ jobs:
       - name: Build UI
         run: npm run build
         working-directory: ui
-
-  docker-build:
-    name: Docker Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build API image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile.api
-          push: false
-          tags: gaffer-api:ci
-
-      - name: Build pipeline image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile.pipeline
-          push: false
-          tags: gaffer-pipeline:ci

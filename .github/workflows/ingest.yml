@@ -1,0 +1,30 @@
+name: RAG Ingest
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # daily at midnight UTC
+  workflow_dispatch: # allow manual trigger from GitHub UI
+
+jobs:
+  ingest:
+    name: Ingest FPL data to Pinecone
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt -e .
+
+      - name: Run FPL ingestion pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+          API_SPORTS_KEY: ${{ secrets.API_SPORTS_KEY }}
+        run: python -m pipeline.ingest_fpl
