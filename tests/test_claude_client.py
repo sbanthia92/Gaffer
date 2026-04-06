@@ -44,10 +44,11 @@ def _make_stream_context(chunks: list[str]):
 
 
 async def _collect(async_iter) -> str:
-    """Drain an async iterator and return the concatenated string."""
+    """Drain an async iterator of (event_type, data) tuples and return concatenated chunks."""
     result = ""
-    async for chunk in async_iter:
-        result += chunk
+    async for event_type, data in async_iter:
+        if event_type == "chunk":
+            result += data
     return result
 
 

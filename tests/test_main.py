@@ -9,10 +9,11 @@ client = TestClient(app)
 
 
 def _mock_stream(text: str):
-    """Return an async generator that yields the given text as a single chunk."""
+    """Return an async generator that yields the given text as a single chunk tuple."""
 
     async def _gen():
-        yield text
+        yield "chunk", text
+        yield "done", ""
 
     return _gen()
 

@@ -7,6 +7,11 @@ Handles the full tool-use loop:
   3. Send results back to Claude
   4. Stream the final text answer token by token
 
+Yields (event_type, data) tuples:
+  - ("status", label_str)  — during tool-use rounds, before each round executes
+  - ("chunk",  text_str)   — during final streaming answer
+  - ("done",   "")         — when complete
+
 The caller is responsible for providing the right tools and RAG context
 for the sport/league in question. Nothing in here is FPL-specific.
 """
@@ -25,6 +30,32 @@ _MAX_TOKENS = 4096
 
 # Type alias for an async tool handler function
 ToolHandler = Callable[[str, dict], Coroutine[Any, Any, dict]]
+
+_TOOL_LABELS: dict[str, str] = {
+    "get_my_fpl_team": "Fetching your FPL squad…",
+    "search_player": "Looking up player stats…",
+    "search_team": "Looking up team data…",
+    "get_fixtures": "Checking upcoming fixtures…",
+    "get_standings": "Fetching league standings…",
+    "get_player_stats": "Fetching player stats…",
+    "get_player_recent_form": "Analysing recent form…",
+    "get_team_recent_fixtures": "Reviewing recent fixtures…",
+    "get_head_to_head": "Checking head-to-head record…",
+    "get_team_all_fixtures": "Loading fixture list…",
+    "get_player_vs_opponent": "Analysing player vs opponent…",
+    "get_odds": "Fetching match odds…",
+}
+
+
+def _tool_status(tool_blocks: list) -> str:
+    """Return a human-readable status label for a batch of tool calls."""
+    if len(tool_blocks) == 1:
+        return _TOOL_LABELS.get(tool_blocks[0].name, "Gathering data…")
+    labels = [_TOOL_LABELS.get(b.name, b.name) for b in tool_blocks]
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    unique = [l for l in labels if not (l in seen or seen.add(l))]  # noqa: E741
+    return " · ".join(unique)
 
 
 def _build_system_prompt(rag_context: str, league: str) -> str:
@@ -69,43 +100,43 @@ async def ask(
     tool_handler: ToolHandler,
     rag_context: str = "",
     league: str = "fpl",
-) -> AsyncIterator[str]:
+) -> AsyncIterator[tuple[str, str]]:
     """
     Send a question to Claude with tools and RAG context. Runs the tool-use
     loop until Claude is ready to answer, then streams the final answer
     token by token.
 
     Yields:
-        Text chunks as Claude generates the final answer.
+        ("status", label)  before each tool-use round
+        ("chunk",  text)   for each streamed token in the final answer
+        ("done",   "")     when complete
     """
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     messages: list[dict] = [{"role": "user", "content": question}]
     system = _build_system_prompt(rag_context, league)
 
-    # ── Tool-use loop (non-streaming) ──────────────────────────────────────
-    # Run until Claude stops requesting tools, then stream the final answer.
-    while True:
-        response = await client.messages.create(
-            model=_MODEL,
-            max_tokens=_MAX_TOKENS,
-            system=system,
-            tools=tool_definitions,
-            messages=messages,
-        )
+    async def _generate() -> AsyncIterator[tuple[str, str]]:
+        # ── Tool-use loop (non-streaming) ──────────────────────────────────
+        while True:
+            response = await client.messages.create(
+                model=_MODEL,
+                max_tokens=_MAX_TOKENS,
+                system=system,
+                tools=tool_definitions,
+                messages=messages,
+            )
 
-        if response.stop_reason == "tool_use":
+            if response.stop_reason != "tool_use":
+                break
+
+            tool_blocks = [b for b in response.content if b.type == "tool_use"]
+            yield "status", _tool_status(tool_blocks)
+
             messages.append({"role": "assistant", "content": response.content})
             tool_results = await _run_tool_round(response, tool_handler)
             messages.append({"role": "user", "content": tool_results})
-            continue
 
-        # Claude is done with tools — stream the final answer
-        break
-
-    # ── Stream the final answer ────────────────────────────────────────────
-    # Pass tools + tool_choice=none so Claude knows tools exist (for context)
-    # but must answer with what it has rather than requesting more calls.
-    async def _stream() -> AsyncIterator[str]:
+        # ── Stream the final answer ────────────────────────────────────────
         async with client.messages.stream(
             model=_MODEL,
             max_tokens=_MAX_TOKENS,
@@ -115,9 +146,11 @@ async def ask(
             messages=messages,
         ) as stream:
             async for chunk in stream.text_stream:
-                yield chunk
+                yield "chunk", chunk
 
-    return _stream()
+        yield "done", ""
+
+    return _generate()
 
 
 def _extract_text(response: anthropic.types.Message) -> str:
