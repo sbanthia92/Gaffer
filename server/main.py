@@ -78,7 +78,9 @@ async def fpl_ask(request: AskRequest) -> AskResponse:
     return AskResponse(answer=answer, league="fpl")
 
 
-async def _fpl_tool_handler(tool_name: str, tool_input: dict, fpl_team_id: int | None = None) -> dict:
+async def _fpl_tool_handler(
+    tool_name: str, tool_input: dict, fpl_team_id: int | None = None
+) -> dict:
     handlers = {
         "get_my_fpl_team": lambda i: fpl.get_my_fpl_team(team_id_override=fpl_team_id),
         "search_player": lambda i: fpl.search_player(name=i["name"]),
