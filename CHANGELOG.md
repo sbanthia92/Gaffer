@@ -1,18 +1,50 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to The Gaffer are documented here.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
+## [0.4.0] — 2026-04-07
 
 ### Added
-- Project skeleton with full CI/CD infrastructure
-- FastAPI app with `/health` endpoint
-- Multi-stage Dockerfiles for API and pipeline services
-- Docker Compose for local development
-- Kubernetes manifests (deployment, service, ingress, configmap)
-- Terraform scaffold for ECR and EKS
-- GitHub Actions CI (lint, test, docker build)
-- GitHub Actions CD (build → ECR → rolling EKS deploy on merge to main)
+- CloudWatch observability: structured JSON logs shipped to `/gaffer/production/api` log group
+- HTTP request middleware logging method, path, status, and latency
+- `ask.start`, `ask.complete`, `ask.error` log events with question, tools used, and latency
+- EC2 User Data bootstrap script — new instances provision themselves automatically (no SSH required)
+- SSM Run Command support via IAM policy for remote management
+
+## [0.3.0] — 2026-04-06
+
+### Added
+- Live tool-use status in the chat bubble — shows what The Gaffer is doing while it thinks (e.g. "Fetching your FPL squad…", "Looking up player stats…") with a pulsing animation
+- Feedback emails via Resend — bug reports now land in your inbox reliably
+- AWS Secrets Manager integration — all secrets fetched at startup in production; no more manual `.env` edits on EC2
+- Daily RAG re-ingestion via scheduled GitHub Actions (midnight UTC) to keep player data fresh
+
+### Changed
+- Removed SES dependency; replaced with Resend SDK
+- CI: removed unused Docker build job
+
+## [0.2.0] — 2026-03-30
+
+### Added
+- SSE streaming — Claude's answer appears word by word instead of all at once
+- RAG pipeline — 1,129 FPL documents ingested into Pinecone (player stats, GW history, fixture difficulty, match results)
+- EC2 hosting on `https://54-172-87-137.sslip.io` with nginx + Let's Encrypt HTTPS
+- GitHub Actions CD — auto-deploys to EC2 on merge to main
+- Feedback form with bug reporting
+- FPL team ID input with instructions
+- Browser tab title and app branding
+
+### Changed
+- `nginx proxy_buffering off` to fix SSE streaming through reverse proxy
+- `tool_choice: none` on final stream call to prevent Claude requesting more tools mid-answer
+
+## [0.1.0] — 2026-03-20
+
+### Added
+- FastAPI server with `/fpl/ask` streaming endpoint and `/health` check
+- Claude tool-use loop — parallel tool execution with `asyncio.gather`
+- 12 FPL tools: squad, player stats, recent form, fixtures, standings, head-to-head, odds, and more
+- React + TypeScript chat UI with session history persisted in localStorage
+- RAG context injected into every Claude request via Pinecone vector search
+- Pinecone ingestion pipeline for top 400 FPL players
+- Terraform infrastructure: EC2 t3.small, Elastic IP, IAM role, ECR, security group
