@@ -1,16 +1,34 @@
 import json
+import time
 
 import httpx
 import resend
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from server import claude_client, rag
 from server.config import settings
+from server.logger import log
 from server.tools import fpl
 
 app = FastAPI(title="The Gaffer", version="0.1.0")
+
+
+@app.middleware("http")
+async def _request_logger(request: Request, call_next):
+    start = time.monotonic()
+    response = await call_next(request)
+    latency_ms = round((time.monotonic() - start) * 1000)
+    if request.url.path != "/health":
+        log.info(
+            "http.request",
+            method=request.method,
+            path=request.url.path,
+            status=response.status_code,
+            latency_ms=latency_ms,
+        )
+    return response
 
 
 class AskRequest(BaseModel):
@@ -67,7 +85,11 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
         raise HTTPException(status_code=422, detail="Question must not be empty.")
 
     async def _generate():
+        t0 = time.monotonic()
+        tools_called: list[str] = []
         try:
+            log.info("ask.start", question=request.question, fpl_team_id=request.fpl_team_id)
+
             # Layer 1 — RAG
             context = await rag.retrieve(
                 query=request.question,
@@ -77,10 +99,14 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
             )
 
             # Layer 2 — Claude tool-use loop + streamed answer
+            async def _tracking_handler(name: str, inp: dict) -> dict:
+                tools_called.append(name)
+                return await _fpl_tool_handler(name, inp, request.fpl_team_id)
+
             stream = await claude_client.ask(
                 question=request.question,
                 tool_definitions=fpl.TOOL_DEFINITIONS,
-                tool_handler=lambda name, inp: _fpl_tool_handler(name, inp, request.fpl_team_id),
+                tool_handler=_tracking_handler,
                 rag_context=context,
                 league="fpl",
             )
@@ -88,7 +114,21 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
             async for event_type, data in stream:
                 yield _sse(event_type, data)
 
+            log.info(
+                "ask.complete",
+                question=request.question,
+                fpl_team_id=request.fpl_team_id,
+                tools=tools_called,
+                latency_ms=round((time.monotonic() - t0) * 1000),
+            )
+
         except Exception as e:
+            log.error(
+                "ask.error",
+                question=request.question,
+                error=str(e),
+                latency_ms=round((time.monotonic() - t0) * 1000),
+            )
             yield _sse("error", str(e))
 
     return StreamingResponse(

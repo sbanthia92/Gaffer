@@ -87,6 +87,35 @@ resource "aws_iam_role_policy" "gaffer_secrets" {
   })
 }
 
+resource "aws_iam_role_policy" "gaffer_cloudwatch" {
+  name = "gaffer-cloudwatch-logs"
+  role = aws_iam_role.gaffer_ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams",
+      ]
+      Resource = "arn:aws:logs:${var.aws_region}:*:log-group:/gaffer/*"
+    }]
+  })
+}
+
+resource "aws_cloudwatch_log_group" "gaffer_api" {
+  name              = "/gaffer/production/api"
+  retention_in_days = 30
+
+  tags = {
+    Project     = "the-gaffer"
+    Environment = var.environment
+  }
+}
+
 resource "aws_iam_instance_profile" "gaffer_ec2" {
   name = "gaffer-ec2-profile"
   role = aws_iam_role.gaffer_ec2.name
