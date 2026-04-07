@@ -109,6 +109,9 @@ sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "admin@$DOMAI
 
 # ── systemd service ────────────────────────────────────────────────────────────
 echo "==> Creating gaffer systemd service..."
+sudo mkdir -p /var/log/gaffer
+sudo chown ec2-user:ec2-user /var/log/gaffer
+
 sudo tee /etc/systemd/system/gaffer.service > /dev/null <<SERVICE
 [Unit]
 Description=The Gaffer — FastAPI server
@@ -121,6 +124,8 @@ EnvironmentFile=/etc/gaffer/.env
 ExecStart=$VENV_DIR/bin/uvicorn server.main:app --host 127.0.0.1 --port 8000 --workers 2
 Restart=always
 RestartSec=5
+StandardOutput=append:/var/log/gaffer/app.log
+StandardError=append:/var/log/gaffer/app.log
 
 [Install]
 WantedBy=multi-user.target
