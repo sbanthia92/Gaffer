@@ -116,6 +116,11 @@ resource "aws_cloudwatch_log_group" "gaffer_api" {
   }
 }
 
+resource "aws_iam_role_policy_attachment" "gaffer_ssm" {
+  role       = aws_iam_role.gaffer_ec2.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 resource "aws_iam_instance_profile" "gaffer_ec2" {
   name = "gaffer-ec2-profile"
   role = aws_iam_role.gaffer_ec2.name
