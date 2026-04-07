@@ -409,14 +409,6 @@ export default function App() {
           >
             FPL ID: {fplTeamId ?? "not set"}
           </button>
-          <a
-            className="sidebar-footer-btn"
-            href="https://github.com/sbanthia92/Gaffer/blob/main/CHANGELOG.md"
-            target="_blank"
-            rel="noreferrer"
-          >
-            What's new
-          </a>
           <button
             className="sidebar-footer-btn"
             onClick={() => setShowFeedback(true)}

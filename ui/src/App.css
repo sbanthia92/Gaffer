@@ -333,8 +333,6 @@
   color: var(--text-muted);
   font-size: 12px;
   text-align: left;
-  text-decoration: none;
-  display: block;
   padding: 6px 8px;
   border-radius: 6px;
   cursor: pointer;

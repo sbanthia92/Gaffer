@@ -9,21 +9,21 @@ All notable changes to The Gaffer are documented here.
 - HTTP request middleware logging method, path, status, and latency
 - `ask.start`, `ask.complete`, `ask.error` log events with question, tools used, and latency
 - EC2 User Data bootstrap script — new instances provision themselves automatically (no SSH required)
-- SSM Run Command support via IAM policy for remote management
+- SSM support via IAM policy for remote management
 
 ## [0.3.0] — 2026-04-06
 
 ### Added
 - Live tool-use status in the chat bubble — shows what The Gaffer is doing while it thinks (e.g. "Fetching your FPL squad…", "Looking up player stats…") with a pulsing animation
-- Feedback emails via Resend — bug reports now land in your inbox reliably
-- AWS Secrets Manager integration — all secrets fetched at startup in production; no more manual `.env` edits on EC2
+- Feedback emails via Resend — bug reports now land reliably
+- AWS Secrets Manager integration — all secrets fetched at startup in production
 - Daily RAG re-ingestion via scheduled GitHub Actions (midnight UTC) to keep player data fresh
 
 ### Changed
 - Removed SES dependency; replaced with Resend SDK
 - CI: removed unused Docker build job
 
-## [0.2.0] — 2026-03-30
+## [0.2.0] — 2026-04-05
 
 ### Added
 - SSE streaming — Claude's answer appears word by word instead of all at once
@@ -38,7 +38,7 @@ All notable changes to The Gaffer are documented here.
 - `nginx proxy_buffering off` to fix SSE streaming through reverse proxy
 - `tool_choice: none` on final stream call to prevent Claude requesting more tools mid-answer
 
-## [0.1.0] — 2026-03-20
+## [0.1.0] — 2026-04-05
 
 ### Added
 - FastAPI server with `/fpl/ask` streaming endpoint and `/health` check
