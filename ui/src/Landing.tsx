@@ -1,3 +1,5 @@
+import { useState } from "react";
+import ChangelogModal from "./ChangelogModal";
 import "./Landing.css";
 
 interface Props {
@@ -35,8 +37,11 @@ const EXAMPLES = [
 ];
 
 export default function Landing({ onStart }: Props) {
+  const [showChangelog, setShowChangelog] = useState(false);
+
   return (
     <div className="landing">
+      {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
       <header className="landing-header">
         <span className="landing-logo">⚽ gaffer.io</span>
       </header>
@@ -109,6 +114,9 @@ export default function Landing({ onStart }: Props) {
         <p>Built for FPL managers who want an edge.</p>
         <button className="landing-cta landing-cta-sm" onClick={onStart}>
           Start for free →
+        </button>
+        <button className="landing-changelog-btn" onClick={() => setShowChangelog(true)}>
+          What's new in v0.4.0 →
         </button>
       </footer>
     </div>
