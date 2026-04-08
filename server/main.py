@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from server import claude_client, rag
+from server import claude_client, fpl_cache, rag
 from server.config import settings
 from server.logger import log
 from server.tools import fpl
@@ -54,6 +54,14 @@ def _sse(event: str, data: str) -> str:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.environment}
+
+
+@app.get("/fpl/player-card")
+async def player_card(name: str) -> dict:
+    card = await fpl_cache.get_player_card(name)
+    if card is None:
+        raise HTTPException(status_code=404, detail=f"Player '{name}' not found.")
+    return card
 
 
 @app.post("/feedback")

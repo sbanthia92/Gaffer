@@ -1,0 +1,97 @@
+.player-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px 8px 3px 3px;
+  margin: 0 2px;
+  vertical-align: middle;
+  white-space: nowrap;
+  font-size: 0.82rem;
+  line-height: 1;
+}
+
+.player-card__photo {
+  width: 28px;
+  height: 35px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.player-card__info {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.player-card__name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.player-card__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.player-card__dot {
+  opacity: 0.4;
+}
+
+.player-card__price {
+  color: #4ade80;
+  font-weight: 500;
+}
+
+.player-card__form {
+  color: var(--text-muted);
+}
+
+.player-card__pts {
+  color: var(--text-muted);
+}
+
+/* ── Loading skeleton ─────────────────────────────────────────────────────── */
+
+.player-card--loading {
+  opacity: 0.6;
+}
+
+.player-card__photo-placeholder {
+  width: 28px;
+  height: 35px;
+  border-radius: 4px;
+  background: var(--border);
+  animation: shimmer 1.2s infinite;
+  flex-shrink: 0;
+}
+
+.player-card__name-skeleton {
+  display: block;
+  width: 60px;
+  height: 9px;
+  border-radius: 4px;
+  background: var(--border);
+  animation: shimmer 1.2s infinite;
+}
+
+.player-card__meta-skeleton {
+  display: block;
+  width: 100px;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--border);
+  animation: shimmer 1.2s infinite 0.2s;
+}
+
+@keyframes shimmer {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.9; }
+}
