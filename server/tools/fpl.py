@@ -462,6 +462,71 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
     }
 
 
+_POSITION_MAP = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
+_POSITION_IDS = {"GKP": 1, "DEF": 2, "MID": 3, "FWD": 4}
+
+# ── Bootstrap cache (prices/positions from live FPL API) ──────────────────────
+import time as _time  # noqa: E402
+
+_bootstrap_cache: dict | None = None
+_bootstrap_ts: float = 0
+_BOOTSTRAP_TTL = 3600  # 1 hour
+
+
+async def _get_bootstrap() -> dict:
+    global _bootstrap_cache, _bootstrap_ts
+    if _bootstrap_cache is None or _time.monotonic() - _bootstrap_ts > _BOOTSTRAP_TTL:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(f"{_FPL_BASE_URL}/bootstrap-static/")
+            r.raise_for_status()
+            _bootstrap_cache = r.json()
+            _bootstrap_ts = _time.monotonic()
+    return _bootstrap_cache
+
+
+async def search_players_by_criteria(
+    position: str | None = None,
+    max_price: float | None = None,
+    min_price: float | None = None,
+    top_n: int = 10,
+) -> dict:
+    """Search FPL players by position and/or price using live FPL data."""
+    data = await _get_bootstrap()
+    elements = data.get("elements", [])
+    teams = {t["id"]: t["short_name"] for t in data.get("teams", [])}
+
+    results = []
+    for p in elements:
+        price = p["now_cost"] / 10
+        pos_id = p.get("element_type")
+
+        if position and _POSITION_IDS.get(position.upper()) != pos_id:
+            continue
+        if max_price is not None and price > max_price:
+            continue
+        if min_price is not None and price < min_price:
+            continue
+
+        results.append(
+            {
+                "name": p["web_name"],
+                "team": teams.get(p["team"], ""),
+                "position": _POSITION_MAP.get(pos_id, ""),
+                "price": price,
+                "total_points": p.get("total_points", 0),
+                "form": p.get("form", "0.0"),
+                "selected_by_percent": p.get("selected_by_percent", "0.0"),
+                "goals_scored": p.get("goals_scored", 0),
+                "assists": p.get("assists", 0),
+                "minutes": p.get("minutes", 0),
+            }
+        )
+
+    # Sort by total points descending, return top N
+    results.sort(key=lambda x: x["total_points"], reverse=True)
+    return {"players": results[:top_n], "total_found": len(results)}
+
+
 # Tool definitions in Anthropic tool-use format.
 # Claude receives these and decides which to call based on the question.
 TOOL_DEFINITIONS = [
@@ -669,6 +734,40 @@ TOOL_DEFINITIONS = [
                 },
             },
             "required": ["team_id"],
+        },
+    },
+    {
+        "name": "search_players_by_criteria",
+        "description": (
+            "Search for FPL players filtered by position and/or price using LIVE FPL data. "
+            "ALWAYS use this tool when the user asks for player recommendations by position "
+            "or budget (e.g. 'midfielder under £5.8m', 'best cheap defender'). "
+            "Never guess player prices or positions from memory — use this tool to get "
+            "accurate live prices."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "position": {
+                    "type": "string",
+                    "enum": ["GKP", "DEF", "MID", "FWD"],
+                    "description": "Filter by position. One of: GKP, DEF, MID, FWD.",
+                },
+                "max_price": {
+                    "type": "number",
+                    "description": "Maximum price in millions, e.g. 5.8 for £5.8m.",
+                },
+                "min_price": {
+                    "type": "number",
+                    "description": "Minimum price in millions, e.g. 5.0 for £5.0m.",
+                },
+                "top_n": {
+                    "type": "integer",
+                    "description": "Number of top players to return, ranked by FPL points. Defaults to 10.",  # noqa: E501
+                    "default": 10,
+                },
+            },
+            "required": [],
         },
     },
     {
