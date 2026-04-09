@@ -379,6 +379,8 @@ def test_tool_definitions_structure():
     names = {t["name"] for t in TOOL_DEFINITIONS}
     assert names == {
         "get_my_fpl_team",
+        "get_chip_status",
+        "get_gameweek_schedule",
         "search_player",
         "search_team",
         "get_fixtures",
