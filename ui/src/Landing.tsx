@@ -117,7 +117,7 @@ export default function Landing({ onStart }: Props) {
           Start for free →
         </button>
         <button className="landing-changelog-btn" onClick={() => setShowChangelog(true)}>
-          What's new in v0.5.0 →
+          What's new in v0.6.0 →
         </button>
       </footer>
     </div>

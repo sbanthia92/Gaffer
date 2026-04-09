@@ -44,9 +44,15 @@ async def _request_logger(request: Request, call_next):
     return response
 
 
+class HistoryMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
 class AskRequest(BaseModel):
     question: str
     fpl_team_id: int | None = None
+    history: list[HistoryMessage] = []
 
 
 class FeedbackRequest(BaseModel):
@@ -126,6 +132,7 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                 with xray_recorder.in_subsegment(f"tool.{name}"):
                     return await _fpl_tool_handler(name, inp, request.fpl_team_id)
 
+            history = [{"role": m.role, "content": m.content} for m in request.history]
             with xray_recorder.in_subsegment("claude.ask"):
                 stream = await claude_client.ask(
                     question=request.question,
@@ -133,6 +140,7 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                     tool_handler=_tracking_handler,
                     rag_context=context,
                     league="fpl",
+                    history=history,
                 )
 
             async for event_type, data in stream:

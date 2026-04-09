@@ -2,6 +2,26 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.6.0] — 2026-04-09
+
+### Fixed
+- **Conversation history** — Claude now receives the full session history with every message, enabling genuine multi-turn conversations. Previously Claude had no memory of anything said earlier in the same chat.
+- **Truncated responses** — increased `max_tokens` from 4096 to 8192; long answers no longer cut off mid-sentence.
+- **Streaming hang** — tool calls now have a 20-second timeout; a slow or stalled API call returns a graceful error instead of hanging the stream indefinitely.
+- **Missing tool status labels** — `search_players_by_criteria`, `get_chip_status`, and `get_gameweek_schedule` now show status text while running.
+- **Player token rendering in tables** — `[[Name]]` tags inside markdown tables now resolve to tooltips correctly.
+
+## [0.5.0] — 2026-04-09
+
+### Added
+- **Chip Advisor** — ask when to play your Bench Boost, Triple Captain, Free Hit, or Wildcard; The Gaffer checks which chips you have left and identifies upcoming double/blank gameweeks
+- **Double & blank gameweek detection** — new `get_gameweek_schedule` tool flags DGW and BGW teams across the next 8 gameweeks
+- **Player name tooltips** — hover any player name in a response to see their team, position, and price inline
+
+### Changed
+- Player search now covers all 825 FPL players (up from 400)
+- Logo updated to 📋 the-gaffer.io
+
 ## [0.4.0] — 2026-04-07
 
 ### Added
