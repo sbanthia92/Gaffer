@@ -75,7 +75,9 @@ def _build_system_prompt(rag_context: str, league: str) -> str:
         "IMPORTANT: Every time you mention a Premier League player by name, wrap their "
         "name in double square brackets, e.g. [[Salah]] or [[Haaland]]. Use their common "
         "short name (the one used on FPL), not their full name. Do this consistently "
-        "throughout your response.\n\n"
+        "throughout your response. CRITICAL: always embed [[Name]] inline within the "
+        "surrounding sentence — never place a [[Name]] tag on a line by itself, never "
+        "repeat a [[Name]] tag, and never use [[Name]] as a standalone label or header.\n\n"
         f"--- HISTORICAL CONTEXT ---\n{context_block}\n--- END HISTORICAL CONTEXT ---"
     )
 
