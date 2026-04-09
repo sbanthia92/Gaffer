@@ -3,9 +3,9 @@ output "elastic_ip" {
   value       = aws_eip.gaffer.public_ip
 }
 
-output "sslip_domain" {
-  description = "Auto-generated HTTPS domain via sslip.io (no domain purchase needed)"
-  value       = "https://${replace(aws_eip.gaffer.public_ip, ".", "-")}.sslip.io"
+output "domain" {
+  description = "Production domain"
+  value       = "https://the-gaffer.io"
 }
 
 output "ssh_command" {

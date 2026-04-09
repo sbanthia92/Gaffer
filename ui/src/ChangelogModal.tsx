@@ -34,7 +34,7 @@ const RELEASES: Release[] = [
     added: [
       "SSE streaming — answers appear word by word in real time",
       "RAG pipeline — 1,129 FPL documents in Pinecone for historical context",
-      "EC2 hosting with HTTPS via sslip.io + Let's Encrypt",
+      "EC2 hosting at the-gaffer.io with HTTPS via Let's Encrypt",
       "Auto-deploy on merge to main via GitHub Actions",
       "FPL Team ID input with setup instructions",
       "Bug report form",

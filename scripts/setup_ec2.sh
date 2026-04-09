@@ -8,12 +8,12 @@
 #   2. Clones the repo and installs dependencies
 #   3. Creates /etc/gaffer/.env (you fill in the secrets)
 #   4. Builds the React UI
-#   5. Configures nginx with sslip.io + HTTPS via Let's Encrypt
+#   5. Configures nginx with the-gaffer.io + HTTPS via Let's Encrypt
 #   6. Creates and enables the gaffer systemd service
 set -euo pipefail
 
 ELASTIC_IP="${1:?Usage: setup_ec2.sh <ELASTIC_IP>}"
-DOMAIN="${ELASTIC_IP//./-}.sslip.io"
+DOMAIN="the-gaffer.io"
 REPO="https://github.com/sbanthia92/Gaffer.git"
 APP_DIR="/home/ec2-user/gaffer"
 VENV_DIR="$APP_DIR/.venv"
