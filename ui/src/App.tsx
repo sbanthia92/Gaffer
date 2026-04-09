@@ -188,8 +188,21 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
 // ── Player-badge aware markdown renderer ─────────────────────────────────────
 
 const PLAYER_TAG = /\[\[([^\]]+)\]\]/g;
+const PLAYER_TOKEN = /(PLAYER_[A-Z0-9_]+)/g;
 
 type TooltipMap = Record<string, { display: string; tooltip: string }>;
+
+// Normalize a player name to a safe ASCII token key, e.g. "João Pedro" → "PLAYER_JOAO_PEDRO"
+function toTokenKey(name: string): string {
+  return (
+    "PLAYER_" +
+    name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // strip diacritics
+      .replace(/[^A-Za-z0-9]/g, "_")
+      .toUpperCase()
+  );
+}
 
 function GafferMarkdown({ content }: { content: string }) {
   const [text, setText] = useState(content);
@@ -211,7 +224,7 @@ function GafferMarkdown({ content }: { content: string }) {
         const map: TooltipMap = {};
         let processed = content;
         for (const { name, card } of results) {
-          const key = `PLAYER_${name.replace(/\s+/g, "_").toUpperCase()}`;
+          const key = toTokenKey(name);
           map[key] = {
             display: card?.name ?? name,
             tooltip: card ? `${card.team} · ${card.position} · £${card.price.toFixed(1)}m` : name,
@@ -224,17 +237,19 @@ function GafferMarkdown({ content }: { content: string }) {
     );
   }, [content]);
 
+  const wrap = (children: React.ReactNode) => renderWithTooltips(children, tooltips);
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
-        // Intercept plain text nodes to replace PLAYER_ tokens with <abbr>
-        p: ({ children, ...props }) => (
-          <p {...props}>{renderWithTooltips(children, tooltips)}</p>
-        ),
-        li: ({ children, ...props }) => (
-          <li {...props}>{renderWithTooltips(children, tooltips)}</li>
-        ),
+        p: ({ children, ...props }) => <p {...props}>{wrap(children)}</p>,
+        li: ({ children, ...props }) => <li {...props}>{wrap(children)}</li>,
+        h1: ({ children, ...props }) => <h1 {...props}>{wrap(children)}</h1>,
+        h2: ({ children, ...props }) => <h2 {...props}>{wrap(children)}</h2>,
+        h3: ({ children, ...props }) => <h3 {...props}>{wrap(children)}</h3>,
+        strong: ({ children, ...props }) => <strong {...props}>{wrap(children)}</strong>,
+        em: ({ children, ...props }) => <em {...props}>{wrap(children)}</em>,
       }}
     >
       {text}
@@ -245,18 +260,26 @@ function GafferMarkdown({ content }: { content: string }) {
 function renderWithTooltips(children: React.ReactNode, tooltips: TooltipMap): React.ReactNode {
   if (!children) return children;
   return React.Children.map(children, (child) => {
-    if (typeof child !== "string") return child;
-    const parts = child.split(/(PLAYER_[A-Z0-9_]+)/g);
-    if (parts.length === 1) return child;
-    return parts.map((part, i) =>
-      tooltips[part] ? (
-        <abbr key={i} title={tooltips[part].tooltip} className="player-abbr">
-          {tooltips[part].display}
-        </abbr>
-      ) : (
-        part
-      )
-    );
+    if (typeof child === "string") {
+      const parts = child.split(PLAYER_TOKEN);
+      if (parts.length === 1) return child;
+      return parts.map((part, i) =>
+        tooltips[part] ? (
+          <abbr key={i} title={tooltips[part].tooltip} className="player-abbr">
+            {tooltips[part].display}
+          </abbr>
+        ) : (
+          part
+        )
+      );
+    }
+    // Recurse into React elements (e.g. <strong> wrapping a player token)
+    if (React.isValidElement<{ children?: React.ReactNode }>(child) && child.props.children) {
+      return React.cloneElement(child, {
+        children: renderWithTooltips(child.props.children, tooltips),
+      });
+    }
+    return child;
   });
 }
 
