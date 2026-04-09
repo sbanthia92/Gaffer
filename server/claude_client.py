@@ -33,6 +33,8 @@ ToolHandler = Callable[[str, dict], Coroutine[Any, Any, dict]]
 
 _TOOL_LABELS: dict[str, str] = {
     "get_my_fpl_team": "Fetching your FPL squad…",
+    "get_chip_status": "Checking your chip availability…",
+    "get_gameweek_schedule": "Loading gameweek schedule…",
     "search_player": "Looking up player stats…",
     "search_team": "Looking up team data…",
     "get_fixtures": "Checking upcoming fixtures…",
@@ -44,6 +46,7 @@ _TOOL_LABELS: dict[str, str] = {
     "get_team_all_fixtures": "Loading fixture list…",
     "get_player_vs_opponent": "Analysing player vs opponent…",
     "get_odds": "Fetching match odds…",
+    "search_players_by_criteria": "Searching for players…",
 }
 
 
@@ -90,7 +93,13 @@ async def _run_tool_round(
     tool_blocks = [b for b in response.content if b.type == "tool_use"]
 
     async def _call(block):
-        result = await tool_handler(block.name, block.input)
+        try:
+            result = await asyncio.wait_for(tool_handler(block.name, block.input), timeout=20.0)
+        except TimeoutError:
+            result = {
+                "error": True,
+                "message": f"Tool {block.name} timed out — use available data to answer.",
+            }
         return {
             "type": "tool_result",
             "tool_use_id": block.id,
