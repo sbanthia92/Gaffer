@@ -5,7 +5,7 @@ Fetches four document types from the official FPL API (free, no auth required)
 and upserts them to Pinecone under the 'fpl' namespace.
 
 Document types:
-  - player_season_stats  : season totals for the top 400 players by FPL points
+  - player_season_stats  : season totals for all FPL players (~825)
   - player_gw_history    : per-gameweek breakdown (hauls, blanks, recent form)
   - team_fdr             : upcoming fixture difficulty ratings per team
   - fixture_result       : completed match results for the current season
@@ -25,7 +25,7 @@ from server.config import settings
 _FPL_BASE = "https://fantasy.premierleague.com/api"
 _NAMESPACE = "fpl"
 _SEASON = "2024/25"
-_TOP_N_PLAYERS = 400
+_TOP_N_PLAYERS = 825  # all FPL players (full squad list, ~825 in a season)
 _EMBED_MODEL = "multilingual-e5-large"
 _UPSERT_BATCH = 96
 
