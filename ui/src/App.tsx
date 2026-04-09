@@ -189,46 +189,38 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
 
 const PLAYER_TAG = /\[\[([^\]]+)\]\]/g;
 
-function PlayerBadge({ name }: { name: string }) {
-  const [label, setLabel] = useState(name);
+function GafferMarkdown({ content }: { content: string }) {
+  const [resolved, setResolved] = useState(content);
 
   useEffect(() => {
-    fetchPlayerCard(name).then((card) => {
-      if (card) setLabel(`${card.name} · ${card.team} · £${card.price.toFixed(1)}m`);
-    });
-  }, [name]);
-
-  return <span className="player-badge">{label}</span>;
-}
-
-function GafferMarkdown({ content }: { content: string }) {
-  const segments: Array<{ type: "md" | "player"; value: string }> = [];
-  let last = 0;
-  let match;
-  PLAYER_TAG.lastIndex = 0;
-  while ((match = PLAYER_TAG.exec(content)) !== null) {
-    if (match.index > last) {
-      segments.push({ type: "md", value: content.slice(last, match.index) });
+    // Find all unique player names in [[Name]] tags
+    const names: string[] = [];
+    let m;
+    PLAYER_TAG.lastIndex = 0;
+    while ((m = PLAYER_TAG.exec(content)) !== null) {
+      if (!names.includes(m[1])) names.push(m[1]);
     }
-    segments.push({ type: "player", value: match[1] });
-    last = match.index + match[0].length;
-  }
-  if (last < content.length) {
-    segments.push({ type: "md", value: content.slice(last) });
-  }
+    if (names.length === 0) {
+      setResolved(content);
+      return;
+    }
+    // Fetch all cards in parallel, then replace tags with plain text
+    Promise.all(names.map((n) => fetchPlayerCard(n).then((c) => ({ name: n, card: c })))).then(
+      (results) => {
+        let text = content;
+        for (const { name, card } of results) {
+          const replacement = card
+            ? `**${card.name}** *(${card.team} · £${card.price.toFixed(1)}m)*`
+            : `**${name}**`;
+          text = text.replaceAll(`[[${name}]]`, replacement);
+        }
+        setResolved(text);
+      }
+    );
+  }, [content]);
 
   return (
-    <>
-      {segments.map((seg, i) =>
-        seg.type === "player" ? (
-          <PlayerBadge key={i} name={seg.value} />
-        ) : (
-          <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>
-            {seg.value}
-          </ReactMarkdown>
-        )
-      )}
-    </>
+    <ReactMarkdown remarkPlugins={[remarkGfm]}>{resolved}</ReactMarkdown>
   );
 }
 
