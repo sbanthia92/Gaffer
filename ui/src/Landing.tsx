@@ -32,7 +32,7 @@ const FEATURES = [
 const EXAMPLES = [
   "Should I captain Salah or Haaland this week?",
   "If I can make 2 free transfers, who should I bring in?",
-  "Is it worth taking a hit for a premium midfielder?",
+  "I have my Bench Boost left — is this the right DGW to play it?",
   "What's a good differential pick under £7m right now?",
 ];
 
@@ -117,7 +117,7 @@ export default function Landing({ onStart }: Props) {
           Start for free →
         </button>
         <button className="landing-changelog-btn" onClick={() => setShowChangelog(true)}>
-          What's new in v0.4.0 →
+          What's new in v0.5.0 →
         </button>
       </footer>
     </div>

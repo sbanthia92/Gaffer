@@ -9,6 +9,16 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.5.0",
+    date: "9 Apr 2026",
+    added: [
+      "Chip Advisor — ask when to play your Bench Boost, Triple Captain, Free Hit, or Wildcard",
+      "Double & blank gameweek detection — The Gaffer knows which GWs have DGWs and BGWs",
+      "Player name tooltips — hover any player name to see team, position, and price",
+    ],
+    changed: ["Player search now covers all 825 FPL players (up from 400)"],
+  },
+  {
     version: "0.4.0",
     date: "7 Apr 2026",
     added: [
