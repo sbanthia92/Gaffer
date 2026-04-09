@@ -94,9 +94,7 @@ async def _run_tool_round(
 
     async def _call(block):
         try:
-            result = await asyncio.wait_for(
-                tool_handler(block.name, block.input), timeout=20.0
-            )
+            result = await asyncio.wait_for(tool_handler(block.name, block.input), timeout=20.0)
         except TimeoutError:
             result = {
                 "error": True,
