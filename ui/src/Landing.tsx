@@ -78,6 +78,7 @@ export default function Landing({ onStart }: Props) {
             <div key={q} className="example-item">
               <span className="example-quote">"</span>
               {q}
+              <span className="example-quote">"</span>
             </div>
           ))}
         </div>
