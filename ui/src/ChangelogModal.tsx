@@ -9,6 +9,15 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.6.0",
+    date: "9 Apr 2026",
+    changed: [
+      "Conversation memory — The Gaffer now remembers everything said earlier in the chat",
+      "Longer responses — answers no longer cut off mid-sentence",
+      "Streaming reliability — tool calls now timeout gracefully instead of hanging",
+    ],
+  },
+  {
     version: "0.5.0",
     date: "9 Apr 2026",
     added: [

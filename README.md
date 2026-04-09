@@ -10,14 +10,14 @@ Every answer draws from three layers:
 
 1. **Live data (tools)** — current squad, player stats, fixture difficulty, standings, odds via API-Sports + FPL API
 2. **Historical RAG (Pinecone)** — h2h records, seasonal form, gameweek history for all 825 FPL players
-3. **Claude** — synthesises both into a structured VERDICT → DATA → REASONING response
+3. **Claude** — synthesises both into a structured VERDICT → DATA → REASONING response, with full conversation history so follow-up questions work naturally
 
 ## Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Backend | Python 3.11, FastAPI, Anthropic SDK |
-| AI | Claude claude-opus-4-6, tool-use loop, SSE streaming |
+| AI | Claude claude-opus-4-6, multi-turn tool-use loop, SSE streaming |
 | RAG | Pinecone (multilingual-e5-large embeddings) |
 | Frontend | React + TypeScript + Vite |
 | Infra | EC2 t3.small, nginx, Let's Encrypt, Terraform |
