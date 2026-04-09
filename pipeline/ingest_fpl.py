@@ -16,6 +16,7 @@ Run from the project root:
 
 import asyncio
 import hashlib
+import time
 
 import httpx
 from pinecone import Pinecone
@@ -194,7 +195,8 @@ def build_fixture_result_docs(
 def _upsert(pc: Pinecone, index, docs: list[tuple[str, str, dict]]) -> int:
     """Embed and upsert docs in batches. Returns number of vectors upserted."""
     total = 0
-    for start in range(0, len(docs), _UPSERT_BATCH):
+    batches = range(0, len(docs), _UPSERT_BATCH)
+    for i, start in enumerate(batches):
         batch = docs[start : start + _UPSERT_BATCH]
         texts = [text for _, text, _ in batch]
 
@@ -211,6 +213,12 @@ def _upsert(pc: Pinecone, index, docs: list[tuple[str, str, dict]]) -> int:
         index.upsert(vectors=vectors, namespace=_NAMESPACE)
         total += len(vectors)
         print(f"  upserted {total}/{len(docs)}")
+
+        # Respect Pinecone free-tier rate limit (250k tokens/min).
+        # Sleep between batches except after the last one.
+        if start + _UPSERT_BATCH < len(docs):
+            time.sleep(8)
+
     return total
 
 
