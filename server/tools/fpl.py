@@ -849,8 +849,11 @@ TOOL_DEFINITIONS = [
         "name": "get_team_all_fixtures",
         "description": (
             "Get a team's upcoming fixtures across ALL competitions — Premier League, "
-            "Champions League, FA Cup, etc. Use this to assess fixture congestion and "
-            "rotation risk when a team has midweek European games."
+            "Champions League, FA Cup, etc. Use this to assess fixture congestion, "
+            "rotation risk, and to verify double or blank gameweeks. "
+            "Use this to cross-check DGW/BGW data from get_gameweek_schedule, as the "
+            "FPL API can miss rearranged fixtures — this tool (via API-Sports) is more "
+            "reliable for confirming a team's exact fixture count in a given week."
         ),
         "input_schema": {
             "type": "object",
@@ -921,7 +924,11 @@ TOOL_DEFINITIONS = [
             "Get the upcoming FPL gameweek schedule, flagging which gameweeks have "
             "double gameweeks (a team plays twice) or blank gameweeks (a team doesn't play). "
             "Always call this when the user asks about chip timing, especially Bench Boost, "
-            "Triple Captain, Free Hit, or Wildcard timing around DGWs and BGWs."
+            "Triple Captain, Free Hit, or Wildcard timing around DGWs and BGWs. "
+            "IMPORTANT LIMITATION: the FPL API sometimes assigns rearranged fixtures "
+            "event=null until officially confirmed, which means this tool can under-report "
+            "DGWs. Always cross-check by also calling get_team_all_fixtures for any team "
+            "you suspect has a double or blank gameweek, to verify their fixture count."
         ),
         "input_schema": {
             "type": "object",
