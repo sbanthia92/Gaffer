@@ -527,6 +527,138 @@ async def search_players_by_criteria(
     return {"players": results[:top_n], "total_found": len(results)}
 
 
+async def get_chip_status(team_id_override: int | None = None) -> dict:
+    """
+    Return which FPL chips the user has already used and which are still available.
+    Uses /api/entry/{team_id}/history/ for chip history and bootstrap for current GW.
+    """
+    team_id = team_id_override or settings.fpl_team_id
+    if not team_id:
+        return {"error": "FPL_TEAM_ID is not set in config."}
+
+    async with httpx.AsyncClient(base_url=_FPL_BASE_URL, timeout=10.0) as client:
+        bootstrap = await client.get("/bootstrap-static/")
+        bootstrap.raise_for_status()
+        bootstrap_data = bootstrap.json()
+
+        history_resp = await client.get(f"/entry/{team_id}/history/")
+        history_resp.raise_for_status()
+        history_data = history_resp.json()
+
+    current_gw = next(
+        (e["id"] for e in bootstrap_data["events"] if e["is_current"]),
+        next((e["id"] for e in bootstrap_data["events"] if e["is_next"]), 1),
+    )
+
+    # Chips used so far
+    used_chips = {c["name"]: c["event"] for c in history_data.get("chips", [])}
+
+    # Wildcard: one per half-season (GW1-19 = first half, GW20-38 = second half)
+    wc1_used = used_chips.get("wildcard") if used_chips.get("wildcard", 99) <= 19 else None
+    wc2_used = used_chips.get("wildcard") if used_chips.get("wildcard", 0) >= 20 else None
+    # If used twice, history has two separate entries — pick by event
+    all_wc = [c for c in history_data.get("chips", []) if c["name"] == "wildcard"]
+    wc1_used = next((c["event"] for c in all_wc if c["event"] <= 19), None)
+    wc2_used = next((c["event"] for c in all_wc if c["event"] >= 20), None)
+
+    chips = {
+        "wildcard_1": {
+            "available": wc1_used is None and current_gw <= 19,
+            "used_in_gw": wc1_used,
+            "window": "GW1–19",
+        },
+        "wildcard_2": {
+            "available": wc2_used is None and current_gw >= 20,
+            "used_in_gw": wc2_used,
+            "window": "GW20–38",
+        },
+        "triple_captain": {
+            "available": "3xc" not in used_chips,
+            "used_in_gw": used_chips.get("3xc"),
+        },
+        "bench_boost": {
+            "available": "bboost" not in used_chips,
+            "used_in_gw": used_chips.get("bboost"),
+        },
+        "free_hit": {
+            "available": "freehit" not in used_chips,
+            "used_in_gw": used_chips.get("freehit"),
+        },
+    }
+
+    return {"current_gameweek": current_gw, "chips": chips}
+
+
+async def get_gameweek_schedule(next_n: int = 8) -> dict:
+    """
+    Return the upcoming N gameweeks with fixture counts per team.
+    Flags double gameweeks (team plays twice) and blank gameweeks (team doesn't play).
+    """
+    data = await _get_bootstrap()
+    events = data.get("events", [])
+    team_map = {t["id"]: t["short_name"] for t in data.get("teams", [])}
+    all_fixtures = data.get("fixtures", [])  # not always present in bootstrap
+
+    # Find upcoming GWs
+    current_gw = next((e["id"] for e in events if e["is_current"]), None)
+    next_gw = next((e["id"] for e in events if e["is_next"]), None)
+    start_gw = current_gw or next_gw or 1
+
+    upcoming = [e for e in events if e["id"] >= start_gw][:next_n]
+
+    # Fetch fixtures separately since bootstrap-static doesn't always include them
+    async with httpx.AsyncClient(base_url=_FPL_BASE_URL, timeout=10.0) as client:
+        fixtures_resp = await client.get("/fixtures/")
+        fixtures_resp.raise_for_status()
+        all_fixtures = fixtures_resp.json()
+
+    # Group fixtures by GW
+    fixtures_by_gw: dict[int, list] = {}
+    for f in all_fixtures:
+        gw = f.get("event")
+        if gw is None:
+            continue
+        fixtures_by_gw.setdefault(gw, []).append(f)
+
+    schedule = []
+    all_team_ids = set(team_map.keys())
+
+    for event in upcoming:
+        gw_id = event["id"]
+        gw_fixtures = fixtures_by_gw.get(gw_id, [])
+
+        # Count appearances per team this GW
+        team_fixture_count: dict[int, int] = {}
+        gw_fixture_list = []
+        for f in gw_fixtures:
+            h = f.get("team_h")
+            a = f.get("team_a")
+            if h:
+                team_fixture_count[h] = team_fixture_count.get(h, 0) + 1
+            if a:
+                team_fixture_count[a] = team_fixture_count.get(a, 0) + 1
+            gw_fixture_list.append(f"{team_map.get(h, '?')} vs {team_map.get(a, '?')}")
+
+        double_gw_teams = [team_map[tid] for tid, cnt in team_fixture_count.items() if cnt >= 2]
+        blank_gw_teams = [
+            team_map[tid] for tid in all_team_ids if team_fixture_count.get(tid, 0) == 0
+        ]
+
+        schedule.append(
+            {
+                "gameweek": gw_id,
+                "deadline": event.get("deadline_time", "")[:16],
+                "fixtures": gw_fixture_list,
+                "double_gameweek_teams": sorted(double_gw_teams),
+                "blank_gameweek_teams": sorted(blank_gw_teams),
+                "is_double_gw": len(double_gw_teams) > 0,
+                "is_blank_gw": len(blank_gw_teams) > 0,
+            }
+        )
+
+    return {"gameweek_schedule": schedule}
+
+
 # Tool definitions in Anthropic tool-use format.
 # Claude receives these and decides which to call based on the question.
 TOOL_DEFINITIONS = [
@@ -766,6 +898,39 @@ TOOL_DEFINITIONS = [
                     "description": "Number of top players to return, ranked by FPL points. Defaults to 10.",  # noqa: E501
                     "default": 10,
                 },
+            },
+            "required": [],
+        },
+    },
+    {
+        "name": "get_chip_status",
+        "description": (
+            "Get the user's FPL chip availability — which chips (Wildcard, Triple Captain, "
+            "Bench Boost, Free Hit) have been used and which are still available. "
+            "Always call this when the user asks about chip strategy or when to use a chip."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+    },
+    {
+        "name": "get_gameweek_schedule",
+        "description": (
+            "Get the upcoming FPL gameweek schedule, flagging which gameweeks have "
+            "double gameweeks (a team plays twice) or blank gameweeks (a team doesn't play). "
+            "Always call this when the user asks about chip timing, especially Bench Boost, "
+            "Triple Captain, Free Hit, or Wildcard timing around DGWs and BGWs."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "next_n": {
+                    "type": "integer",
+                    "description": "Number of upcoming gameweeks to return. Defaults to 8.",
+                    "default": 8,
+                }
             },
             "required": [],
         },
