@@ -18,7 +18,7 @@ const FEATURES = [
     desc: "Claude analyses your squad and gives a clear VERDICT with full reasoning.",
   },
   {
-    icon: "📋",
+    icon: "👥",
     title: "Your squad",
     desc: "Personalised advice based on your actual FPL team — not generic tips.",
   },
