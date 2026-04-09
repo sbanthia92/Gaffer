@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { askGaffer, fetchPlayerCard, submitFeedback } from "./api";
@@ -189,11 +189,13 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
 
 const PLAYER_TAG = /\[\[([^\]]+)\]\]/g;
 
+type TooltipMap = Record<string, { display: string; tooltip: string }>;
+
 function GafferMarkdown({ content }: { content: string }) {
-  const [resolved, setResolved] = useState(content);
+  const [text, setText] = useState(content);
+  const [tooltips, setTooltips] = useState<TooltipMap>({});
 
   useEffect(() => {
-    // Find all unique player names in [[Name]] tags
     const names: string[] = [];
     let m;
     PLAYER_TAG.lastIndex = 0;
@@ -201,27 +203,61 @@ function GafferMarkdown({ content }: { content: string }) {
       if (!names.includes(m[1])) names.push(m[1]);
     }
     if (names.length === 0) {
-      setResolved(content);
+      setText(content);
       return;
     }
-    // Fetch all cards in parallel, then replace tags with plain text
     Promise.all(names.map((n) => fetchPlayerCard(n).then((c) => ({ name: n, card: c })))).then(
       (results) => {
-        let text = content;
+        const map: TooltipMap = {};
+        let processed = content;
         for (const { name, card } of results) {
-          const replacement = card
-            ? `**${card.name}** *(${card.team} · £${card.price.toFixed(1)}m)*`
-            : `**${name}**`;
-          text = text.replaceAll(`[[${name}]]`, replacement);
+          const key = `PLAYER_${name.replace(/\s+/g, "_").toUpperCase()}`;
+          map[key] = {
+            display: card?.name ?? name,
+            tooltip: card ? `${card.team} · ${card.position} · £${card.price.toFixed(1)}m` : name,
+          };
+          processed = processed.replaceAll(`[[${name}]]`, key);
         }
-        setResolved(text);
+        setText(processed);
+        setTooltips(map);
       }
     );
   }, [content]);
 
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]}>{resolved}</ReactMarkdown>
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        // Intercept plain text nodes to replace PLAYER_ tokens with <abbr>
+        p: ({ children, ...props }) => (
+          <p {...props}>{renderWithTooltips(children, tooltips)}</p>
+        ),
+        li: ({ children, ...props }) => (
+          <li {...props}>{renderWithTooltips(children, tooltips)}</li>
+        ),
+      }}
+    >
+      {text}
+    </ReactMarkdown>
   );
+}
+
+function renderWithTooltips(children: React.ReactNode, tooltips: TooltipMap): React.ReactNode {
+  if (!children) return children;
+  return React.Children.map(children, (child) => {
+    if (typeof child !== "string") return child;
+    const parts = child.split(/(PLAYER_[A-Z0-9_]+)/g);
+    if (parts.length === 1) return child;
+    return parts.map((part, i) =>
+      tooltips[part] ? (
+        <abbr key={i} title={tooltips[part].tooltip} className="player-abbr">
+          {tooltips[part].display}
+        </abbr>
+      ) : (
+        part
+      )
+    );
+  });
 }
 
 // ── Main app ──────────────────────────────────────────────────────────────────
