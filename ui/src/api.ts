@@ -61,6 +61,27 @@ export async function askGaffer(
   return fullAnswer;
 }
 
+export interface PlayerCard {
+  id: number;
+  name: string;
+  full_name: string;
+  team: string;
+  position: string;
+  price: number;
+  form: string;
+  total_points: number;
+  selected_by_percent: string;
+  photo_url: string;
+}
+
+export async function fetchPlayerCard(name: string): Promise<PlayerCard | null> {
+  const res = await fetch(
+    `${BASE_URL}/api/fpl/player-card?name=${encodeURIComponent(name)}`
+  );
+  if (!res.ok) return null;
+  return res.json();
+}
+
 export async function submitFeedback(
   message: string,
   email: string

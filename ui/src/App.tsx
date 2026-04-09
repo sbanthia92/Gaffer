@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { askGaffer, submitFeedback } from "./api";
 import Landing from "./Landing";
+import PlayerCard from "./PlayerCard";
 import {
   appendMessage,
   deleteSession,
@@ -182,6 +183,42 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
         )}
       </div>
     </div>
+  );
+}
+
+// ── Player-card aware markdown renderer ───────────────────────────────────────
+
+const PLAYER_TAG = /\[\[([^\]]+)\]\]/g;
+
+function GafferMarkdown({ content }: { content: string }) {
+  // Split content into segments: plain markdown and [[Player]] tags
+  const segments: Array<{ type: "md" | "player"; value: string }> = [];
+  let last = 0;
+  let match;
+  PLAYER_TAG.lastIndex = 0;
+  while ((match = PLAYER_TAG.exec(content)) !== null) {
+    if (match.index > last) {
+      segments.push({ type: "md", value: content.slice(last, match.index) });
+    }
+    segments.push({ type: "player", value: match[1] });
+    last = match.index + match[0].length;
+  }
+  if (last < content.length) {
+    segments.push({ type: "md", value: content.slice(last) });
+  }
+
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.type === "player" ? (
+          <PlayerCard key={i} name={seg.value} />
+        ) : (
+          <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>
+            {seg.value}
+          </ReactMarkdown>
+        )
+      )}
+    </>
   );
 }
 
@@ -476,9 +513,7 @@ export default function App() {
                       ) : (
                         <>
                           <div className="bubble-label">The Gaffer · FPL</div>
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {msg.content}
-                          </ReactMarkdown>
+                          <GafferMarkdown content={msg.content} />
                         </>
                       )}
                     </div>

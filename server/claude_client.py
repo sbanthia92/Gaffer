@@ -72,6 +72,10 @@ def _build_system_prompt(rag_context: str, league: str) -> str:
         "2. THE DATA — the facts, stats, fixture context, and odds that inform the verdict\n"
         "3. THE REASONING — a detailed explanation of why the verdict is what it is, "
         "weighing the data and any alternatives\n\n"
+        "IMPORTANT: Every time you mention a Premier League player by name, wrap their "
+        "name in double square brackets, e.g. [[Salah]] or [[Haaland]]. Use their common "
+        "short name (the one used on FPL), not their full name. Do this consistently "
+        "throughout your response.\n\n"
         f"--- HISTORICAL CONTEXT ---\n{context_block}\n--- END HISTORICAL CONTEXT ---"
     )
 
