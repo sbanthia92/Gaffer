@@ -18,7 +18,7 @@ const FEATURES = [
     desc: "Claude analyses your squad and gives a clear VERDICT with full reasoning.",
   },
   {
-    icon: "📋",
+    icon: "👥",
     title: "Your squad",
     desc: "Personalised advice based on your actual FPL team — not generic tips.",
   },
@@ -43,7 +43,7 @@ export default function Landing({ onStart }: Props) {
     <div className="landing">
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
       <header className="landing-header">
-        <span className="landing-logo">⚽ gaffer.io</span>
+        <span className="landing-logo">📋 the-gaffer.io</span>
       </header>
 
       <section className="landing-hero">
