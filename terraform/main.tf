@@ -201,6 +201,7 @@ resource "aws_instance" "gaffer" {
   key_name               = var.ec2_key_name
   vpc_security_group_ids = [aws_security_group.gaffer.id]
   iam_instance_profile   = aws_iam_instance_profile.gaffer_ec2.name
+  user_data              = file("${path.module}/../scripts/bootstrap_ec2.sh")
 
   root_block_device {
     volume_size = 30
