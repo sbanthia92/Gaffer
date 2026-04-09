@@ -390,6 +390,7 @@ def test_tool_definitions_structure():
         "get_head_to_head",
         "get_player_vs_opponent",
         "get_odds",
+        "search_players_by_criteria",
     }
     for tool in TOOL_DEFINITIONS:
         assert "name" in tool

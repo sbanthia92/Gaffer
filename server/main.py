@@ -175,6 +175,12 @@ async def _fpl_tool_handler(
             last_n=i.get("last_n", 5),
         ),
         "get_odds": lambda i: fpl.get_odds(fixture_id=i["fixture_id"]),
+        "search_players_by_criteria": lambda i: fpl.search_players_by_criteria(
+            position=i.get("position"),
+            max_price=i.get("max_price"),
+            min_price=i.get("min_price"),
+            top_n=i.get("top_n", 10),
+        ),
     }
     handler = handlers.get(tool_name)
     if handler is None:
