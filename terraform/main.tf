@@ -106,6 +106,20 @@ resource "aws_iam_role_policy" "gaffer_cloudwatch" {
   })
 }
 
+resource "aws_iam_role_policy" "gaffer_xray" {
+  name = "gaffer-xray"
+  role = aws_iam_role.gaffer_ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["xray:PutTraceSegments", "xray:PutTelemetryRecords"]
+      Resource = "*"
+    }]
+  })
+}
+
 resource "aws_cloudwatch_log_group" "gaffer_api" {
   name              = "/gaffer/production/api"
   retention_in_days = 30
