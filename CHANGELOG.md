@@ -28,7 +28,7 @@ All notable changes to The Gaffer are documented here.
 ### Added
 - SSE streaming — Claude's answer appears word by word instead of all at once
 - RAG pipeline — 1,129 FPL documents ingested into Pinecone (player stats, GW history, fixture difficulty, match results)
-- EC2 hosting on `https://54-172-87-137.sslip.io` with nginx + Let's Encrypt HTTPS
+- EC2 hosting on `https://the-gaffer.io` with nginx + Let's Encrypt HTTPS
 - GitHub Actions CD — auto-deploys to EC2 on merge to main
 - Feedback form with bug reporting
 - FPL team ID input with instructions
