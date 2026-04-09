@@ -6,17 +6,23 @@ const BASE_URL = import.meta.env.VITE_API_URL ?? "";
  * @param onChunk  Called with each text chunk as it arrives
  * @returns        The full answer string once streaming is complete
  */
+export interface HistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export async function askGaffer(
   question: string,
   league: string = "fpl",
   fplTeamId: number | null = null,
   onChunk: (chunk: string) => void = () => {},
-  onStatus: (status: string) => void = () => {}
+  onStatus: (status: string) => void = () => {},
+  history: HistoryMessage[] = []
 ): Promise<string> {
   const res = await fetch(`${BASE_URL}/api/${league}/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, fpl_team_id: fplTeamId }),
+    body: JSON.stringify({ question, fpl_team_id: fplTeamId, history }),
   });
 
   if (!res.ok || !res.body) {

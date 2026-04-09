@@ -401,6 +401,12 @@ export default function App() {
           : [updatedWithPlaceholder, ...prev];
       });
 
+      // Build history: all messages before the current user question (exclude empty placeholders)
+      const history = updatedWithUser.messages
+        .filter((m) => m.content.trim() !== "")
+        .slice(0, -1) // exclude the just-added user message
+        .map((m) => ({ role: m.role, content: m.content }));
+
       let accumulated = "";
       await askGaffer(
         question,
@@ -423,7 +429,8 @@ export default function App() {
         },
         (status) => {
           setStatusText(status);
-        }
+        },
+        history
       );
 
       // Persist the final answer

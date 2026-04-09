@@ -26,7 +26,7 @@ import anthropic
 from server.config import settings
 
 _MODEL = "claude-opus-4-6"
-_MAX_TOKENS = 4096
+_MAX_TOKENS = 8192
 
 # Type alias for an async tool handler function
 ToolHandler = Callable[[str, dict], Coroutine[Any, Any, dict]]
@@ -115,11 +115,14 @@ async def ask(
     tool_handler: ToolHandler,
     rag_context: str = "",
     league: str = "fpl",
+    history: list[dict] | None = None,
 ) -> AsyncIterator[tuple[str, str]]:
     """
     Send a question to Claude with tools and RAG context. Runs the tool-use
     loop until Claude is ready to answer, then streams the final answer
     token by token.
+
+    history: prior conversation turns as [{"role": "user"|"assistant", "content": str}, ...]
 
     Yields:
         ("status", label)  before each tool-use round
@@ -127,7 +130,8 @@ async def ask(
         ("done",   "")     when complete
     """
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-    messages: list[dict] = [{"role": "user", "content": question}]
+    # Build messages: prior history + current question
+    messages: list[dict] = [*(history or []), {"role": "user", "content": question}]
     system = _build_system_prompt(rag_context, league)
 
     async def _generate() -> AsyncIterator[tuple[str, str]]:
