@@ -304,6 +304,22 @@
   50%       { opacity: 1; }
 }
 
+/* ── Player badge ────────────────────────────────────────────────────────── */
+
+.player-badge {
+  display: inline-block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  margin: 0 2px;
+  vertical-align: middle;
+}
+
 /* ── Error banner ────────────────────────────────────────────────────────── */
 
 .error-banner {

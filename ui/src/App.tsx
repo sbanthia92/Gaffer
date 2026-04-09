@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { askGaffer, submitFeedback } from "./api";
+import { askGaffer, fetchPlayerCard, submitFeedback } from "./api";
 import Landing from "./Landing";
-import PlayerCard from "./PlayerCard";
 import {
   appendMessage,
   deleteSession,
@@ -186,12 +185,23 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ── Player-card aware markdown renderer ───────────────────────────────────────
+// ── Player-badge aware markdown renderer ─────────────────────────────────────
 
 const PLAYER_TAG = /\[\[([^\]]+)\]\]/g;
 
+function PlayerBadge({ name }: { name: string }) {
+  const [label, setLabel] = useState(name);
+
+  useEffect(() => {
+    fetchPlayerCard(name).then((card) => {
+      if (card) setLabel(`${card.name} · ${card.team} · £${card.price.toFixed(1)}m`);
+    });
+  }, [name]);
+
+  return <span className="player-badge">{label}</span>;
+}
+
 function GafferMarkdown({ content }: { content: string }) {
-  // Split content into segments: plain markdown and [[Player]] tags
   const segments: Array<{ type: "md" | "player"; value: string }> = [];
   let last = 0;
   let match;
@@ -211,7 +221,7 @@ function GafferMarkdown({ content }: { content: string }) {
     <>
       {segments.map((seg, i) =>
         seg.type === "player" ? (
-          <PlayerCard key={i} name={seg.value} />
+          <PlayerBadge key={i} name={seg.value} />
         ) : (
           <ReactMarkdown key={i} remarkPlugins={[remarkGfm]}>
             {seg.value}

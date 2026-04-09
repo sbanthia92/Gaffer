@@ -3,6 +3,7 @@ import time
 
 import httpx
 import resend
+from aws_xray_sdk.core import patch_all, xray_recorder
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -12,14 +13,26 @@ from server.config import settings
 from server.logger import log
 from server.tools import fpl
 
+xray_recorder.configure(service="gaffer-api", daemon_address="127.0.0.1:2000")
+patch_all()  # auto-patches httpx, boto3
+
 app = FastAPI(title="The Gaffer", version="0.1.0")
 
 
 @app.middleware("http")
 async def _request_logger(request: Request, call_next):
     start = time.monotonic()
-    response = await call_next(request)
-    latency_ms = round((time.monotonic() - start) * 1000)
+    segment_name = f"{request.method} {request.url.path}"
+    xray_recorder.begin_segment(segment_name)
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        xray_recorder.current_segment().add_exception(e, [])
+        raise
+    finally:
+        latency_ms = round((time.monotonic() - start) * 1000)
+        xray_recorder.end_segment()
+
     if request.url.path != "/health":
         log.info(
             "http.request",
@@ -99,25 +112,28 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
             log.info("ask.start", question=request.question, fpl_team_id=request.fpl_team_id)
 
             # Layer 1 — RAG
-            context = await rag.retrieve(
-                query=request.question,
-                namespace="fpl",
-                top_k=5,
-                recency_weight=0.3,
-            )
+            with xray_recorder.in_subsegment("rag.retrieve"):
+                context = await rag.retrieve(
+                    query=request.question,
+                    namespace="fpl",
+                    top_k=5,
+                    recency_weight=0.3,
+                )
 
             # Layer 2 — Claude tool-use loop + streamed answer
             async def _tracking_handler(name: str, inp: dict) -> dict:
                 tools_called.append(name)
-                return await _fpl_tool_handler(name, inp, request.fpl_team_id)
+                with xray_recorder.in_subsegment(f"tool.{name}"):
+                    return await _fpl_tool_handler(name, inp, request.fpl_team_id)
 
-            stream = await claude_client.ask(
-                question=request.question,
-                tool_definitions=fpl.TOOL_DEFINITIONS,
-                tool_handler=_tracking_handler,
-                rag_context=context,
-                league="fpl",
-            )
+            with xray_recorder.in_subsegment("claude.ask"):
+                stream = await claude_client.ask(
+                    question=request.question,
+                    tool_definitions=fpl.TOOL_DEFINITIONS,
+                    tool_handler=_tracking_handler,
+                    rag_context=context,
+                    league="fpl",
+                )
 
             async for event_type, data in stream:
                 yield _sse(event_type, data)
