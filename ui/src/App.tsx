@@ -250,6 +250,8 @@ function GafferMarkdown({ content }: { content: string }) {
         h3: ({ children, ...props }) => <h3 {...props}>{wrap(children)}</h3>,
         strong: ({ children, ...props }) => <strong {...props}>{wrap(children)}</strong>,
         em: ({ children, ...props }) => <em {...props}>{wrap(children)}</em>,
+        td: ({ children, ...props }) => <td {...props}>{wrap(children)}</td>,
+        th: ({ children, ...props }) => <th {...props}>{wrap(children)}</th>,
       }}
     >
       {text}
