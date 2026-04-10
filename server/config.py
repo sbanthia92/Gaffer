@@ -41,7 +41,7 @@ _inject_secrets()
 
 class Settings(BaseSettings):
     anthropic_api_key: str
-    pinecone_api_key: str
+    pinecone_api_key: str = ""
     pinecone_index_name: str = "the-gaffer"
     api_sports_key: str
     fpl_team_id: int | None = None
@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     server_port: int = 8000
     environment: str = "development"
+    # V2
+    database_url: str = ""  # postgres://gaffer_readonly:password@localhost:5432/gaffer
 
     model_config = {"env_file": str(_ENV_FILE)}
 
