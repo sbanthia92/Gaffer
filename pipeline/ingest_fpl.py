@@ -1,14 +1,13 @@
 """
-FPL RAG ingestion pipeline.
+FPL RAG ingestion pipeline — historical seasons only.
 
-Fetches four document types from the official FPL API (free, no auth required)
-and upserts them to Pinecone under the 'fpl' namespace.
+Fetches past-season data from the official FPL API and upserts to Pinecone
+under the 'fpl' namespace. Current-season data is served live via tools;
+Pinecone is reserved for historical context the tools cannot provide.
 
 Document types:
-  - player_season_stats  : season totals for all FPL players (~825)
-  - player_gw_history    : per-gameweek breakdown (hauls, blanks, recent form)
-  - team_fdr             : upcoming fixture difficulty ratings per team
-  - fixture_result       : completed match results for the current season
+  - player_season_history : per-player, per-past-season aggregate stats
+                            (goals, assists, points, minutes, bonus, etc.)
 
 Run from the project root:
     python -m pipeline.ingest_fpl
@@ -25,8 +24,7 @@ from server.config import settings
 
 _FPL_BASE = "https://fantasy.premierleague.com/api"
 _NAMESPACE = "fpl"
-_SEASON = "2024/25"
-_TOP_N_PLAYERS = 825  # all FPL players (full squad list, ~825 in a season)
+_TOP_N_PLAYERS = 825
 _EMBED_MODEL = "multilingual-e5-large"
 _UPSERT_BATCH = 96
 
@@ -49,142 +47,126 @@ async def _fetch(client: httpx.AsyncClient, url: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Document builders — pure functions, easy to test
+# Document builder
 # ---------------------------------------------------------------------------
 
 
-def build_player_season_doc(player: dict, team_name: str) -> tuple[str, str, dict]:
-    """Return (id, text, metadata) for a player's season stats."""
-    name = f"{player['first_name']} {player['second_name']}"
-    position = _POSITION_MAP.get(player["element_type"], "UNK")
-    price = player["now_cost"] / 10
-
-    text = (
-        f"Player: {name} | Team: {team_name} | Position: {position} | Price: £{price:.1f}m\n"
-        f"{_SEASON} Season: {player['goals_scored']}g {player['assists']}a "
-        f"{player['total_points']}pts {player['minutes']}mins\n"
-        f"Form: {player['form']} | Selected by: {player['selected_by_percent']}% | "
-        f"Clean sheets: {player['clean_sheets']} | Bonus: {player['bonus']}\n"
-        f"Goals conceded: {player['goals_conceded']} | Yellow cards: {player['yellow_cards']}"
-    )
-    meta = {
-        "text": text,
-        "type": "player_season_stats",
-        "season": _SEASON,
-        "player_id": player["id"],
-        "player_name": name,
-        "team": team_name,
-        "recency_score": 0.9,
-    }
-    return _doc_id(f"player_season_{player['id']}"), text, meta
-
-
-def build_player_gw_history_doc(
-    player_name: str, team_name: str, player_id: int, history: list
-) -> tuple[str, str, dict] | None:
-    """Return (id, text, metadata) summarising a player's GW-by-GW season history."""
-    if not history:
-        return None
-
-    hauls = [gw for gw in history if gw["total_points"] >= 12]
-    blanks = [gw for gw in history if gw["total_points"] <= 2]
-    last_5 = history[-5:]
-    last_5_pts = sum(gw["total_points"] for gw in last_5)
-
-    lines = [
-        f"Player: {player_name} | Team: {team_name} | GW History {_SEASON}",
-        f"Played {len(history)} GWs | Hauls (12+ pts): {len(hauls)}"
-        f" | Blanks (≤2 pts): {len(blanks)}",
-        f"Last 5 GW points: {[gw['total_points'] for gw in last_5]} (total: {last_5_pts})",
-    ]
-
-    if hauls:
-        haul_str = ", ".join(f"GW{gw['round']}({gw['total_points']}pts)" for gw in hauls[-3:])
-        lines.append(f"Recent hauls: {haul_str}")
-
-    recent_10 = history[-10:]
-    gw_breakdown = " | ".join(
-        f"GW{gw['round']}: {gw['total_points']}pts ({gw['goals_scored']}g {gw['assists']}a)"
-        for gw in recent_10
-    )
-    lines.append(f"Recent GWs: {gw_breakdown}")
-
-    text = "\n".join(lines)
-    latest_round = history[-1]["round"]
-    recency_score = min(1.0, latest_round / 38)
-
-    meta = {
-        "text": text,
-        "type": "player_gw_history",
-        "season": _SEASON,
-        "player_id": player_id,
-        "player_name": player_name,
-        "team": team_name,
-        "recency_score": recency_score,
-    }
-    return _doc_id(f"player_gw_{player_id}"), text, meta
-
-
-def build_team_fdr_doc(team: dict, upcoming_fixtures: list) -> tuple[str, str, dict] | None:
-    """Return (id, text, metadata) for a team's upcoming fixture difficulty."""
-    team_fixtures = [
-        f for f in upcoming_fixtures if f["team_h"] == team["id"] or f["team_a"] == team["id"]
-    ][:5]
-
-    if not team_fixtures:
-        return None
-
-    fdr_lines = []
-    for f in team_fixtures:
-        is_home = f["team_h"] == team["id"]
-        difficulty = f["team_h_difficulty"] if is_home else f["team_a_difficulty"]
-        venue = "H" if is_home else "A"
-        fdr_lines.append(f"GW{f['event']} ({venue}) — FDR: {difficulty}/5")
-
-    text = (
-        f"Team: {team['name']} | Upcoming Fixture Difficulty ({_SEASON})\n"
-        + "\n".join(fdr_lines)
-        + f"\nStrength overall: {team['strength']} | "
-        f"Attack H/A: {team['strength_attack_home']}/{team['strength_attack_away']} | "
-        f"Defence H/A: {team['strength_defence_home']}/{team['strength_defence_away']}"
-    )
-    meta = {
-        "text": text,
-        "type": "team_fdr",
-        "season": _SEASON,
-        "team_id": team["id"],
-        "team_name": team["name"],
-        "recency_score": 1.0,
-    }
-    return _doc_id(f"team_fdr_{team['id']}"), text, meta
-
-
-def build_fixture_result_docs(
-    finished_fixtures: list, teams_by_id: dict
+def build_player_history_past_docs(
+    player_name: str,
+    team_name: str,
+    position: str,
+    player_id: int,
+    history_past: list,
 ) -> list[tuple[str, str, dict]]:
-    """Return a list of (id, text, metadata) for every completed fixture."""
+    """
+    Return one (id, text, metadata) doc per past season for a player.
+    history_past is the list returned by /api/element-summary/{id}/ under 'history_past'.
+    """
     docs = []
-    for f in finished_fixtures:
-        home = teams_by_id.get(f["team_h"], {}).get("name", str(f["team_h"]))
-        away = teams_by_id.get(f["team_a"], {}).get("name", str(f["team_a"]))
-        score = f"{f['team_h_score']}-{f['team_a_score']}"
-        gw = f.get("event") or 0
+    for season in history_past:
+        season_name = season.get("season_name", "unknown")
+        start_price = season.get("start_cost", 0) / 10
+        end_price = season.get("end_cost", 0) / 10
 
         text = (
-            f"Result {_SEASON} GW{gw}: {home} {score} {away}\n"
-            f"Home FDR: {f['team_h_difficulty']} | Away FDR: {f['team_a_difficulty']}"
+            f"Player: {player_name} | Team: {team_name} | Position: {position} | "
+            f"Season: {season_name}\n"
+            f"Points: {season['total_points']} | Minutes: {season['minutes']} | "
+            f"Goals: {season['goals_scored']} | Assists: {season['assists']}\n"
+            f"Clean sheets: {season['clean_sheets']} | Bonus: {season['bonus']} | "
+            f"Yellow cards: {season['yellow_cards']} | Red cards: {season['red_cards']}\n"
+            f"Start price: £{start_price:.1f}m | End price: £{end_price:.1f}m | "
+            f"Starts: {season.get('starts', 'N/A')}"
         )
         meta = {
             "text": text,
-            "type": "fixture_result",
-            "season": _SEASON,
-            "fixture_id": f["id"],
-            "home_team": home,
-            "away_team": away,
-            "recency_score": min(1.0, gw / 38),
+            "type": "player_season_history",
+            "season": season_name,
+            "player_id": player_id,
+            "player_name": player_name,
+            "team": team_name,
+            "position": position,
+            "recency_score": _recency_score(season_name),
         }
-        docs.append((_doc_id(f"fixture_{f['id']}"), text, meta))
+        docs.append((_doc_id(f"player_hist_{player_id}_{season_name}"), text, meta))
     return docs
+
+
+def build_player_vs_opponent_docs(
+    player_name: str,
+    position: str,
+    player_id: int,
+    season_name: str,
+    gw_history: list,
+    teams_by_id: dict,
+) -> list[tuple[str, str, dict]]:
+    """
+    Return one doc per opponent faced in the season, aggregating all GW appearances.
+    gw_history is the 'history' array from /api/element-summary/{id}/ (current season GW data).
+    Each entry includes opponent_team (team ID), was_home, total_points, goals_scored, assists, etc.
+    """
+    from collections import defaultdict
+
+    by_opponent: dict[int, list] = defaultdict(list)
+    for gw in gw_history:
+        opp_id = gw.get("opponent_team")
+        if opp_id:
+            by_opponent[opp_id].append(gw)
+
+    docs = []
+    for opp_id, appearances in by_opponent.items():
+        opp_name = teams_by_id.get(opp_id, {}).get("name", str(opp_id))
+        total_pts = sum(g["total_points"] for g in appearances)
+        total_goals = sum(g["goals_scored"] for g in appearances)
+        total_assists = sum(g["assists"] for g in appearances)
+        total_mins = sum(g["minutes"] for g in appearances)
+        fixture_strs = []
+        for g in appearances:
+            venue = "H" if g.get("was_home") else "A"
+            fixture_strs.append(
+                f"GW{g['round']}({venue}): {g['total_points']}pts "
+                f"{g['goals_scored']}g {g['assists']}a"
+            )
+
+        text = (
+            f"Player: {player_name} | Position: {position} | Season: {season_name} | "
+            f"vs {opp_name}\n"
+            f"Appearances: {len(appearances)} | Total: {total_goals}g {total_assists}a "
+            f"{total_pts}pts {total_mins}mins\n"
+            f"Fixtures: {' | '.join(fixture_strs)}"
+        )
+        meta = {
+            "text": text,
+            "type": "player_vs_opponent",
+            "season": season_name,
+            "player_id": player_id,
+            "player_name": player_name,
+            "opponent": opp_name,
+            "recency_score": _recency_score(season_name),
+        }
+        docs.append((_doc_id(f"player_vs_opp_{player_id}_{opp_id}_{season_name}"), text, meta))
+    return docs
+
+
+def _current_season(bootstrap: dict) -> str:
+    """Derive the current season string (e.g. '2025/26') from bootstrap events."""
+    try:
+        # FPL events have a 'deadline_time' like '2025-08-16T...' — use year of first event
+        first_event = bootstrap["events"][0]
+        year = int(first_event["deadline_time"][:4])
+        return f"{year}/{str(year + 1)[2:]}"
+    except (KeyError, IndexError, ValueError):
+        return "unknown"
+
+
+def _recency_score(season_name: str) -> float:
+    """Score more recent seasons higher. '2024/25' → 1.0, '2023/24' → 0.8, etc."""
+    try:
+        start_year = int(season_name.split("/")[0])
+        # 2024 → 1.0, 2023 → 0.8, 2022 → 0.6, etc.
+        return max(0.2, 1.0 - (2024 - start_year) * 0.2)
+    except (ValueError, IndexError):
+        return 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -195,8 +177,7 @@ def build_fixture_result_docs(
 def _upsert(pc: Pinecone, index, docs: list[tuple[str, str, dict]]) -> int:
     """Embed and upsert docs in batches. Returns number of vectors upserted."""
     total = 0
-    batches = range(0, len(docs), _UPSERT_BATCH)
-    for i, start in enumerate(batches):
+    for start in range(0, len(docs), _UPSERT_BATCH):
         batch = docs[start : start + _UPSERT_BATCH]
         texts = [text for _, text, _ in batch]
 
@@ -214,8 +195,6 @@ def _upsert(pc: Pinecone, index, docs: list[tuple[str, str, dict]]) -> int:
         total += len(vectors)
         print(f"  upserted {total}/{len(docs)}")
 
-        # Respect Pinecone free-tier rate limit (250k tokens/min).
-        # Sleep between batches except after the last one.
         if start + _UPSERT_BATCH < len(docs):
             time.sleep(8)
 
@@ -231,60 +210,60 @@ async def run() -> None:
     pc = Pinecone(api_key=settings.pinecone_api_key)
     index = pc.Index(settings.pinecone_index_name)
 
-    print("Fetching FPL bootstrap and fixtures...")
+    print("Fetching FPL bootstrap...")
     async with httpx.AsyncClient(timeout=30.0) as client:
         bootstrap = await _fetch(client, f"{_FPL_BASE}/bootstrap-static/")
-        all_fixtures = await _fetch(client, f"{_FPL_BASE}/fixtures/")
 
     teams_by_id = {t["id"]: t for t in bootstrap["teams"]}
-    players_sorted = sorted(bootstrap["elements"], key=lambda p: p["total_points"], reverse=True)
-    top_players = players_sorted[:_TOP_N_PLAYERS]
-    print(f"Selected top {len(top_players)} players by total FPL points.")
+    # Derive current season from the bootstrap events
+    current_season = _current_season(bootstrap)
+    print(f"Current season: {current_season}")
+
+    players = sorted(bootstrap["elements"], key=lambda p: p["total_points"], reverse=True)
+    players = players[:_TOP_N_PLAYERS]
+    print(f"Processing {len(players)} players for historical season data...")
 
     all_docs: list[tuple[str, str, dict]] = []
 
-    # 1 — Player season stats
-    for p in top_players:
-        team_name = teams_by_id.get(p["team"], {}).get("name", "Unknown")
-        all_docs.append(build_player_season_doc(p, team_name))
-    print(f"Built {len(top_players)} player season stat docs.")
-
-    # 2 — Player GW history (one request per player)
-    print(f"Fetching GW history for {len(top_players)} players...")
-    gw_docs: list[tuple[str, str, dict]] = []
     async with httpx.AsyncClient(timeout=30.0) as client:
-        for i, p in enumerate(top_players):
+        for i, p in enumerate(players):
             name = f"{p['first_name']} {p['second_name']}"
             team_name = teams_by_id.get(p["team"], {}).get("name", "Unknown")
+            position = _POSITION_MAP.get(p["element_type"], "UNK")
             try:
                 summary = await _fetch(client, f"{_FPL_BASE}/element-summary/{p['id']}/")
-                result = build_player_gw_history_doc(
-                    name, team_name, p["id"], summary.get("history", [])
-                )
-                if result:
-                    gw_docs.append(result)
+
+                # 1 — Past season aggregates (history_past)
+                history_past = summary.get("history_past", [])
+                if history_past:
+                    all_docs.extend(
+                        build_player_history_past_docs(
+                            name, team_name, position, p["id"], history_past
+                        )
+                    )
+
+                # 2 — Current season player-vs-opponent breakdowns (history)
+                gw_history = summary.get("history", [])
+                if gw_history:
+                    all_docs.extend(
+                        build_player_vs_opponent_docs(
+                            name, position, p["id"], current_season, gw_history, teams_by_id
+                        )
+                    )
+
             except Exception as e:
                 print(f"  Warning: failed to fetch history for {name}: {e}")
+
             if (i + 1) % 50 == 0:
-                print(f"  {i + 1}/{len(top_players)} players fetched")
-    all_docs.extend(gw_docs)
-    print(f"Built {len(gw_docs)} player GW history docs.")
+                print(f"  {i + 1}/{len(players)} players processed ({len(all_docs)} docs so far)")
 
-    # 3 — Team FDR
-    upcoming = [f for f in all_fixtures if not f.get("finished")]
-    fdr_docs = [build_team_fdr_doc(team, upcoming) for team in bootstrap["teams"]]
-    fdr_docs = [d for d in fdr_docs if d is not None]
-    all_docs.extend(fdr_docs)
-    print(f"Built {len(fdr_docs)} team FDR docs.")
+    print(f"\nBuilt {len(all_docs)} total docs across all players.")
 
-    # 4 — Fixture results
-    finished = [f for f in all_fixtures if f.get("finished") and f.get("team_h_score") is not None]
-    result_docs = build_fixture_result_docs(finished, teams_by_id)
-    all_docs.extend(result_docs)
-    print(f"Built {len(result_docs)} fixture result docs.")
+    if not all_docs:
+        print("No docs to upsert. Exiting.")
+        return
 
-    # Embed and upsert
-    print(f"\nUpserting {len(all_docs)} documents to Pinecone (namespace: {_NAMESPACE})...")
+    print(f"Upserting to Pinecone (namespace: {_NAMESPACE})...")
     total = _upsert(pc, index, all_docs)
     print(f"\nDone. {total} documents upserted to namespace '{_NAMESPACE}'.")
 

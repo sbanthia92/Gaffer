@@ -1,183 +1,190 @@
 import pytest
 
 from pipeline.ingest_fpl import (
-    build_fixture_result_docs,
-    build_player_gw_history_doc,
-    build_player_season_doc,
-    build_team_fdr_doc,
+    _current_season,
+    _recency_score,
+    build_player_history_past_docs,
+    build_player_vs_opponent_docs,
 )
 
-_PLAYER = {
-    "id": 276,
-    "first_name": "Erling",
-    "second_name": "Haaland",
-    "team": 43,
-    "element_type": 4,
-    "now_cost": 140,
-    "goals_scored": 22,
-    "assists": 5,
-    "total_points": 198,
-    "minutes": 2340,
-    "form": "8.0",
-    "selected_by_percent": "72.3",
-    "clean_sheets": 0,
-    "bonus": 30,
-    "goals_conceded": 0,
-    "yellow_cards": 1,
-}
-
-_TEAM = {
-    "id": 43,
-    "name": "Man City",
-    "strength": 5,
-    "strength_attack_home": 1310,
-    "strength_attack_away": 1290,
-    "strength_defence_home": 1300,
-    "strength_defence_away": 1280,
-}
-
-_GW_HISTORY = [
-    {"round": r, "total_points": pts, "goals_scored": g, "assists": a}
-    for r, pts, g, a in [
-        (1, 14, 2, 0),
-        (2, 2, 0, 0),
-        (3, 8, 1, 0),
-        (4, 15, 2, 1),
-        (5, 6, 1, 0),
-        (6, 2, 0, 0),
-        (7, 12, 2, 0),
-        (8, 6, 1, 0),
-        (9, 9, 1, 1),
-        (10, 14, 2, 0),
-    ]
-]
-
-_UPCOMING_FIXTURES = [
-    {"event": 35, "team_h": 43, "team_a": 14, "team_h_difficulty": 2, "team_a_difficulty": 4},
-    {"event": 36, "team_h": 10, "team_a": 43, "team_h_difficulty": 3, "team_a_difficulty": 2},
-]
-
-_FINISHED_FIXTURES = [
+_HISTORY_PAST = [
     {
-        "id": 1001,
-        "event": 30,
-        "finished": True,
-        "team_h": 43,
-        "team_a": 14,
-        "team_h_score": 3,
-        "team_a_score": 1,
-        "team_h_difficulty": 2,
-        "team_a_difficulty": 4,
-    }
+        "season_name": "2024/25",
+        "start_cost": 140,
+        "end_cost": 145,
+        "total_points": 259,
+        "minutes": 2890,
+        "goals_scored": 27,
+        "assists": 9,
+        "clean_sheets": 0,
+        "bonus": 45,
+        "yellow_cards": 3,
+        "red_cards": 0,
+        "starts": 33,
+    },
+    {
+        "season_name": "2023/24",
+        "start_cost": 135,
+        "end_cost": 140,
+        "total_points": 198,
+        "minutes": 2340,
+        "goals_scored": 22,
+        "assists": 5,
+        "clean_sheets": 0,
+        "bonus": 30,
+        "yellow_cards": 1,
+        "red_cards": 0,
+        "starts": 28,
+    },
 ]
 
-_TEAMS_BY_ID = {43: {"name": "Man City"}, 14: {"name": "Liverpool"}}
-
 
 # ---------------------------------------------------------------------------
-# Player season stats
+# Player historical season docs
 # ---------------------------------------------------------------------------
 
 
-def test_player_season_doc_contains_key_fields():
-    doc_id, text, meta = build_player_season_doc(_PLAYER, "Man City")
+def test_history_past_doc_count():
+    docs = build_player_history_past_docs("Erling Haaland", "Man City", "FWD", 276, _HISTORY_PAST)
+    assert len(docs) == 2
+
+
+def test_history_past_doc_contains_key_fields():
+    docs = build_player_history_past_docs("Erling Haaland", "Man City", "FWD", 276, _HISTORY_PAST)
+    _, text, _ = docs[0]
     assert "Erling Haaland" in text
     assert "Man City" in text
     assert "FWD" in text
+    assert "2024/25" in text
+    assert "Goals: 27" in text
+    assert "Points: 259" in text
     assert "£14.0m" in text
-    assert "22g" in text
-    assert "198pts" in text
 
 
-def test_player_season_doc_metadata():
-    doc_id, text, meta = build_player_season_doc(_PLAYER, "Man City")
-    assert meta["type"] == "player_season_stats"
+def test_history_past_doc_metadata():
+    docs = build_player_history_past_docs("Erling Haaland", "Man City", "FWD", 276, _HISTORY_PAST)
+    _, text, meta = docs[0]
+    assert meta["type"] == "player_season_history"
     assert meta["player_id"] == 276
-    assert meta["recency_score"] == 0.9
+    assert meta["season"] == "2024/25"
     assert meta["text"] == text
 
 
-def test_player_season_doc_id_is_stable():
-    id1, _, _ = build_player_season_doc(_PLAYER, "Man City")
-    id2, _, _ = build_player_season_doc(_PLAYER, "Man City")
-    assert id1 == id2
+def test_history_past_doc_id_stable():
+    docs1 = build_player_history_past_docs("Erling Haaland", "Man City", "FWD", 276, _HISTORY_PAST)
+    docs2 = build_player_history_past_docs("Erling Haaland", "Man City", "FWD", 276, _HISTORY_PAST)
+    assert docs1[0][0] == docs2[0][0]
+    assert docs1[1][0] == docs2[1][0]
+
+
+def test_history_past_doc_unique_ids():
+    docs = build_player_history_past_docs("Erling Haaland", "Man City", "FWD", 276, _HISTORY_PAST)
+    ids = [d[0] for d in docs]
+    assert len(ids) == len(set(ids))
+
+
+def test_history_past_empty_returns_no_docs():
+    docs = build_player_history_past_docs("Someone", "Some Team", "MID", 999, [])
+    assert docs == []
 
 
 # ---------------------------------------------------------------------------
-# Player GW history
+# Recency score
 # ---------------------------------------------------------------------------
 
 
-def test_gw_history_doc_hauls_and_blanks():
-    _, text, meta = build_player_gw_history_doc("Erling Haaland", "Man City", 276, _GW_HISTORY)
-    assert "Hauls" in text
-    assert "Blanks" in text
-    assert "GW1(14pts)" in text or "GW4(15pts)" in text or "GW10(14pts)" in text
+def test_recency_score_most_recent():
+    assert _recency_score("2024/25") == pytest.approx(1.0)
 
 
-def test_gw_history_doc_last_5():
-    _, text, meta = build_player_gw_history_doc("Erling Haaland", "Man City", 276, _GW_HISTORY)
-    assert "Last 5 GW points" in text
+def test_recency_score_one_year_older():
+    assert _recency_score("2023/24") == pytest.approx(0.8)
 
 
-def test_gw_history_doc_metadata():
-    _, text, meta = build_player_gw_history_doc("Erling Haaland", "Man City", 276, _GW_HISTORY)
-    assert meta["type"] == "player_gw_history"
-    assert meta["player_id"] == 276
-    assert meta["recency_score"] == pytest.approx(10 / 38, rel=1e-3)
+def test_recency_score_floor():
+    assert _recency_score("2019/20") >= 0.2
 
 
-def test_gw_history_doc_empty_history_returns_none():
-    result = build_player_gw_history_doc("Someone", "Some Team", 999, [])
-    assert result is None
+def test_recency_score_invalid():
+    assert _recency_score("unknown") == 0.5
 
 
 # ---------------------------------------------------------------------------
-# Team FDR
+# Player vs opponent docs
+# ---------------------------------------------------------------------------
+
+_TEAMS_BY_ID = {1: {"name": "Arsenal"}, 2: {"name": "Chelsea"}}
+
+_GW_HISTORY = [
+    {
+        "round": 5,
+        "opponent_team": 1,
+        "was_home": True,
+        "total_points": 12,
+        "goals_scored": 2,
+        "assists": 0,
+        "minutes": 90,
+    },
+    {
+        "round": 20,
+        "opponent_team": 1,
+        "was_home": False,
+        "total_points": 6,
+        "goals_scored": 1,
+        "assists": 0,
+        "minutes": 90,
+    },
+    {
+        "round": 10,
+        "opponent_team": 2,
+        "was_home": True,
+        "total_points": 2,
+        "goals_scored": 0,
+        "assists": 0,
+        "minutes": 60,
+    },
+]
+
+_SALAH_ARGS = ("M Salah", "MID", 308, "2025/26", _GW_HISTORY, _TEAMS_BY_ID)
+
+
+def test_vs_opponent_doc_count():
+    docs = build_player_vs_opponent_docs(*_SALAH_ARGS)
+    assert len(docs) == 2  # one per opponent
+
+
+def test_vs_opponent_doc_aggregates():
+    docs = build_player_vs_opponent_docs(*_SALAH_ARGS)
+    arsenal_doc = next(d for d in docs if "Arsenal" in d[1])
+    _, text, meta = arsenal_doc
+    assert "3g" in text  # 2 + 1 goals
+    assert "18pts" in text  # 12 + 6
+    assert "Appearances: 2" in text
+    assert meta["opponent"] == "Arsenal"
+    assert meta["season"] == "2025/26"
+    assert meta["type"] == "player_vs_opponent"
+
+
+def test_vs_opponent_doc_unique_ids():
+    docs = build_player_vs_opponent_docs(*_SALAH_ARGS)
+    ids = [d[0] for d in docs]
+    assert len(ids) == len(set(ids))
+
+
+def test_vs_opponent_empty_history():
+    docs = build_player_vs_opponent_docs("M Salah", "MID", 308, "2025/26", [], _TEAMS_BY_ID)
+    assert docs == []
+
+
+# ---------------------------------------------------------------------------
+# Current season detection
 # ---------------------------------------------------------------------------
 
 
-def test_team_fdr_doc_contains_upcoming_fixtures():
-    _, text, meta = build_team_fdr_doc(_TEAM, _UPCOMING_FIXTURES)
-    assert "Man City" in text
-    assert "GW35" in text
-    assert "GW36" in text
-    assert "FDR" in text
+def test_current_season_from_bootstrap():
+    bootstrap = {"events": [{"deadline_time": "2025-08-16T11:00:00Z"}]}
+    assert _current_season(bootstrap) == "2025/26"
 
 
-def test_team_fdr_doc_metadata():
-    _, text, meta = build_team_fdr_doc(_TEAM, _UPCOMING_FIXTURES)
-    assert meta["type"] == "team_fdr"
-    assert meta["team_id"] == 43
-    assert meta["recency_score"] == 1.0
-
-
-def test_team_fdr_doc_no_upcoming_returns_none():
-    result = build_team_fdr_doc(_TEAM, [])
-    assert result is None
-
-
-# ---------------------------------------------------------------------------
-# Fixture results
-# ---------------------------------------------------------------------------
-
-
-def test_fixture_result_docs_score_and_teams():
-    docs = build_fixture_result_docs(_FINISHED_FIXTURES, _TEAMS_BY_ID)
-    assert len(docs) == 1
-    doc_id, text, meta = docs[0]
-    assert "Man City 3-1 Liverpool" in text
-    assert meta["type"] == "fixture_result"
-    assert meta["fixture_id"] == 1001
-    assert meta["home_team"] == "Man City"
-    assert meta["away_team"] == "Liverpool"
-
-
-def test_fixture_result_docs_recency_score():
-    docs = build_fixture_result_docs(_FINISHED_FIXTURES, _TEAMS_BY_ID)
-    _, _, meta = docs[0]
-    assert meta["recency_score"] == pytest.approx(30 / 38, rel=1e-3)
-
-
-def test_fixture_result_docs_empty():
-    assert build_fixture_result_docs([], _TEAMS_BY_ID) == []
+def test_current_season_fallback():
+    assert _current_season({}) == "unknown"
