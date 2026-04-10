@@ -65,7 +65,13 @@ In production, all secrets are fetched from AWS Secrets Manager (`gaffer/product
 python -m pipeline.ingest_fpl
 ```
 
-Ingests all 825 FPL players into Pinecone. Also runs nightly via GitHub Actions at midnight UTC.
+Ingests historical FPL data for all 825 players into Pinecone. Also runs nightly via GitHub Actions at midnight UTC.
+
+**What's stored:**
+- `player_season_history` — past season aggregates (goals, assists, points, price) from the FPL API `history_past` endpoint
+- `player_vs_opponent` — current season GW-by-GW records grouped by opponent, so Claude can answer "how has Salah performed vs Arsenal this season?"
+
+**Known limitation:** Player-vs-opponent breakdowns only cover the **current season**. The FPL API's `history_past` endpoint returns season totals only — it does not expose per-fixture data for past seasons. Historical player-vs-opponent context (e.g. 2024/25, 2023/24) would require an external dataset such as [vaastav/Fantasy-Premier-League](https://github.com/vaastav/Fantasy-Premier-League).
 
 ## Lint & test
 
