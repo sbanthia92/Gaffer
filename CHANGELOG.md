@@ -2,6 +2,36 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.8.0] — 2026-04-10
+
+### Added
+- **V2 mode** — opt-in via `?v=2` or the in-app toggle. Powered by PostgreSQL + text-to-SQL instead of the Pinecone vector search used in V1. Claude generates SQL queries against a structured database of historical FPL stats and executes them read-only with a safety blocklist and 5-second timeout.
+- **PostgreSQL historical database** — 6-table schema (`seasons`, `teams`, `players`, `gameweeks`, `fixtures`, `gw_player_stats`) covering every Premier League gameweek going back multiple seasons. Indexed for common FPL query patterns (recent form, player-vs-opponent, cross-season comparisons).
+- **ETL pipeline** (`pipeline/etl_v2.py`) — four run modes: `snapshot` (hourly live stats), `gw` (post-gameweek deep sync), `full` (both), and `backfill --season=YYYY` (historical data via API-Sports). Fully idempotent upserts so reruns are safe.
+- **API-Sports historical backfill** — uses the API-Sports football API to fill past seasons (2022–2024) with per-fixture player stats that the FPL API doesn't expose.
+- **Press & news RAG** (`pipeline/ingest_press.py`) — scrapes BBC Sport Premier League RSS and FPL player availability updates twice daily into a dedicated Pinecone `press` namespace. V2 responses are augmented with the 3 most relevant recent articles so Claude knows about injuries and manager quotes.
+- **EC2 PostgreSQL setup** (`scripts/setup_postgres.sh`) — one-shot script that installs Postgres 16 on Amazon Linux 2023, creates `gaffer_etl` (read/write) and `gaffer_readonly` users with random passwords, applies the schema, and prints the connection strings ready for Secrets Manager.
+- **Cron setup** (`scripts/setup_cron.sh`) — installs all scheduled jobs: hourly ETL snapshot, weekly post-GW sync, twice-daily press ingestion, and daily Pinecone refresh.
+- **V2 banner in UI** — green toggle in the chat header to switch between V1 (RAG) and V2 (SQL + press RAG). Version is persisted in localStorage and survives refreshes.
+
+### Changed
+- **Pinecone repurposed** — V1's Pinecone namespace now holds genuine historical context (past-season aggregates and current-season player-vs-opponent breakdowns) instead of stale current-season snapshots. Current-season data is served live via tools.
+- **Separate database credentials** — `DATABASE_ETL_URL` for the read/write pipeline, `DATABASE_URL` for the readonly app connection (principle of least privilege).
+- **Model** — switched from `claude-opus-4-6` to `claude-sonnet-4-6` for faster responses.
+
+### Removed
+- **CLI** — removed; the app is exclusively web UI now.
+
+## [0.7.0] — 2026-04-09
+
+### Fixed
+- **Returning users skip landing** — if an FPL team ID is already saved in localStorage, the landing page is bypassed and the user goes straight to the chat.
+- **DGW/BGW detection reliability** — improved double and blank gameweek detection to handle rearranged fixtures with `event=null` in the FPL API.
+- **Strict FPL transfer rules** — system prompt now enforces position constraints, form respect, budget checks, and squad structure rules when giving transfer advice.
+
+### Changed
+- FPL ID input is now surfaced more prominently on the landing page.
+
 ## [0.6.0] — 2026-04-09
 
 ### Fixed
