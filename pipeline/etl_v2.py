@@ -33,6 +33,17 @@ from server.config import settings
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
+
+def _parse_dt(value: str | None) -> datetime | None:
+    """Parse an ISO 8601 datetime string into a timezone-aware datetime for asyncpg."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+
+
 _FPL_BASE = "https://fantasy.premierleague.com/api"
 _SPORTS_BASE = "https://v3.football.api-sports.io"
 _PL_LEAGUE_ID = 39
@@ -202,7 +213,7 @@ async def upsert_gameweeks(conn: asyncpg.Connection, season_id: int, bootstrap: 
             season_id,
             e["id"],
             e["name"],
-            e.get("deadline_time"),
+            _parse_dt(e.get("deadline_time")),
             e.get("average_entry_score"),
             e.get("highest_score"),
             e.get("most_selected"),
@@ -334,7 +345,7 @@ async def upsert_fixtures_fpl(conn: asyncpg.Connection, season_id: int, all_fixt
             season_id,
             f["id"],
             f.get("event"),  # NULL for postponed
-            f.get("kickoff_time"),
+            _parse_dt(f.get("kickoff_time")),
             f["team_h"],
             f["team_a"],
             f.get("team_h_score"),
@@ -528,7 +539,7 @@ async def backfill_season(
             league.get("round", "").split(" ")[-1]
             if "Gameweek" in (league.get("round") or "")
             else None,
-            f.get("date"),
+            _parse_dt(f.get("date")),
             teams["home"]["id"],
             teams["away"]["id"],
             goals.get("home"),
