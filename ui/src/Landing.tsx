@@ -3,7 +3,7 @@ import ChangelogModal from "./ChangelogModal";
 import "./Landing.css";
 
 interface Props {
-  onStart: () => void;
+  onStart: (fplTeamId?: number) => void;
 }
 
 const FEATURES = [
@@ -38,6 +38,86 @@ const EXAMPLES = [
 
 export default function Landing({ onStart }: Props) {
   const [showChangelog, setShowChangelog] = useState(false);
+  const [showFplStep, setShowFplStep] = useState(false);
+  const [fplValue, setFplValue] = useState("");
+  const [err, setErr] = useState("");
+
+  function handleCta() {
+    setShowFplStep(true);
+  }
+
+  function handleSave() {
+    const n = parseInt(fplValue.trim(), 10);
+    if (isNaN(n) || n <= 0) {
+      setErr("Please enter a valid numeric Team ID.");
+      return;
+    }
+    onStart(n);
+  }
+
+  function handleSkip() {
+    onStart(undefined);
+  }
+
+  if (showFplStep) {
+    return (
+      <div className="landing">
+        <header className="landing-header">
+          <span className="landing-logo">📋 the-gaffer.io</span>
+        </header>
+        <section className="landing-fpl-step">
+          <h1 className="landing-fpl-title">Enter your FPL Team ID</h1>
+          <p className="landing-fpl-sub">
+            This lets The Gaffer give you personalised squad advice, transfer
+            suggestions, and captain picks based on your actual team.
+          </p>
+          <div className="landing-fpl-how">
+            <p className="landing-fpl-how-title">How to find your Team ID:</p>
+            <ol>
+              <li>
+                Go to{" "}
+                <a
+                  href="https://fantasy.premierleague.com/my-team"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  fantasy.premierleague.com/my-team
+                </a>
+              </li>
+              <li>
+                Click the <strong>Points</strong> tab — your ID is in the URL:{" "}
+                <code>entry/&#123;YOUR_ID&#125;/event/...</code>
+              </li>
+            </ol>
+          </div>
+          <input
+            className="landing-fpl-input"
+            type="number"
+            placeholder="e.g. 5402482"
+            value={fplValue}
+            onChange={(e) => {
+              setFplValue(e.target.value);
+              setErr("");
+            }}
+            onKeyDown={(e) => e.key === "Enter" && handleSave()}
+            autoFocus
+          />
+          {err && <p className="landing-fpl-error">{err}</p>}
+          <div className="landing-fpl-actions">
+            <button className="landing-fpl-skip" onClick={handleSkip}>
+              Skip for now
+            </button>
+            <button className="landing-cta" onClick={handleSave}>
+              Start asking →
+            </button>
+          </div>
+          <p className="landing-fpl-note">
+            You can add or update your Team ID anytime from the sidebar.
+          </p>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="landing">
@@ -56,7 +136,7 @@ export default function Landing({ onStart }: Props) {
           Ask The Gaffer anything about your Fantasy Premier League squad.
           Get a clear verdict backed by live data, stats, and AI reasoning.
         </p>
-        <button className="landing-cta" onClick={onStart}>
+        <button className="landing-cta" onClick={handleCta}>
           Start asking →
         </button>
       </section>
@@ -113,7 +193,7 @@ export default function Landing({ onStart }: Props) {
 
       <footer className="landing-footer">
         <p>Built for FPL managers who want an edge.</p>
-        <button className="landing-cta landing-cta-sm" onClick={onStart}>
+        <button className="landing-cta landing-cta-sm" onClick={handleCta}>
           Start for free →
         </button>
         <button className="landing-changelog-btn" onClick={() => setShowChangelog(true)}>

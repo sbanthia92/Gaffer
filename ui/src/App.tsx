@@ -456,7 +456,17 @@ export default function App() {
   }
 
   if (showLanding) {
-    return <Landing onStart={() => setShowLanding(false)} />;
+    return (
+      <Landing
+        onStart={(id) => {
+          if (id) {
+            saveFplTeamId(id);
+            setFplTeamId(id);
+          }
+          setShowLanding(false);
+        }}
+      />
+    );
   }
 
   return (
@@ -514,7 +524,7 @@ export default function App() {
             className="sidebar-footer-btn"
             onClick={() => setShowFplModal(true)}
           >
-            FPL ID: {fplTeamId ?? "not set"}
+            {fplTeamId ? `FPL ID: ${fplTeamId}` : "⚠ Enter your FPL Team ID"}
           </button>
           <button
             className="sidebar-footer-btn"
