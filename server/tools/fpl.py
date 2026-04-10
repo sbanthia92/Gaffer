@@ -975,12 +975,9 @@ TOOL_DEFINITIONS = [
 ]
 
 
-# V2 tool set — all live tools + database query tool
-# Import here to avoid circular imports at module level
-def _get_v2_tool_definitions() -> list[dict]:
+# V2 tool set — all live tools + database query tool.
+# Imported lazily in main.py to avoid pulling in asyncpg at collection time.
+def get_v2_tool_definitions() -> list[dict]:
     from server.tools.db import TOOL_DEFINITION as DB_TOOL
 
     return TOOL_DEFINITIONS + [DB_TOOL]
-
-
-V2_TOOL_DEFINITIONS = _get_v2_tool_definitions()

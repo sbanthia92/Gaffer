@@ -11,7 +11,6 @@ from pydantic import BaseModel
 from server import claude_client, fpl_cache, rag
 from server.config import settings
 from server.logger import log
-from server.tools import db as db_tool
 from server.tools import fpl
 
 xray_recorder.configure(service="gaffer-api", daemon_address="127.0.0.1:2000")
@@ -135,6 +134,8 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                 # V2 — PostgreSQL + live tools, no RAG
                 async def _v2_handler(name: str, inp: dict) -> dict:
                     if name == "query_database":
+                        from server.tools import db as db_tool
+
                         tools_called.append(name)
                         with xray_recorder.in_subsegment("tool.query_database"):
                             return await db_tool.execute(sql=inp["sql"])
@@ -143,7 +144,7 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                 with xray_recorder.in_subsegment("claude.ask"):
                     stream = await claude_client.ask(
                         question=request.question,
-                        tool_definitions=fpl.V2_TOOL_DEFINITIONS,
+                        tool_definitions=fpl.get_v2_tool_definitions(),
                         tool_handler=_v2_handler,
                         rag_context="",
                         league="fpl",
