@@ -299,7 +299,9 @@ export default function App() {
   const [fplTeamId, setFplTeamId] = useState<number | null>(() =>
     loadFplTeamId()
   );
-  const [showLanding, setShowLanding] = useState(() => loadSessions().length === 0);
+  const [showLanding, setShowLanding] = useState(
+    () => loadSessions().length === 0 && loadFplTeamId() === null
+  );
   const [showFplModal, setShowFplModal] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [statusText, setStatusText] = useState<string | null>(null);
