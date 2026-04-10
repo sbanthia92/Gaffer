@@ -25,7 +25,7 @@ import anthropic
 
 from server.config import settings
 
-_MODEL = "claude-opus-4-6"
+_MODEL = "claude-sonnet-4-6"
 _MAX_TOKENS = 8192
 
 # Type alias for an async tool handler function
