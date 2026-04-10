@@ -62,7 +62,11 @@ _SPORTS_POSITION_MAP = {
 
 
 async def get_conn() -> asyncpg.Connection:
-    return await asyncpg.connect(settings.database_url)
+    # ETL needs read/write access — prefer DATABASE_ETL_URL, fall back to DATABASE_URL
+    url = settings.database_etl_url or settings.database_url
+    if not url:
+        raise RuntimeError("DATABASE_ETL_URL or DATABASE_URL must be set to run the ETL.")
+    return await asyncpg.connect(url)
 
 
 # ---------------------------------------------------------------------------

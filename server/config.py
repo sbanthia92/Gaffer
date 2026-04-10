@@ -50,7 +50,8 @@ class Settings(BaseSettings):
     server_port: int = 8000
     environment: str = "development"
     # V2
-    database_url: str = ""  # postgres://gaffer_readonly:password@localhost:5432/gaffer
+    database_url: str = ""  # postgres://gaffer_readonly:...@localhost:5432/gaffer (read-only)
+    database_etl_url: str = ""  # postgres://gaffer_etl:...@localhost:5432/gaffer (read/write)
 
     model_config = {"env_file": str(_ENV_FILE)}
 
