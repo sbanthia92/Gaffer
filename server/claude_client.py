@@ -94,7 +94,7 @@ _SHARED_RULES = (
 
 def _build_system_prompt(rag_context: str, league: str, version: int = 1) -> str:
     if version == 2:
-        return _build_v2_system_prompt(league)
+        return _build_v2_system_prompt(rag_context, league)
 
     context_block = rag_context or "No historical context available for this query."
     return (
@@ -109,7 +109,10 @@ def _build_system_prompt(rag_context: str, league: str, version: int = 1) -> str
     )
 
 
-def _build_v2_system_prompt(league: str) -> str:
+def _build_v2_system_prompt(rag_context: str, league: str) -> str:
+    press_block = (
+        rag_context if rag_context else "No recent press conference or news context available."
+    )
     return (
         f"You are The Gaffer, an expert AI football analyst specialising in {league.upper()}.\n\n"
         "You have access to three sources of information:\n"
@@ -118,7 +121,8 @@ def _build_v2_system_prompt(league: str) -> str:
         "season aggregates, xG/xA trends, and cross-season comparisons.\n"
         "2. Live data via the other tools — current squad, fixtures, standings, odds, "
         "player form, and chip status.\n"
-        "3. Press conference transcripts and match analysis — injected as context where relevant.\n\n"  # noqa: E501
+        "3. Recent news and press conference summaries — injected below from match reports "
+        "and manager briefings updated twice daily.\n\n"
         "TOOL SELECTION GUIDE:\n"
         "- Historical stats, past GW points, H2H vs opponent, season trends → query_database\n"
         "- Current price, ownership %, live form score → search_players_by_criteria (live)\n"
@@ -127,6 +131,7 @@ def _build_v2_system_prompt(league: str) -> str:
         "- Anything needing both: call live tools first, then query_database for history\n\n"
         "Be specific and cite the data you used. If data is missing or unclear, say so.\n\n"
         + _SHARED_RULES
+        + f"--- RECENT NEWS & PRESS CONFERENCES ---\n{press_block}\n--- END NEWS CONTEXT ---"
     )
 
 
