@@ -53,6 +53,7 @@ class AskRequest(BaseModel):
     question: str
     fpl_team_id: int | None = None
     history: list[HistoryMessage] = []
+    version: int = 1  # 1 = V1 (live tools + RAG), 2 = V2 (DB tool, no RAG)
 
 
 class FeedbackRequest(BaseModel):
@@ -115,33 +116,61 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
         t0 = time.monotonic()
         tools_called: list[str] = []
         try:
-            log.info("ask.start", question=request.question, fpl_team_id=request.fpl_team_id)
+            log.info(
+                "ask.start",
+                question=request.question,
+                fpl_team_id=request.fpl_team_id,
+                version=request.version,
+            )
 
-            # Layer 1 — RAG
-            with xray_recorder.in_subsegment("rag.retrieve"):
-                context = await rag.retrieve(
-                    query=request.question,
-                    namespace="fpl",
-                    top_k=5,
-                    recency_weight=0.3,
-                )
+            history = [{"role": m.role, "content": m.content} for m in request.history]
 
-            # Layer 2 — Claude tool-use loop + streamed answer
             async def _tracking_handler(name: str, inp: dict) -> dict:
                 tools_called.append(name)
                 with xray_recorder.in_subsegment(f"tool.{name}"):
                     return await _fpl_tool_handler(name, inp, request.fpl_team_id)
 
-            history = [{"role": m.role, "content": m.content} for m in request.history]
-            with xray_recorder.in_subsegment("claude.ask"):
-                stream = await claude_client.ask(
-                    question=request.question,
-                    tool_definitions=fpl.TOOL_DEFINITIONS,
-                    tool_handler=_tracking_handler,
-                    rag_context=context,
-                    league="fpl",
-                    history=history,
-                )
+            if request.version == 2:
+                # V2 — PostgreSQL + live tools, no RAG
+                async def _v2_handler(name: str, inp: dict) -> dict:
+                    if name == "query_database":
+                        from server.tools import db as db_tool
+
+                        tools_called.append(name)
+                        with xray_recorder.in_subsegment("tool.query_database"):
+                            return await db_tool.execute(sql=inp["sql"])
+                    return await _tracking_handler(name, inp)
+
+                with xray_recorder.in_subsegment("claude.ask"):
+                    stream = await claude_client.ask(
+                        question=request.question,
+                        tool_definitions=fpl.get_v2_tool_definitions(),
+                        tool_handler=_v2_handler,
+                        rag_context="",
+                        league="fpl",
+                        history=history,
+                        version=2,
+                    )
+            else:
+                # V1 — RAG + live tools
+                with xray_recorder.in_subsegment("rag.retrieve"):
+                    context = await rag.retrieve(
+                        query=request.question,
+                        namespace="fpl",
+                        top_k=5,
+                        recency_weight=0.3,
+                    )
+
+                with xray_recorder.in_subsegment("claude.ask"):
+                    stream = await claude_client.ask(
+                        question=request.question,
+                        tool_definitions=fpl.TOOL_DEFINITIONS,
+                        tool_handler=_tracking_handler,
+                        rag_context=context,
+                        league="fpl",
+                        history=history,
+                        version=1,
+                    )
 
             async for event_type, data in stream:
                 yield _sse(event_type, data)

@@ -973,3 +973,11 @@ TOOL_DEFINITIONS = [
         },
     },
 ]
+
+
+# V2 tool set — all live tools + database query tool.
+# Imported lazily in main.py to avoid pulling in asyncpg at collection time.
+def get_v2_tool_definitions() -> list[dict]:
+    from server.tools.db import TOOL_DEFINITION as DB_TOOL
+
+    return TOOL_DEFINITIONS + [DB_TOOL]

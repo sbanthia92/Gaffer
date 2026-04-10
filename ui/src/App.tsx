@@ -16,11 +16,21 @@ import type { ChatSession, Message } from "./types";
 import "./App.css";
 
 const FPL_TEAM_ID_KEY = "gaffer_fpl_team_id";
+const VERSION_KEY = "gaffer_version";
 
 function loadFplTeamId(): number | null {
   const raw = localStorage.getItem(FPL_TEAM_ID_KEY);
   const n = raw ? parseInt(raw, 10) : NaN;
   return isNaN(n) ? null : n;
+}
+
+function loadVersion(): 1 | 2 {
+  const fromUrl = new URLSearchParams(window.location.search).get("v");
+  if (fromUrl === "2") {
+    localStorage.setItem(VERSION_KEY, "2");
+    return 2;
+  }
+  return localStorage.getItem(VERSION_KEY) === "2" ? 2 : 1;
 }
 
 function saveFplTeamId(id: number): void {
@@ -305,6 +315,16 @@ export default function App() {
   const [showFplModal, setShowFplModal] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [apiVersion, setApiVersion] = useState<1 | 2>(() => loadVersion());
+
+  function handleVersionSwitch(v: 1 | 2) {
+    setApiVersion(v);
+    localStorage.setItem(VERSION_KEY, String(v));
+    const url = new URL(window.location.href);
+    if (v === 2) url.searchParams.set("v", "2");
+    else url.searchParams.delete("v");
+    window.history.pushState({}, "", url.toString());
+  }
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -432,7 +452,8 @@ export default function App() {
         (status) => {
           setStatusText(status);
         },
-        history
+        history,
+        apiVersion
       );
 
       // Persist the final answer
@@ -473,6 +494,24 @@ export default function App() {
 
   return (
     <div className="app">
+      <div className={`v2-banner ${apiVersion === 2 ? "v2-banner--active" : ""}`}>
+        {apiVersion === 2 ? (
+          <>
+            <span>V2 Beta — PostgreSQL-powered historical analysis</span>
+            <button className="v2-banner-btn" onClick={() => handleVersionSwitch(1)}>
+              Switch to V1
+            </button>
+          </>
+        ) : (
+          <>
+            <span>Try V2 Beta — ask analytical questions across seasons</span>
+            <button className="v2-banner-btn" onClick={() => handleVersionSwitch(2)}>
+              Try V2 →
+            </button>
+          </>
+        )}
+      </div>
+
       {showFplModal && (
         <FplTeamModal
           onSave={(id) => {

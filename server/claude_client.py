@@ -32,6 +32,7 @@ _MAX_TOKENS = 8192
 ToolHandler = Callable[[str, dict], Coroutine[Any, Any, dict]]
 
 _TOOL_LABELS: dict[str, str] = {
+    "query_database": "Querying historical database…",
     "get_my_fpl_team": "Fetching your FPL squad…",
     "get_chip_status": "Checking your chip availability…",
     "get_gameweek_schedule": "Loading gameweek schedule…",
@@ -61,7 +62,40 @@ def _tool_status(tool_blocks: list) -> str:
     return " · ".join(unique)
 
 
-def _build_system_prompt(rag_context: str, league: str) -> str:
+_SHARED_RULES = (
+    "Always structure your response in this exact order:\n"
+    "1. VERDICT — one line, yes or no, e.g. '✅ Yes, captain him' or '❌ No, look elsewhere'\n"
+    "2. THE DATA — the facts, stats, fixture context, and odds that inform the verdict\n"
+    "3. THE REASONING — a detailed explanation of why the verdict is what it is, "
+    "weighing the data and any alternatives\n\n"
+    "FPL TRANSFER RULES — follow these strictly when giving transfer advice:\n"
+    "1. POSITION CONSTRAINT: A transfer must be like-for-like by position. "
+    "A MID can only be replaced by a MID, a FWD by a FWD, a DEF by a DEF, a GKP by a GKP. "
+    "Never recommend swapping a player for someone in a different position.\n"
+    "2. FORM RESPECT: Never recommend transferring out a player who is in strong recent form "
+    "(e.g. 3+ returns in last 5 GWs, or FPL form above 8.0) unless the user explicitly asks "
+    "about that specific player or there is a clear injury/suspension concern.\n"
+    "3. BUDGET: Always verify the net cost of the transfer fits within the user's available "
+    "budget (ITB). Do not recommend a transfer that requires more money than available.\n"
+    "4. SQUAD STRUCTURE: Respect the FPL squad rules — at least 3 DEF, 2 MID, 1 FWD must "
+    "be fielded. Do not recommend transfers that break valid formation constraints.\n\n"
+    "FIXTURE DATA WARNING: The FPL API can have rearranged fixtures with event=null "
+    "that don't appear in get_gameweek_schedule. Whenever you mention a double or blank "
+    "gameweek for a specific team, verify it by also calling get_team_all_fixtures for "
+    "that team — do not rely solely on get_gameweek_schedule for DGW/BGW conclusions.\n\n"
+    "IMPORTANT: Every time you mention a Premier League player by name, wrap their "
+    "name in double square brackets, e.g. [[Salah]] or [[Haaland]]. Use their common "
+    "short name (the one used on FPL), not their full name. Do this consistently "
+    "throughout your response. CRITICAL: always embed [[Name]] inline within the "
+    "surrounding sentence — never place a [[Name]] tag on a line by itself, never "
+    "repeat a [[Name]] tag, and never use [[Name]] as a standalone label or header.\n\n"
+)
+
+
+def _build_system_prompt(rag_context: str, league: str, version: int = 1) -> str:
+    if version == 2:
+        return _build_v2_system_prompt(league)
+
     context_block = rag_context or "No historical context available for this query."
     return (
         f"You are The Gaffer, an expert AI football analyst specialising in {league.upper()}.\n\n"
@@ -70,33 +104,29 @@ def _build_system_prompt(rag_context: str, league: str) -> str:
         "2. Historical context from the knowledge base below — past seasons and h2h records.\n\n"
         "Use both sources together to give the most accurate, data-driven answer possible.\n"
         "Be specific and cite the data you used. If data is missing or unclear, say so.\n\n"
-        "Always structure your response in this exact order:\n"
-        "1. VERDICT — one line, yes or no, e.g. '✅ Yes, captain him' or '❌ No, look elsewhere'\n"
-        "2. THE DATA — the facts, stats, fixture context, and odds that inform the verdict\n"
-        "3. THE REASONING — a detailed explanation of why the verdict is what it is, "
-        "weighing the data and any alternatives\n\n"
-        "FPL TRANSFER RULES — follow these strictly when giving transfer advice:\n"
-        "1. POSITION CONSTRAINT: A transfer must be like-for-like by position. "
-        "A MID can only be replaced by a MID, a FWD by a FWD, a DEF by a DEF, a GKP by a GKP. "
-        "Never recommend swapping a player for someone in a different position.\n"
-        "2. FORM RESPECT: Never recommend transferring out a player who is in strong recent form "
-        "(e.g. 3+ returns in last 5 GWs, or FPL form above 8.0) unless the user explicitly asks "
-        "about that specific player or there is a clear injury/suspension concern.\n"
-        "3. BUDGET: Always verify the net cost of the transfer fits within the user's available "
-        "budget (ITB). Do not recommend a transfer that requires more money than available.\n"
-        "4. SQUAD STRUCTURE: Respect the FPL squad rules — at least 3 DEF, 2 MID, 1 FWD must "
-        "be fielded. Do not recommend transfers that break valid formation constraints.\n\n"
-        "FIXTURE DATA WARNING: The FPL API can have rearranged fixtures with event=null "
-        "that don't appear in get_gameweek_schedule. Whenever you mention a double or blank "
-        "gameweek for a specific team, verify it by also calling get_team_all_fixtures for "
-        "that team — do not rely solely on get_gameweek_schedule for DGW/BGW conclusions.\n\n"
-        "IMPORTANT: Every time you mention a Premier League player by name, wrap their "
-        "name in double square brackets, e.g. [[Salah]] or [[Haaland]]. Use their common "
-        "short name (the one used on FPL), not their full name. Do this consistently "
-        "throughout your response. CRITICAL: always embed [[Name]] inline within the "
-        "surrounding sentence — never place a [[Name]] tag on a line by itself, never "
-        "repeat a [[Name]] tag, and never use [[Name]] as a standalone label or header.\n\n"
-        f"--- HISTORICAL CONTEXT ---\n{context_block}\n--- END HISTORICAL CONTEXT ---"
+        + _SHARED_RULES
+        + f"--- HISTORICAL CONTEXT ---\n{context_block}\n--- END HISTORICAL CONTEXT ---"
+    )
+
+
+def _build_v2_system_prompt(league: str) -> str:
+    return (
+        f"You are The Gaffer, an expert AI football analyst specialising in {league.upper()}.\n\n"
+        "You have access to three sources of information:\n"
+        "1. A PostgreSQL database of historical FPL stats — use the query_database tool "
+        "to run SQL queries for past gameweek data, player-vs-opponent records, "
+        "season aggregates, xG/xA trends, and cross-season comparisons.\n"
+        "2. Live data via the other tools — current squad, fixtures, standings, odds, "
+        "player form, and chip status.\n"
+        "3. Press conference transcripts and match analysis — injected as context where relevant.\n\n"  # noqa: E501
+        "TOOL SELECTION GUIDE:\n"
+        "- Historical stats, past GW points, H2H vs opponent, season trends → query_database\n"
+        "- Current price, ownership %, live form score → search_players_by_criteria (live)\n"
+        "- Your FPL squad, chips, free transfers → get_my_fpl_team, get_chip_status (live)\n"
+        "- Next fixtures, odds → get_fixtures, get_odds (live)\n"
+        "- Anything needing both: call live tools first, then query_database for history\n\n"
+        "Be specific and cite the data you used. If data is missing or unclear, say so.\n\n"
+        + _SHARED_RULES
     )
 
 
@@ -131,6 +161,7 @@ async def ask(
     rag_context: str = "",
     league: str = "fpl",
     history: list[dict] | None = None,
+    version: int = 1,
 ) -> AsyncIterator[tuple[str, str]]:
     """
     Send a question to Claude with tools and RAG context. Runs the tool-use
@@ -147,7 +178,7 @@ async def ask(
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     # Build messages: prior history + current question
     messages: list[dict] = [*(history or []), {"role": "user", "content": question}]
-    system = _build_system_prompt(rag_context, league)
+    system = _build_system_prompt(rag_context, league, version)
 
     async def _generate() -> AsyncIterator[tuple[str, str]]:
         # ── Tool-use loop (non-streaming) ──────────────────────────────────
