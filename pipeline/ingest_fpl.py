@@ -92,6 +92,73 @@ def build_player_history_past_docs(
     return docs
 
 
+def build_player_vs_opponent_docs(
+    player_name: str,
+    position: str,
+    player_id: int,
+    season_name: str,
+    gw_history: list,
+    teams_by_id: dict,
+) -> list[tuple[str, str, dict]]:
+    """
+    Return one doc per opponent faced in the season, aggregating all GW appearances.
+    gw_history is the 'history' array from /api/element-summary/{id}/ (current season GW data).
+    Each entry includes opponent_team (team ID), was_home, total_points, goals_scored, assists, etc.
+    """
+    from collections import defaultdict
+
+    by_opponent: dict[int, list] = defaultdict(list)
+    for gw in gw_history:
+        opp_id = gw.get("opponent_team")
+        if opp_id:
+            by_opponent[opp_id].append(gw)
+
+    docs = []
+    for opp_id, appearances in by_opponent.items():
+        opp_name = teams_by_id.get(opp_id, {}).get("name", str(opp_id))
+        total_pts = sum(g["total_points"] for g in appearances)
+        total_goals = sum(g["goals_scored"] for g in appearances)
+        total_assists = sum(g["assists"] for g in appearances)
+        total_mins = sum(g["minutes"] for g in appearances)
+        fixture_strs = []
+        for g in appearances:
+            venue = "H" if g.get("was_home") else "A"
+            fixture_strs.append(
+                f"GW{g['round']}({venue}): {g['total_points']}pts "
+                f"{g['goals_scored']}g {g['assists']}a"
+            )
+
+        text = (
+            f"Player: {player_name} | Position: {position} | Season: {season_name} | "
+            f"vs {opp_name}\n"
+            f"Appearances: {len(appearances)} | Total: {total_goals}g {total_assists}a "
+            f"{total_pts}pts {total_mins}mins\n"
+            f"Fixtures: {' | '.join(fixture_strs)}"
+        )
+        meta = {
+            "text": text,
+            "type": "player_vs_opponent",
+            "season": season_name,
+            "player_id": player_id,
+            "player_name": player_name,
+            "opponent": opp_name,
+            "recency_score": _recency_score(season_name),
+        }
+        docs.append((_doc_id(f"player_vs_opp_{player_id}_{opp_id}_{season_name}"), text, meta))
+    return docs
+
+
+def _current_season(bootstrap: dict) -> str:
+    """Derive the current season string (e.g. '2025/26') from bootstrap events."""
+    try:
+        # FPL events have a 'deadline_time' like '2025-08-16T...' — use year of first event
+        first_event = bootstrap["events"][0]
+        year = int(first_event["deadline_time"][:4])
+        return f"{year}/{str(year + 1)[2:]}"
+    except (KeyError, IndexError, ValueError):
+        return "unknown"
+
+
 def _recency_score(season_name: str) -> float:
     """Score more recent seasons higher. '2024/25' → 1.0, '2023/24' → 0.8, etc."""
     try:
@@ -148,6 +215,10 @@ async def run() -> None:
         bootstrap = await _fetch(client, f"{_FPL_BASE}/bootstrap-static/")
 
     teams_by_id = {t["id"]: t for t in bootstrap["teams"]}
+    # Derive current season from the bootstrap events
+    current_season = _current_season(bootstrap)
+    print(f"Current season: {current_season}")
+
     players = sorted(bootstrap["elements"], key=lambda p: p["total_points"], reverse=True)
     players = players[:_TOP_N_PLAYERS]
     print(f"Processing {len(players)} players for historical season data...")
@@ -161,19 +232,32 @@ async def run() -> None:
             position = _POSITION_MAP.get(p["element_type"], "UNK")
             try:
                 summary = await _fetch(client, f"{_FPL_BASE}/element-summary/{p['id']}/")
+
+                # 1 — Past season aggregates (history_past)
                 history_past = summary.get("history_past", [])
                 if history_past:
-                    docs = build_player_history_past_docs(
-                        name, team_name, position, p["id"], history_past
+                    all_docs.extend(
+                        build_player_history_past_docs(
+                            name, team_name, position, p["id"], history_past
+                        )
                     )
-                    all_docs.extend(docs)
+
+                # 2 — Current season player-vs-opponent breakdowns (history)
+                gw_history = summary.get("history", [])
+                if gw_history:
+                    all_docs.extend(
+                        build_player_vs_opponent_docs(
+                            name, position, p["id"], current_season, gw_history, teams_by_id
+                        )
+                    )
+
             except Exception as e:
                 print(f"  Warning: failed to fetch history for {name}: {e}")
 
             if (i + 1) % 50 == 0:
                 print(f"  {i + 1}/{len(players)} players processed ({len(all_docs)} docs so far)")
 
-    print(f"\nBuilt {len(all_docs)} historical season docs across all players.")
+    print(f"\nBuilt {len(all_docs)} total docs across all players.")
 
     if not all_docs:
         print("No docs to upsert. Exiting.")

@@ -1,6 +1,11 @@
 import pytest
 
-from pipeline.ingest_fpl import build_player_history_past_docs, _recency_score
+from pipeline.ingest_fpl import (
+    _current_season,
+    _recency_score,
+    build_player_history_past_docs,
+    build_player_vs_opponent_docs,
+)
 
 _HISTORY_PAST = [
     {
@@ -102,3 +107,84 @@ def test_recency_score_floor():
 
 def test_recency_score_invalid():
     assert _recency_score("unknown") == 0.5
+
+
+# ---------------------------------------------------------------------------
+# Player vs opponent docs
+# ---------------------------------------------------------------------------
+
+_TEAMS_BY_ID = {1: {"name": "Arsenal"}, 2: {"name": "Chelsea"}}
+
+_GW_HISTORY = [
+    {
+        "round": 5,
+        "opponent_team": 1,
+        "was_home": True,
+        "total_points": 12,
+        "goals_scored": 2,
+        "assists": 0,
+        "minutes": 90,
+    },
+    {
+        "round": 20,
+        "opponent_team": 1,
+        "was_home": False,
+        "total_points": 6,
+        "goals_scored": 1,
+        "assists": 0,
+        "minutes": 90,
+    },
+    {
+        "round": 10,
+        "opponent_team": 2,
+        "was_home": True,
+        "total_points": 2,
+        "goals_scored": 0,
+        "assists": 0,
+        "minutes": 60,
+    },
+]
+
+_SALAH_ARGS = ("M Salah", "MID", 308, "2025/26", _GW_HISTORY, _TEAMS_BY_ID)
+
+
+def test_vs_opponent_doc_count():
+    docs = build_player_vs_opponent_docs(*_SALAH_ARGS)
+    assert len(docs) == 2  # one per opponent
+
+
+def test_vs_opponent_doc_aggregates():
+    docs = build_player_vs_opponent_docs(*_SALAH_ARGS)
+    arsenal_doc = next(d for d in docs if "Arsenal" in d[1])
+    _, text, meta = arsenal_doc
+    assert "3g" in text  # 2 + 1 goals
+    assert "18pts" in text  # 12 + 6
+    assert "Appearances: 2" in text
+    assert meta["opponent"] == "Arsenal"
+    assert meta["season"] == "2025/26"
+    assert meta["type"] == "player_vs_opponent"
+
+
+def test_vs_opponent_doc_unique_ids():
+    docs = build_player_vs_opponent_docs(*_SALAH_ARGS)
+    ids = [d[0] for d in docs]
+    assert len(ids) == len(set(ids))
+
+
+def test_vs_opponent_empty_history():
+    docs = build_player_vs_opponent_docs("M Salah", "MID", 308, "2025/26", [], _TEAMS_BY_ID)
+    assert docs == []
+
+
+# ---------------------------------------------------------------------------
+# Current season detection
+# ---------------------------------------------------------------------------
+
+
+def test_current_season_from_bootstrap():
+    bootstrap = {"events": [{"deadline_time": "2025-08-16T11:00:00Z"}]}
+    assert _current_season(bootstrap) == "2025/26"
+
+
+def test_current_season_fallback():
+    assert _current_season({}) == "unknown"
