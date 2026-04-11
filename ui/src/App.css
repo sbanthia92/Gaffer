@@ -598,32 +598,33 @@
 .send-btn:hover:not(:disabled) { opacity: 0.88; }
 .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-/* V2 banner */
-.v2-banner {
+/* Sidebar header actions */
+.sidebar-header-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 7px 16px;
-  font-size: 12px;
-  background: #1e2230;
-  border-bottom: 1px solid var(--border);
-  color: var(--text-muted);
+  gap: 6px;
 }
-.v2-banner--active {
-  background: #0f2a1a;
-  border-bottom-color: #2a6b3f;
-  color: #6fcf97;
-}
-.v2-banner-btn {
+
+/* V2 toggle button */
+.v2-toggle {
   background: transparent;
-  border: 1px solid currentColor;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  color: inherit;
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 11px;
-  font-weight: 600;
-  padding: 3px 10px;
+  font-weight: 700;
+  padding: 3px 8px;
   white-space: nowrap;
+  transition: all 0.15s;
+  letter-spacing: 0.3px;
 }
-.v2-banner-btn:hover { opacity: 0.75; }
+.v2-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.v2-toggle--active {
+  background: rgba(56, 217, 150, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}

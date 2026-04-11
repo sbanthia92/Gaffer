@@ -8,6 +8,7 @@ Safety layers:
 """
 
 import re
+from decimal import Decimal
 
 import asyncpg
 
@@ -119,7 +120,12 @@ async def execute(sql: str) -> dict:
     if not rows:
         return {"rows": [], "row_count": 0}
 
-    result = [dict(row) for row in rows[:_MAX_ROWS]]
+    def _serialize(v):
+        if isinstance(v, Decimal):
+            return float(v)
+        return v
+
+    result = [{k: _serialize(v) for k, v in dict(row).items()} for row in rows[:_MAX_ROWS]]
     return {
         "rows": result,
         "row_count": len(result),

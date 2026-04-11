@@ -494,24 +494,6 @@ export default function App() {
 
   return (
     <div className="app">
-      <div className={`v2-banner ${apiVersion === 2 ? "v2-banner--active" : ""}`}>
-        {apiVersion === 2 ? (
-          <>
-            <span>V2 Beta — PostgreSQL-powered historical analysis</span>
-            <button className="v2-banner-btn" onClick={() => handleVersionSwitch(1)}>
-              Switch to V1
-            </button>
-          </>
-        ) : (
-          <>
-            <span>Try V2 Beta — ask analytical questions across seasons</span>
-            <button className="v2-banner-btn" onClick={() => handleVersionSwitch(2)}>
-              Try V2 →
-            </button>
-          </>
-        )}
-      </div>
-
       {showFplModal && (
         <FplTeamModal
           onSave={(id) => {
@@ -535,9 +517,18 @@ export default function App() {
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-header">
           <span className="logo">📋 the-gaffer.io</span>
-          <button className="new-chat-btn" onClick={startNewSession}>
-            + New
-          </button>
+          <div className="sidebar-header-actions">
+            <button
+              className={`v2-toggle ${apiVersion === 2 ? "v2-toggle--active" : ""}`}
+              onClick={() => handleVersionSwitch(apiVersion === 2 ? 1 : 2)}
+              title={apiVersion === 2 ? "Switch to V1" : "Switch to V2 (SQL-powered)"}
+            >
+              {apiVersion === 2 ? "V2" : "V1"}
+            </button>
+            <button className="new-chat-btn" onClick={startNewSession}>
+              + New
+            </button>
+          </div>
         </div>
         <nav className="session-list">
           {sessions.length === 0 && (
@@ -583,6 +574,13 @@ export default function App() {
             ☰
           </button>
           <span className="mobile-logo">📋 the-gaffer.io</span>
+          <button
+            className={`v2-toggle ${apiVersion === 2 ? "v2-toggle--active" : ""}`}
+            onClick={() => handleVersionSwitch(apiVersion === 2 ? 1 : 2)}
+            title={apiVersion === 2 ? "Switch to V1" : "Switch to V2 (SQL-powered)"}
+          >
+            {apiVersion === 2 ? "V2" : "V1"}
+          </button>
         </div>
 
         {!activeSession || activeSession.messages.length === 0 ? (
