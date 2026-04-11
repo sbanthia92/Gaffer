@@ -17,6 +17,22 @@
   padding: 24px 32px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+}
+
+.landing-continue-btn {
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 6px 16px;
+  transition: background 0.15s;
+}
+.landing-continue-btn:hover {
+  background: rgba(56, 217, 150, 0.12);
 }
 
 .landing-logo {
@@ -69,6 +85,29 @@
 .landing-cta-sm {
   padding: 11px 24px;
   font-size: 14px;
+}
+
+.landing-hero-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.landing-cta-secondary {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 32px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.landing-cta-secondary:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
 }
 
 /* ── Features ────────────────────────────────────────────────────────────── */
