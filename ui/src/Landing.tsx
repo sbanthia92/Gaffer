@@ -1,9 +1,19 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ChangelogModal from "./ChangelogModal";
+import { loadSessions } from "./storage";
 import "./Landing.css";
 
-interface Props {
-  onStart: (fplTeamId?: number) => void;
+const FPL_TEAM_ID_KEY = "gaffer_fpl_team_id";
+
+function loadFplTeamId(): number | null {
+  const raw = localStorage.getItem(FPL_TEAM_ID_KEY);
+  const n = raw ? parseInt(raw, 10) : NaN;
+  return isNaN(n) ? null : n;
+}
+
+function saveFplTeamId(id: number): void {
+  localStorage.setItem(FPL_TEAM_ID_KEY, String(id));
 }
 
 const FEATURES = [
@@ -40,15 +50,14 @@ const EXAMPLES = [
   "Preview Arsenal vs Chelsea this weekend",
 ];
 
-export default function Landing({ onStart }: Props) {
+export default function Landing() {
+  const navigate = useNavigate();
+  const isReturning = loadSessions().length > 0 || loadFplTeamId() !== null;
+
   const [showChangelog, setShowChangelog] = useState(false);
   const [showFplStep, setShowFplStep] = useState(false);
   const [fplValue, setFplValue] = useState("");
   const [err, setErr] = useState("");
-
-  function handleCta() {
-    setShowFplStep(true);
-  }
 
   function handleSave() {
     const n = parseInt(fplValue.trim(), 10);
@@ -56,11 +65,8 @@ export default function Landing({ onStart }: Props) {
       setErr("Please enter a valid numeric Team ID.");
       return;
     }
-    onStart(n);
-  }
-
-  function handleSkip() {
-    onStart(undefined);
+    saveFplTeamId(n);
+    navigate("/chat");
   }
 
   if (showFplStep) {
@@ -108,7 +114,10 @@ export default function Landing({ onStart }: Props) {
           />
           {err && <p className="landing-fpl-error">{err}</p>}
           <div className="landing-fpl-actions">
-            <button className="landing-fpl-skip" onClick={handleSkip}>
+            <button
+              className="landing-fpl-skip"
+              onClick={() => navigate("/chat")}
+            >
               Skip for now
             </button>
             <button className="landing-cta" onClick={handleSave}>
@@ -125,9 +134,19 @@ export default function Landing({ onStart }: Props) {
 
   return (
     <div className="landing">
-      {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
+      {showChangelog && (
+        <ChangelogModal onClose={() => setShowChangelog(false)} />
+      )}
       <header className="landing-header">
         <span className="landing-logo">📋 the-gaffer.io</span>
+        {isReturning && (
+          <button
+            className="landing-continue-btn"
+            onClick={() => navigate("/chat")}
+          >
+            Continue →
+          </button>
+        )}
       </header>
 
       <section className="landing-hero">
@@ -137,12 +156,29 @@ export default function Landing({ onStart }: Props) {
           FPL analyst
         </h1>
         <p className="landing-sub">
-          Ask The Gaffer anything about your Fantasy Premier League squad.
-          Get a clear verdict backed by live data, stats, and AI reasoning.
+          Ask The Gaffer anything about your Fantasy Premier League squad. Get a
+          clear verdict backed by live data, stats, and AI reasoning.
         </p>
-        <button className="landing-cta" onClick={handleCta}>
-          Start asking →
-        </button>
+        {isReturning ? (
+          <div className="landing-hero-actions">
+            <button className="landing-cta" onClick={() => navigate("/chat")}>
+              Continue →
+            </button>
+            <button
+              className="landing-cta-secondary"
+              onClick={() => setShowFplStep(true)}
+            >
+              Start fresh
+            </button>
+          </div>
+        ) : (
+          <button
+            className="landing-cta"
+            onClick={() => setShowFplStep(true)}
+          >
+            Start asking →
+          </button>
+        )}
       </section>
 
       <section className="landing-features">
@@ -197,10 +233,18 @@ export default function Landing({ onStart }: Props) {
 
       <footer className="landing-footer">
         <p>Built for FPL managers who want an edge.</p>
-        <button className="landing-cta landing-cta-sm" onClick={handleCta}>
-          Start for free →
+        <button
+          className="landing-cta landing-cta-sm"
+          onClick={() =>
+            isReturning ? navigate("/chat") : setShowFplStep(true)
+          }
+        >
+          {isReturning ? "Continue →" : "Start for free →"}
         </button>
-        <button className="landing-changelog-btn" onClick={() => setShowChangelog(true)}>
+        <button
+          className="landing-changelog-btn"
+          onClick={() => setShowChangelog(true)}
+        >
           What's new in v0.8.0 →
         </button>
       </footer>

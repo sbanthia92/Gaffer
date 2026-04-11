@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useNavigate } from "react-router-dom";
 import { askGaffer, fetchPlayerCard, submitFeedback } from "./api";
-import Landing from "./Landing";
 import {
   appendMessage,
   deleteSession,
@@ -298,6 +298,7 @@ function renderWithTooltips(children: React.ReactNode, tooltips: TooltipMap): Re
 // ── Main app ──────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<ChatSession[]>(() => loadSessions());
   const [activeId, setActiveId] = useState<string | null>(
     () => loadActiveSessionId()
@@ -308,9 +309,6 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [fplTeamId, setFplTeamId] = useState<number | null>(() =>
     loadFplTeamId()
-  );
-  const [showLanding, setShowLanding] = useState(
-    () => loadSessions().length === 0 && loadFplTeamId() === null
   );
   const [showFplModal, setShowFplModal] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -356,7 +354,6 @@ export default function App() {
     setSessions((prev) => [session, ...prev]);
     saveSession(session);
     setActiveId(session.id);
-    setShowLanding(false);
     setError(null);
     setTimeout(() => inputRef.current?.focus(), 50);
   }
@@ -478,20 +475,6 @@ export default function App() {
     }
   }
 
-  if (showLanding) {
-    return (
-      <Landing
-        onStart={(id) => {
-          if (id) {
-            saveFplTeamId(id);
-            setFplTeamId(id);
-          }
-          setShowLanding(false);
-        }}
-      />
-    );
-  }
-
   return (
     <div className="app">
       {showFplModal && (
@@ -516,7 +499,7 @@ export default function App() {
       {/* Sidebar */}
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-header">
-          <span className="logo">📋 the-gaffer.io</span>
+          <button className="logo-btn" onClick={() => navigate("/")}>📋 the-gaffer.io</button>
           <div className="sidebar-header-actions">
             <button
               className={`v2-toggle ${apiVersion === 2 ? "v2-toggle--active" : ""}`}
@@ -573,7 +556,7 @@ export default function App() {
           <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
             ☰
           </button>
-          <span className="mobile-logo">📋 the-gaffer.io</span>
+          <button className="logo-btn" onClick={() => navigate("/")}>📋 the-gaffer.io</button>
           <button
             className={`v2-toggle ${apiVersion === 2 ? "v2-toggle--active" : ""}`}
             onClick={() => handleVersionSwitch(apiVersion === 2 ? 1 : 2)}

@@ -35,6 +35,20 @@
   letter-spacing: -0.2px;
 }
 
+.logo-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-heading);
+  letter-spacing: -0.2px;
+  padding: 0;
+}
+.logo-btn:hover {
+  opacity: 0.8;
+}
+
 .new-chat-btn {
   background: var(--accent-dim);
   color: var(--accent);
