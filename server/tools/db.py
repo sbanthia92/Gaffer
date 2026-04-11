@@ -64,7 +64,8 @@ TOOL_DEFINITION = {
         "COMMON PATTERNS:\n"
         "  Current season:  JOIN seasons s ON p.season_id=s.id WHERE s.is_current=TRUE\n"
         "  Player search:   WHERE p.web_name ILIKE '%salah%'\n"
-        "  Opponent join:   JOIN teams t ON g.opponent_team_fpl_id=t.fpl_id AND g.season_id=t.season_id\n"  # noqa: E501
+        "  Player's team:   JOIN teams t ON p.team_fpl_id=t.fpl_id AND p.season_id=t.season_id\n"
+        "  Opponent join:   JOIN teams opp ON g.opponent_team_fpl_id=opp.fpl_id AND g.season_id=opp.season_id\n"  # noqa: E501
         "  Recent form:     ORDER BY gw_number DESC LIMIT 5\n"
         "  H2H vs team:     WHERE g.opponent_team_fpl_id = (SELECT fpl_id FROM teams WHERE season_id=s.id AND short_name ILIKE '%che%')\n"  # noqa: E501
         "  Price in £m:     ROUND(now_cost / 10.0, 1) AS price_millions\n\n"
@@ -73,7 +74,9 @@ TOOL_DEFINITION = {
         "  2. Filter starts=1 to exclude bench cameos from form analysis.\n"
         "  3. LIMIT to 20 rows unless more are genuinely needed.\n"
         "  4. SELECT only the columns needed — never SELECT *.\n"
-        "  5. Only SELECT statements are permitted."
+        "  5. Only SELECT statements are permitted.\n"
+        "  6. ALWAYS join teams to get the player's actual club name — never infer team from "  # noqa: E501
+        "player name. A player's team is determined solely by team_fpl_id → teams.name."
     ),
     "input_schema": {
         "type": "object",
