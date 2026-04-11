@@ -72,12 +72,16 @@ _SPORTS_POSITION_MAP = {
 # ---------------------------------------------------------------------------
 
 
-async def get_conn() -> asyncpg.Connection:
-    # ETL needs read/write access — prefer DATABASE_ETL_URL, fall back to DATABASE_URL
+def _db_url() -> str:
     url = settings.database_etl_url or settings.database_url
     if not url:
         raise RuntimeError("DATABASE_ETL_URL or DATABASE_URL must be set to run the ETL.")
-    return await asyncpg.connect(url)
+    return url
+
+
+async def get_pool() -> asyncpg.Pool:
+    """Return a connection pool sized for the ETL's concurrency needs."""
+    return await asyncpg.create_pool(_db_url(), min_size=2, max_size=25)
 
 
 # ---------------------------------------------------------------------------
@@ -699,18 +703,18 @@ async def run_snapshot(conn: asyncpg.Connection) -> None:
     log.info("=== SNAPSHOT complete ===")
 
 
-async def run_gw_update(conn: asyncpg.Connection) -> None:
+async def run_gw_update(pool: asyncpg.Pool) -> None:
     """Post-gameweek: update gw_player_stats for all players."""
     log.info("=== GW UPDATE: fetching player GW histories ===")
     async with httpx.AsyncClient(timeout=30.0) as client:
         bootstrap = await _fpl_get(client, "/bootstrap-static/")
 
-    season_id = await conn.fetchval("SELECT id FROM seasons WHERE is_current = TRUE LIMIT 1")
-    if not season_id:
-        season_id = await upsert_current_season(conn, bootstrap)
+    async with pool.acquire() as conn:
+        season_id = await conn.fetchval("SELECT id FROM seasons WHERE is_current = TRUE LIMIT 1")
+        if not season_id:
+            season_id = await upsert_current_season(conn, bootstrap)
 
     players = bootstrap["elements"]
-    total = 0
     sem = asyncio.Semaphore(20)
 
     async def fetch_and_upsert(player: dict) -> int:
@@ -719,7 +723,9 @@ async def run_gw_update(conn: asyncpg.Connection) -> None:
                 async with httpx.AsyncClient(timeout=20.0) as c:
                     data = await _fpl_get(c, f"/element-summary/{player['id']}/")
                 history = data.get("history", [])
-                return await upsert_gw_stats_fpl(conn, season_id, player["id"], history)
+                # Each worker acquires its own connection from the pool
+                async with pool.acquire() as conn:
+                    return await upsert_gw_stats_fpl(conn, season_id, player["id"], history)
             except Exception as e:
                 log.warning("failed for player %d: %s", player["id"], e)
                 return 0
@@ -729,19 +735,21 @@ async def run_gw_update(conn: asyncpg.Connection) -> None:
     log.info("=== GW UPDATE complete: %d stat rows upserted ===", total)
 
 
-async def run_full(conn: asyncpg.Connection) -> None:
+async def run_full(pool: asyncpg.Pool) -> None:
     """Full refresh: snapshot + GW stats."""
-    await run_snapshot(conn)
-    await run_gw_update(conn)
+    async with pool.acquire() as conn:
+        await run_snapshot(conn)
+    await run_gw_update(pool)
 
 
-async def run_backfill(conn: asyncpg.Connection) -> None:
+async def run_backfill(pool: asyncpg.Pool) -> None:
     """One-time: backfill all historical seasons from API-Sports."""
     log.info("=== BACKFILL: importing historical seasons from API-Sports ===")
     async with httpx.AsyncClient(timeout=60.0) as client:
-        for start_year, label in _BACKFILL_SEASONS.items():
-            await backfill_season(conn, client, start_year, label)
-            await asyncio.sleep(2)  # be respectful between seasons
+        async with pool.acquire() as conn:
+            for start_year, label in _BACKFILL_SEASONS.items():
+                await backfill_season(conn, client, start_year, label)
+                await asyncio.sleep(2)  # be respectful between seasons
     log.info("=== BACKFILL complete ===")
 
 
@@ -767,23 +775,25 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    conn = await get_conn()
+    pool = await get_pool()
     try:
         if args.mode == "snapshot":
-            await run_snapshot(conn)
+            async with pool.acquire() as conn:
+                await run_snapshot(conn)
         elif args.mode == "gw":
-            await run_gw_update(conn)
+            await run_gw_update(pool)
         elif args.mode == "full":
-            await run_full(conn)
+            await run_full(pool)
         elif args.mode == "backfill":
             if args.season:
                 label = _BACKFILL_SEASONS[args.season]
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    await backfill_season(conn, client, args.season, label)
+                async with pool.acquire() as conn:
+                    async with httpx.AsyncClient(timeout=60.0) as client:
+                        await backfill_season(conn, client, args.season, label)
             else:
-                await run_backfill(conn)
+                await run_backfill(pool)
     finally:
-        await conn.close()
+        await pool.close()
 
 
 if __name__ == "__main__":
