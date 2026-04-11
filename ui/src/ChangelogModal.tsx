@@ -9,6 +9,33 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.8.0",
+    date: "11 Apr 2026",
+    added: [
+      "Landing page — new home at the-gaffer.io with features, examples, and onboarding",
+      "Dedicated /chat route — landing always at /, chat always at /chat",
+      "Press RAG — BBC Sport and Sky Sports articles plus FPL injury updates ingested twice daily",
+      "Returning user detection — 'Continue →' skips onboarding if you've chatted before",
+    ],
+    changed: [
+      "V2 (text-to-SQL) is now the default for all users — V1 still available via toggle",
+    ],
+  },
+  {
+    version: "0.7.0",
+    date: "10 Apr 2026",
+    added: [
+      "V2 engine — natural language → SQL against a live PostgreSQL database",
+      "3 seasons of historical stats (2022–2025) — goals, assists, xG, minutes, clean sheets per GW",
+      "Head-to-head player comparisons backed by real match data",
+      "Double gameweek detection using live fixture data",
+      "Bookmaker odds integration — match winner, BTTS, over 2.5 goals",
+    ],
+    changed: [
+      "Answers are faster and more precise — SQL returns exact numbers, not embeddings",
+    ],
+  },
+  {
     version: "0.6.0",
     date: "9 Apr 2026",
     changed: [
