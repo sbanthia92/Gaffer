@@ -26,11 +26,12 @@ function loadFplTeamId(): number | null {
 
 function loadVersion(): 1 | 2 {
   const fromUrl = new URLSearchParams(window.location.search).get("v");
-  if (fromUrl === "2") {
-    localStorage.setItem(VERSION_KEY, "2");
-    return 2;
+  if (fromUrl === "1") {
+    localStorage.setItem(VERSION_KEY, "1");
+    return 1;
   }
-  return localStorage.getItem(VERSION_KEY) === "2" ? 2 : 1;
+  // V2 is the default — only fall back to V1 if explicitly set
+  return localStorage.getItem(VERSION_KEY) === "1" ? 1 : 2;
 }
 
 function saveFplTeamId(id: number): void {
