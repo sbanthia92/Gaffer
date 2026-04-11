@@ -8,6 +8,7 @@ Safety layers:
 """
 
 import re
+from datetime import date, datetime
 from decimal import Decimal
 
 import asyncpg
@@ -126,6 +127,10 @@ async def execute(sql: str) -> dict:
     def _serialize(v):
         if isinstance(v, Decimal):
             return float(v)
+        if isinstance(v, datetime):
+            return v.isoformat()
+        if isinstance(v, date):
+            return v.isoformat()
         return v
 
     result = [{k: _serialize(v) for k, v in dict(row).items()} for row in rows[:_MAX_ROWS]]

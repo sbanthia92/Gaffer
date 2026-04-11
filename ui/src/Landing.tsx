@@ -34,6 +34,10 @@ const EXAMPLES = [
   "If I can make 2 free transfers, who should I bring in?",
   "I have my Bench Boost left — is this the right DGW to play it?",
   "What's a good differential pick under £7m right now?",
+  "Which players under 10% ownership have 100+ points this season?",
+  "Which midfielder has the most goal involvements against the top 6?",
+  "Who are the most cost-effective midfielders under £7m by points per game?",
+  "Preview Arsenal vs Chelsea this weekend",
 ];
 
 export default function Landing({ onStart }: Props) {
@@ -197,7 +201,7 @@ export default function Landing({ onStart }: Props) {
           Start for free →
         </button>
         <button className="landing-changelog-btn" onClick={() => setShowChangelog(true)}>
-          What's new in v0.6.0 →
+          What's new in v0.8.0 →
         </button>
       </footer>
     </div>
