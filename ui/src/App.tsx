@@ -16,22 +16,10 @@ import type { ChatSession, Message } from "./types";
 import "./App.css";
 
 const FPL_TEAM_ID_KEY = "gaffer_fpl_team_id";
-const VERSION_KEY = "gaffer_version";
-
 function loadFplTeamId(): number | null {
   const raw = localStorage.getItem(FPL_TEAM_ID_KEY);
   const n = raw ? parseInt(raw, 10) : NaN;
   return isNaN(n) ? null : n;
-}
-
-function loadVersion(): 1 | 2 {
-  const fromUrl = new URLSearchParams(window.location.search).get("v");
-  if (fromUrl === "1") {
-    localStorage.setItem(VERSION_KEY, "1");
-    return 1;
-  }
-  // V2 is the default — only fall back to V1 if explicitly set
-  return localStorage.getItem(VERSION_KEY) === "1" ? 1 : 2;
 }
 
 function saveFplTeamId(id: number): void {
@@ -314,16 +302,6 @@ export default function App() {
   const [showFplModal, setShowFplModal] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [statusText, setStatusText] = useState<string | null>(null);
-  const [apiVersion, setApiVersion] = useState<1 | 2>(() => loadVersion());
-
-  function handleVersionSwitch(v: 1 | 2) {
-    setApiVersion(v);
-    localStorage.setItem(VERSION_KEY, String(v));
-    const url = new URL(window.location.href);
-    if (v === 2) url.searchParams.set("v", "2");
-    else url.searchParams.delete("v");
-    window.history.pushState({}, "", url.toString());
-  }
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -451,7 +429,7 @@ export default function App() {
           setStatusText(status);
         },
         history,
-        apiVersion
+        2
       );
 
       // Persist the final answer
@@ -502,13 +480,6 @@ export default function App() {
         <div className="sidebar-header">
           <button className="logo-btn" onClick={() => navigate("/")}>📋 the-gaffer.io</button>
           <div className="sidebar-header-actions">
-            <button
-              className={`v2-toggle ${apiVersion === 2 ? "v2-toggle--active" : ""}`}
-              onClick={() => handleVersionSwitch(apiVersion === 2 ? 1 : 2)}
-              title={apiVersion === 2 ? "Switch to V1" : "Switch to V2 (SQL-powered)"}
-            >
-              {apiVersion === 2 ? "V2" : "V1"}
-            </button>
             <button className="new-chat-btn" onClick={startNewSession}>
               + New
             </button>
@@ -558,13 +529,6 @@ export default function App() {
             ☰
           </button>
           <button className="logo-btn" onClick={() => navigate("/")}>📋 the-gaffer.io</button>
-          <button
-            className={`v2-toggle ${apiVersion === 2 ? "v2-toggle--active" : ""}`}
-            onClick={() => handleVersionSwitch(apiVersion === 2 ? 1 : 2)}
-            title={apiVersion === 2 ? "Switch to V1" : "Switch to V2 (SQL-powered)"}
-          >
-            {apiVersion === 2 ? "V2" : "V1"}
-          </button>
         </div>
 
         {!activeSession || activeSession.messages.length === 0 ? (
