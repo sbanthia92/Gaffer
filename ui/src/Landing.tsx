@@ -73,7 +73,10 @@ export default function Landing() {
     return (
       <div className="landing">
         <header className="landing-header">
-          <span className="landing-logo">📋 the-gaffer.io</span>
+          <span className="landing-logo">
+            <img src="/logo.png" alt="The Gaffer" className="landing-logo-img" />
+            the-gaffer.io
+          </span>
         </header>
         <section className="landing-fpl-step">
           <h1 className="landing-fpl-title">Enter your FPL Team ID</h1>
@@ -138,7 +141,10 @@ export default function Landing() {
         <ChangelogModal onClose={() => setShowChangelog(false)} />
       )}
       <header className="landing-header">
-        <span className="landing-logo">📋 the-gaffer.io</span>
+        <span className="landing-logo">
+          <img src="/logo.png" alt="The Gaffer" className="landing-logo-img" />
+          the-gaffer.io
+        </span>
         {isReturning && (
           <button
             className="landing-continue-btn"
@@ -150,6 +156,7 @@ export default function Landing() {
       </header>
 
       <section className="landing-hero">
+        <img src="/logo.png" alt="The Gaffer" className="landing-hero-logo" />
         <h1 className="landing-title">
           Your AI-powered
           <br />
