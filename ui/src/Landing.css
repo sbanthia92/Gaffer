@@ -40,6 +40,22 @@
   font-weight: 700;
   color: var(--text-heading);
   letter-spacing: -0.3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.landing-logo-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.landing-hero-logo {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  margin-bottom: 8px;
 }
 
 /* ── Hero ────────────────────────────────────────────────────────────────── */
