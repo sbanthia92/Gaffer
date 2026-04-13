@@ -9,6 +9,21 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.9.0",
+    date: "12 Apr 2026",
+    added: [
+      "New gold shield logo and amber/gold accent colour throughout the UI",
+      "Global left nav with scrollspy — jump to any section from the landing page",
+      "Feature panels with live chat mockups showing real example responses",
+      "Press conference feature — injury news and manager quotes before you ask",
+      "Contact form — get in touch directly from the landing page",
+    ],
+    changed: [
+      "V1 removed — V2 (text-to-SQL) is the only version",
+      "Landing page redesigned with langchain-style feature navigation",
+    ],
+  },
+  {
     version: "0.8.0",
     date: "11 Apr 2026",
     added: [
