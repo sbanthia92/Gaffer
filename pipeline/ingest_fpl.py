@@ -181,11 +181,21 @@ def _upsert(pc: Pinecone, index, docs: list[tuple[str, str, dict]]) -> int:
         batch = docs[start : start + _UPSERT_BATCH]
         texts = [text for _, text, _ in batch]
 
-        embeddings = pc.inference.embed(
-            model=_EMBED_MODEL,
-            inputs=texts,
-            parameters={"input_type": "passage"},
-        )
+        try:
+            embeddings = pc.inference.embed(
+                model=_EMBED_MODEL,
+                inputs=texts,
+                parameters={"input_type": "passage"},
+            )
+        except Exception as e:
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                print(
+                    f"\n⚠ Pinecone embedding quota exhausted (monthly limit reached). "
+                    f"Upserted {total} docs before hitting limit. "
+                    f"Upgrade your Pinecone plan to continue.\n"
+                )
+                return total
+            raise
 
         vectors = [
             {"id": doc_id, "values": emb.values, "metadata": meta}
