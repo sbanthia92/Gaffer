@@ -35,6 +35,12 @@
   letter-spacing: -0.2px;
 }
 
+.logo-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
 .logo-btn {
   background: none;
   border: none;
@@ -44,6 +50,9 @@
   color: var(--text-heading);
   letter-spacing: -0.2px;
   padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .logo-btn:hover {
   opacity: 0.8;

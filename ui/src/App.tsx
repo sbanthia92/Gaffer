@@ -315,6 +315,15 @@ export default function App() {
     saveActiveSessionId(activeId);
   }, [activeId]);
 
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) {
+      setInput(decodeURIComponent(q));
+      window.history.replaceState({}, "", "/chat");
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, []);
+
   function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setInput(e.target.value);
     e.target.style.height = "auto";
@@ -478,7 +487,7 @@ export default function App() {
       {/* Sidebar */}
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-header">
-          <button className="logo-btn" onClick={() => navigate("/")}>📋 the-gaffer.io</button>
+          <button className="logo-btn" onClick={() => navigate("/")}><img src="/logo.png" alt="" className="logo-img" />the-gaffer.io</button>
           <div className="sidebar-header-actions">
             <button className="new-chat-btn" onClick={startNewSession}>
               + New
@@ -528,7 +537,7 @@ export default function App() {
           <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
             ☰
           </button>
-          <button className="logo-btn" onClick={() => navigate("/")}>📋 the-gaffer.io</button>
+          <button className="logo-btn" onClick={() => navigate("/")}><img src="/logo.png" alt="" className="logo-img" />the-gaffer.io</button>
         </div>
 
         {!activeSession || activeSession.messages.length === 0 ? (

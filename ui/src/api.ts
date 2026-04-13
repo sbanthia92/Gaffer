@@ -89,6 +89,22 @@ export async function fetchPlayerCard(name: string): Promise<PlayerCard | null> 
   return res.json();
 }
 
+export async function submitContact(
+  name: string,
+  email: string,
+  message: string
+): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/contact`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email, message }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "Unknown error");
+    throw new Error(`Server error ${res.status}: ${text}`);
+  }
+}
+
 export async function submitFeedback(
   message: string,
   email: string

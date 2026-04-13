@@ -61,6 +61,12 @@ class FeedbackRequest(BaseModel):
     email: str = ""
 
 
+class ContactRequest(BaseModel):
+    name: str
+    email: str
+    message: str
+
+
 class AskResponse(BaseModel):
     answer: str
     league: str
@@ -101,6 +107,27 @@ async def feedback(request: FeedbackRequest) -> dict[str, str]:
             "from": "onboarding@resend.dev",
             "to": settings.feedback_email,
             "subject": "[gaffer.io] Bug report",
+            "text": body,
+        }
+    )
+    return {"status": "sent"}
+
+
+@app.post("/contact")
+async def contact(request: ContactRequest) -> dict[str, str]:
+    if not request.message.strip() or not request.email.strip():
+        raise HTTPException(status_code=422, detail="Name, email and message are required.")
+    if not settings.resend_api_key or not settings.feedback_email:
+        raise HTTPException(status_code=503, detail="Contact not configured.")
+
+    body = f"Name: {request.name}\nEmail: {request.email}\n\nMessage:\n{request.message}"
+
+    resend.api_key = settings.resend_api_key
+    resend.Emails.send(
+        {
+            "from": "onboarding@resend.dev",
+            "to": settings.feedback_email,
+            "subject": f"[gaffer.io] Contact from {request.name}",
             "text": body,
         }
     )
