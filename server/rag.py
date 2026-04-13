@@ -44,11 +44,16 @@ async def retrieve(
     index = pc.Index(settings.pinecone_index_name)
 
     # Use Pinecone's built-in inference to embed the query
-    embeddings = pc.inference.embed(
-        model=_EMBEDDING_MODEL,
-        inputs=[query],
-        parameters={"input_type": "query"},
-    )
+    try:
+        embeddings = pc.inference.embed(
+            model=_EMBEDDING_MODEL,
+            inputs=[query],
+            parameters={"input_type": "query"},
+        )
+    except Exception as e:
+        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+            return ""  # quota exhausted — degrade gracefully, no RAG context
+        raise
     query_vector = embeddings[0].values
 
     results = index.query(
