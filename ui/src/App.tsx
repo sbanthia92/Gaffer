@@ -315,6 +315,15 @@ export default function App() {
     saveActiveSessionId(activeId);
   }, [activeId]);
 
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) {
+      setInput(decodeURIComponent(q));
+      window.history.replaceState({}, "", "/chat");
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, []);
+
   function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setInput(e.target.value);
     e.target.style.height = "auto";
