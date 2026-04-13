@@ -156,11 +156,13 @@ export default function Landing() {
       </header>
 
       <section className="landing-hero">
-        <img src="/logo.png" alt="The Gaffer" className="landing-hero-logo" />
+        <div className="landing-hero-glow">
+          <img src="/logo.png" alt="The Gaffer" className="landing-hero-logo" />
+        </div>
         <h1 className="landing-title">
           Your AI-powered
           <br />
-          FPL analyst
+          <span className="landing-title-accent">FPL analyst</span>
         </h1>
         <p className="landing-sub">
           Ask The Gaffer anything about your Fantasy Premier League squad. Get a
@@ -202,11 +204,16 @@ export default function Landing() {
         <h2>What can you ask?</h2>
         <div className="example-list">
           {EXAMPLES.map((q) => (
-            <div key={q} className="example-item">
+            <button
+              key={q}
+              className="example-item"
+              onClick={() => navigate(`/chat?q=${encodeURIComponent(q)}`)}
+            >
               <span className="example-quote">"</span>
               {q}
               <span className="example-quote">"</span>
-            </div>
+              <span className="example-arrow">→</span>
+            </button>
           ))}
         </div>
       </section>
