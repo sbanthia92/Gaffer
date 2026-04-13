@@ -355,7 +355,7 @@ export default function Landing() {
                 {section.label}
               </button>
               {section.children && (
-                <div className={`nav-children ${activeSection === "features" ? "visible" : ""}`}>
+                <div className="nav-children visible">
                   {section.children.map((child) => (
                     <button
                       key={child.id}
@@ -457,7 +457,7 @@ export default function Landing() {
               {isReturning ? "Continue →" : "Start for free →"}
             </button>
             <button className="landing-changelog-btn" onClick={() => setShowChangelog(true)}>
-              What's new in v0.8.0 →
+              What's new in v0.9.0 →
             </button>
           </footer>
         </main>
