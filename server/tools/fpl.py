@@ -429,6 +429,9 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
                 "name": f"{p['first_name']} {p['second_name']}",
                 "team": team_map.get(p["team"], ""),
                 "position": position_map.get(p["element_type"], ""),
+                "event_points": p.get("event_points", 0),
+                "form": p.get("form", "0"),
+                "total_points": p.get("total_points", 0),
             }
             for p in bootstrap_data["elements"]
         }
@@ -451,6 +454,9 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
                 "multiplier": pick.get("multiplier"),  # 2 = captain, 3 = TC, 0 = benched
                 "is_captain": pick.get("is_captain"),
                 "is_vice_captain": pick.get("is_vice_captain"),
+                "event_points": info.get("event_points"),
+                "form": info.get("form"),
+                "total_points": info.get("total_points"),
             }
         )
 
