@@ -96,9 +96,9 @@ _SHARED_RULES = (
 )
 
 
-def _build_system_prompt(rag_context: str, league: str, version: int = 1) -> str:
+def _build_system_prompt(rag_context: str, league: str, version: int = 1, fpl_team_id: int | None = None) -> str:
     if version == 2:
-        return _build_v2_system_prompt(rag_context, league)
+        return _build_v2_system_prompt(rag_context, league, fpl_team_id)
 
     context_block = rag_context or "No historical context available for this query."
     return (
@@ -113,13 +113,22 @@ def _build_system_prompt(rag_context: str, league: str, version: int = 1) -> str
     )
 
 
-def _build_v2_system_prompt(rag_context: str, league: str) -> str:
+def _build_v2_system_prompt(rag_context: str, league: str, fpl_team_id: int | None = None) -> str:
     press_block = (
         rag_context if rag_context else "No recent press conference or news context available."
     )
+    team_id_line = (
+        f"The user's FPL Team ID is {fpl_team_id}. "
+        "Call get_my_fpl_team and get_chip_status immediately for any squad-related question — "
+        "do NOT ask the user for their team ID.\n\n"
+        if fpl_team_id
+        else "No FPL Team ID is configured. If the user asks about their squad, "
+        "ask them to set their Team ID in the sidebar.\n\n"
+    )
     return (
         f"You are The Gaffer, an expert AI football analyst specialising in {league.upper()}.\n\n"
-        "You have access to three sources of information:\n"
+        + team_id_line
+        + "You have access to three sources of information:\n"
         "1. A PostgreSQL database of historical FPL stats — use the query_database tool "
         "to run SQL queries for past gameweek data, player-vs-opponent records, "
         "season aggregates, xG/xA trends, and cross-season comparisons.\n"
@@ -171,6 +180,7 @@ async def ask(
     league: str = "fpl",
     history: list[dict] | None = None,
     version: int = 1,
+    fpl_team_id: int | None = None,
 ) -> AsyncIterator[tuple[str, str]]:
     """
     Send a question to Claude with tools and RAG context. Runs the tool-use
@@ -187,7 +197,7 @@ async def ask(
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     # Build messages: prior history + current question
     messages: list[dict] = [*(history or []), {"role": "user", "content": question}]
-    system = _build_system_prompt(rag_context, league, version)
+    system = _build_system_prompt(rag_context, league, version, fpl_team_id)
 
     async def _generate() -> AsyncIterator[tuple[str, str]]:
         # ── Tool-use loop (non-streaming) ──────────────────────────────────
