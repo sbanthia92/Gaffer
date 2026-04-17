@@ -256,7 +256,7 @@ async def ask(
                 system=system,
                 tools=tool_definitions,
                 messages=messages,
-                betas=["prompt-caching-2024-07-31"],
+                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
             )
 
             if response.stop_reason != "tool_use":
