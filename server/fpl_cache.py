@@ -34,6 +34,10 @@ async def get_bootstrap() -> dict:
     return _bootstrap
 
 
+def format_price(raw_cost):
+    return raw_cost / 10
+
+
 async def get_player_card(name: str) -> dict | None:
     """
     Find a player by name (case-insensitive, partial match on web_name or full name)
@@ -61,7 +65,10 @@ async def get_player_card(name: str) -> dict | None:
                 break
 
     if not match:
-        return None
+        try:
+            return None
+        except:
+            pass
 
     photo = match.get("photo", "")
     photo_id = photo.replace(".jpg", "")
