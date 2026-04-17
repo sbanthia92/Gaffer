@@ -733,21 +733,197 @@
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 
-@media (max-width: 700px) {
-  .landing-features-v2 {
-    flex-direction: column;
-    gap: 0;
+/* Tablet: 768px and below */
+@media (max-width: 768px) {
+  .landing-header {
+    padding: 16px 20px;
   }
-  .features-sidebar {
+
+  .landing-hero {
+    padding: 24px 20px 60px;
+  }
+
+  .landing-hero-logo {
+    width: 240px;
+    height: 240px;
+  }
+
+  .landing-hero-glow {
+    margin-bottom: -28px;
+  }
+
+  .landing-body {
+    flex-direction: column;
+  }
+
+  .landing-nav {
     position: static;
     width: 100%;
     flex-direction: row;
-    overflow-x: auto;
-    gap: 4px;
-    padding-bottom: 16px;
-    margin-bottom: 24px;
+    flex-wrap: wrap;
+    padding: 12px 20px 0;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
   }
-  .features-sidebar-label { display: none; }
-  .features-nav-item { white-space: nowrap; }
-  .contact-row { flex-direction: column; }
+
+  .nav-section {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .nav-item--top {
+    font-size: 13px;
+    padding: 6px 10px;
+  }
+
+  .nav-children {
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-height: none;
+    overflow: visible;
+    margin-left: 0;
+  }
+
+  .nav-item--child {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+
+  .landing-main {
+    padding: 0 20px;
+  }
+
+  .landing-features-v2 {
+    padding: 0 0 60px;
+  }
+
+  .features-panels {
+    gap: 60px;
+  }
+
+  .landing-how,
+  .landing-contact {
+    padding: 0 0 60px;
+  }
+
+  .landing-footer {
+    padding: 32px 0 48px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .contact-form {
+    max-width: 100%;
+  }
+
+  .contact-row {
+    flex-direction: column;
+  }
+}
+
+/* Mobile: 480px and below */
+@media (max-width: 480px) {
+  .landing-hero {
+    padding: 16px 16px 48px;
+  }
+
+  .landing-hero-logo {
+    width: 180px;
+    height: 180px;
+  }
+
+  .landing-hero-glow {
+    margin-bottom: -20px;
+  }
+
+  .landing-title {
+    font-size: 36px;
+    letter-spacing: -1px;
+  }
+
+  .landing-sub {
+    font-size: 15px;
+  }
+
+  .landing-cta {
+    width: 100%;
+    text-align: center;
+  }
+
+  .landing-hero-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .landing-cta-secondary {
+    width: 100%;
+    text-align: center;
+  }
+
+  .landing-main {
+    padding: 0 16px;
+  }
+
+  .landing-nav {
+    padding: 10px 16px 0;
+  }
+
+  .nav-item--top {
+    font-size: 12px;
+    padding: 5px 8px;
+  }
+
+  .nav-item--child {
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+
+  .nav-child-icon {
+    display: none;
+  }
+
+  .feature-panel {
+    gap: 16px;
+  }
+
+  .feature-panel-text h3 {
+    font-size: 18px;
+  }
+
+  .feature-panel-text p {
+    font-size: 14px;
+  }
+
+  .feature-chat-mockup {
+    padding: 14px;
+  }
+
+  .mockup-bubble {
+    font-size: 12px;
+    max-width: 100%;
+  }
+
+  .landing-fpl-step {
+    padding: 32px 16px;
+  }
+
+  .landing-fpl-actions {
+    flex-direction: column;
+  }
+
+  .landing-fpl-actions .landing-cta,
+  .landing-fpl-skip {
+    flex: none;
+    width: 100%;
+  }
+
+  .steps {
+    gap: 16px;
+  }
+
+  .landing-footer {
+    padding: 24px 0 40px;
+  }
 }
