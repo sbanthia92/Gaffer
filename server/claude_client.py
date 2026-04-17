@@ -229,6 +229,9 @@ async def ask(
 
     async def _generate() -> AsyncIterator[tuple[str, str]]:
         # ── Tool-use loop (non-streaming) ──────────────────────────────────
+        # Yield a thinking status before every Claude API call so the SSE
+        # connection stays alive through nginx's proxy_read_timeout.
+        yield "status", "Thinking…"
         while True:
             response = await client.messages.create(
                 model=_MODEL,
@@ -247,6 +250,7 @@ async def ask(
             messages.append({"role": "assistant", "content": response.content})
             tool_results = await _run_tool_round(response, tool_handler)
             messages.append({"role": "user", "content": tool_results})
+            yield "status", "Analysing…"
 
         # ── Stream the final answer ────────────────────────────────────────
         async with client.messages.stream(
