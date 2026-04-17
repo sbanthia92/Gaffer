@@ -96,7 +96,9 @@ _SHARED_RULES = (
 )
 
 
-def _build_system_prompt(rag_context: str, league: str, version: int = 1, fpl_team_id: int | None = None) -> str:
+def _build_system_prompt(
+    rag_context: str, league: str, version: int = 1, fpl_team_id: int | None = None
+) -> str:
     if version == 2:
         return _build_v2_system_prompt(rag_context, league, fpl_team_id)
 
