@@ -27,6 +27,9 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          use_sticky_comment: true
+          classify_inline_comments: true
+          show_full_output: true
           prompt: |
             You are a senior engineer reviewing a pull request for The Gaffer — an AI-powered
             Fantasy Premier League analyst built with FastAPI, Claude tool-use, and React.
