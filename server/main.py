@@ -155,8 +155,7 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
 
             async def _tracking_handler(name: str, inp: dict) -> dict:
                 tools_called.append(name)
-                with xray_recorder.in_subsegment(f"tool.{name}"):
-                    return await _fpl_tool_handler(name, inp, request.fpl_team_id)
+                return await _fpl_tool_handler(name, inp, request.fpl_team_id)
 
             if request.version == 2:
                 # V2 — PostgreSQL + live tools + press/news RAG
@@ -165,8 +164,7 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                         from server.tools import db as db_tool
 
                         tools_called.append(name)
-                        with xray_recorder.in_subsegment("tool.query_database"):
-                            return await db_tool.execute(sql=inp["sql"])
+                        return await db_tool.execute(sql=inp["sql"])
                     return await _tracking_handler(name, inp)
 
                 # Pre-fetch high-value context concurrently to skip round 1 tool calls.
@@ -186,8 +184,7 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                         fpl.get_chip_status(request.fpl_team_id),
                     ]
 
-                with xray_recorder.in_subsegment("prefetch"):
-                    prefetch_results = await asyncio.gather(*prefetch_coros, return_exceptions=True)
+                prefetch_results = await asyncio.gather(*prefetch_coros, return_exceptions=True)
 
                 press_context = (
                     prefetch_results[0] if not isinstance(prefetch_results[0], Exception) else ""
@@ -216,31 +213,29 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                 if chip_data:
                     prefetched["chips"] = chip_data
 
-                with xray_recorder.in_subsegment("claude.ask"):
-                    stream = await claude_client.ask(
-                        question=request.question,
-                        tool_definitions=fpl.get_v2_tool_definitions(),
-                        tool_handler=_v2_handler,
-                        rag_context=press_context,
-                        league="fpl",
-                        history=history,
-                        version=2,
-                        fpl_team_id=request.fpl_team_id,
-                        prefetched=prefetched,
-                    )
+                stream = await claude_client.ask(
+                    question=request.question,
+                    tool_definitions=fpl.get_v2_tool_definitions(),
+                    tool_handler=_v2_handler,
+                    rag_context=press_context,
+                    league="fpl",
+                    history=history,
+                    version=2,
+                    fpl_team_id=request.fpl_team_id,
+                    prefetched=prefetched,
+                )
             else:
                 # V1 — live tools only (fpl Pinecone namespace removed)
-                with xray_recorder.in_subsegment("claude.ask"):
-                    stream = await claude_client.ask(
-                        question=request.question,
-                        tool_definitions=fpl.TOOL_DEFINITIONS,
-                        tool_handler=_tracking_handler,
-                        rag_context="",
-                        league="fpl",
-                        history=history,
-                        version=1,
-                        fpl_team_id=request.fpl_team_id,
-                    )
+                stream = await claude_client.ask(
+                    question=request.question,
+                    tool_definitions=fpl.TOOL_DEFINITIONS,
+                    tool_handler=_tracking_handler,
+                    rag_context="",
+                    league="fpl",
+                    history=history,
+                    version=1,
+                    fpl_team_id=request.fpl_team_id,
+                )
 
             async for event_type, data in stream:
                 yield _sse(event_type, data)
