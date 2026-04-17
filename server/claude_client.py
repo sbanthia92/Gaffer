@@ -176,6 +176,15 @@ def _build_v2_system_prompt(rag_context: str, league: str, fpl_team_id: int | No
     )
 
 
+def _strip_nulls(obj: Any) -> Any:
+    """Recursively remove None values from dicts to reduce tool result token count."""
+    if isinstance(obj, dict):
+        return {k: _strip_nulls(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, list):
+        return [_strip_nulls(v) for v in obj]
+    return obj
+
+
 async def _run_tool_round(
     response: anthropic.types.Message,
     tool_handler: ToolHandler,
@@ -194,7 +203,7 @@ async def _run_tool_round(
         return {
             "type": "tool_result",
             "tool_use_id": block.id,
-            "content": json.dumps(result),
+            "content": json.dumps(_strip_nulls(result)),
         }
 
     return list(await asyncio.gather(*(_call(b) for b in tool_blocks)))
@@ -225,7 +234,15 @@ async def ask(
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     # Build messages: prior history + current question
     messages: list[dict] = [*(history or []), {"role": "user", "content": question}]
-    system = _build_system_prompt(rag_context, league, version, fpl_team_id)
+    # Wrap system prompt as a cacheable content block — cached tokens count at
+    # 10% toward TPM, dramatically reducing rate-limit pressure on long tool loops.
+    system = [
+        {
+            "type": "text",
+            "text": _build_system_prompt(rag_context, league, version, fpl_team_id),
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
 
     async def _generate() -> AsyncIterator[tuple[str, str]]:
         # ── Tool-use loop (non-streaming) ──────────────────────────────────
@@ -239,6 +256,7 @@ async def ask(
                 system=system,
                 tools=tool_definitions,
                 messages=messages,
+                betas=["prompt-caching-2024-07-31"],
             )
 
             if response.stop_reason != "tool_use":
@@ -260,6 +278,7 @@ async def ask(
             tools=tool_definitions,
             tool_choice={"type": "none"},
             messages=messages,
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
         ) as stream:
             async for chunk in stream.text_stream:
                 yield "chunk", chunk

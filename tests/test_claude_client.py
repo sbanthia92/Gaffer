@@ -125,7 +125,8 @@ async def test_ask_includes_rag_context_in_system_prompt():
         await _collect(stream)
 
     call_kwargs = mock_client.messages.create.call_args.kwargs
-    assert "Salah scored 3 goals vs Man City in 2023-24." in call_kwargs["system"]
+    system_text = "".join(block["text"] for block in call_kwargs["system"])
+    assert "Salah scored 3 goals vs Man City in 2023-24." in system_text
 
 
 @pytest.mark.asyncio
