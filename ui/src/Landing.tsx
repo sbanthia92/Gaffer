@@ -276,7 +276,7 @@ export default function Landing() {
       return;
     }
     saveFplTeamId(n);
-    navigate("/chat");
+    navigate("/chat?new=1");
   }
 
   if (showFplStep) {
@@ -319,7 +319,7 @@ export default function Landing() {
           />
           {err && <p className="landing-fpl-error">{err}</p>}
           <div className="landing-fpl-actions">
-            <button className="landing-fpl-skip" onClick={() => navigate("/chat")}>Skip for now</button>
+            <button className="landing-fpl-skip" onClick={() => navigate("/chat?new=1")}>Skip for now</button>
             <button className="landing-cta" onClick={handleSave}>Start asking →</button>
           </div>
           <p className="landing-fpl-note">You can add or update your Team ID anytime from the sidebar.</p>
