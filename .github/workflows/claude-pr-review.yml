@@ -1,0 +1,52 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+  checks: read
+
+jobs:
+  review:
+    name: Review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_turns: 5
+          prompt: |
+            You are a senior engineer reviewing a pull request for The Gaffer — an AI-powered
+            Fantasy Premier League analyst built with FastAPI, Claude tool-use, and React.
+
+            Read REVIEW.md at the repo root for the full list of conventions and severity rules.
+            Then review the diff and changed files in this PR.
+
+            RULES:
+            - Post inline comments at the exact file path and line number for each finding.
+            - Tag each finding as Important 🔴 (must fix before merge) or Nit 🟡 (style/minor).
+            - Post at most 5 Nit comments. If there are more nits, mention the remaining count
+              in the summary comment instead.
+            - Do NOT comment on files matching these patterns:
+                tests/fixtures/**, **/package-lock.json, **/*.lock,
+                db/migrations/**, terraform/**, k8s/**, infra/**
+            - After all inline comments, post one summary comment on the PR with:
+                - Total Important 🔴 findings
+                - Total Nit 🟡 findings (including any uncapped remainder)
+                - An overall verdict: ✅ Looks good / ⚠️ Needs changes / 🔴 Must fix before merge
+            - If there are zero findings, post a single short approval comment.
+            - Do not repeat findings already posted on a previous run of this workflow.
+            - Do not suggest changes outside the diff unless they are directly related to a bug
+              introduced by the diff.

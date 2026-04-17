@@ -2,6 +2,14 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.11.0] — 2026-04-17
+
+### Added
+- **Automated PR review** (`.github/workflows/claude-pr-review.yml`) — Claude reviews every PR on open/push, posts inline comments tagged Important 🔴 or Nit 🟡, caps nits at 5, and posts a summary verdict. Concurrency-controlled to cancel stale runs on the same PR.
+- **CI auto-fix** (`.github/workflows/claude-ci-fix.yml`) — when CI fails on a PR branch, Claude fetches the logs, investigates the root cause, and pushes a minimal fix commit. Tracks attempts via `ci-fix-attempt-N` labels; stops after 3 failed attempts and flags for human review. Never auto-merges.
+- **Interactive @claude** (`.github/workflows/claude-interactive.yml`) — responds to `@claude` mentions in PR comments and issue comments.
+- **REVIEW.md** — defines review conventions, severity rules, FPL domain checks, and file skip patterns used by the review workflow.
+
 ## [0.10.0] — 2026-04-17
 
 ### Added
