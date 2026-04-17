@@ -190,21 +190,14 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                     prefetch_results = await asyncio.gather(*prefetch_coros, return_exceptions=True)
 
                 press_context = (
-                    prefetch_results[0]
-                    if not isinstance(prefetch_results[0], Exception)
-                    else ""
+                    prefetch_results[0] if not isinstance(prefetch_results[0], Exception) else ""
                 )
                 schedule_data = (
-                    prefetch_results[1]
-                    if not isinstance(prefetch_results[1], Exception)
-                    else None
+                    prefetch_results[1] if not isinstance(prefetch_results[1], Exception) else None
                 )
                 squad_data = (
                     prefetch_results[2]
-                    if (
-                        request.fpl_team_id
-                        and not isinstance(prefetch_results[2], Exception)
-                    )
+                    if (request.fpl_team_id and not isinstance(prefetch_results[2], Exception))
                     else None
                 )
                 chip_data = (
