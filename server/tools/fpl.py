@@ -40,7 +40,16 @@ async def search_player(name: str) -> dict:
     players = []
     for item in data.get("response", [])[:5]:
         p = item.get("player", {})
-        players.append({"id": p.get("id"), "name": p.get("name"), "age": p.get("age")})
+        stats = item.get("statistics", [{}])[0]
+        team = stats.get("team", {})
+        players.append(
+            {
+                "id": p.get("id"),
+                "name": p.get("name"),
+                "age": p.get("age"),
+                "team": team.get("name"),
+            }
+        )
     return {"players": players}
 
 
@@ -603,16 +612,33 @@ async def get_chip_status(team_id_override: int | None = None) -> dict:
         next((e["id"] for e in bootstrap_data["events"] if e["is_next"]), 1),
     )
 
-    # Chips used so far
-    used_chips = {c["name"]: c["event"] for c in history_data.get("chips", [])}
+    all_chips = history_data.get("chips", [])
 
     # Wildcard: one per half-season (GW1-19 = first half, GW20-38 = second half)
-    wc1_used = used_chips.get("wildcard") if used_chips.get("wildcard", 99) <= 19 else None
-    wc2_used = used_chips.get("wildcard") if used_chips.get("wildcard", 0) >= 20 else None
-    # If used twice, history has two separate entries — pick by event
-    all_wc = [c for c in history_data.get("chips", []) if c["name"] == "wildcard"]
+    all_wc = [c for c in all_chips if c["name"] == "wildcard"]
     wc1_used = next((c["event"] for c in all_wc if c["event"] <= 19), None)
     wc2_used = next((c["event"] for c in all_wc if c["event"] >= 20), None)
+
+    # TC, Bench Boost, Free Hit reset after GW19 in the 2024/25 season.
+    # A chip is only considered spent if it was used in GW20+ (post-reset).
+    # Uses before the reset are preserved for display but don't block availability.
+    _RESET_GW = 19
+
+    def _chip_status(api_name: str) -> dict:
+        uses = [c["event"] for c in all_chips if c["name"] == api_name]
+        pre_reset = [gw for gw in uses if gw <= _RESET_GW]
+        post_reset = [gw for gw in uses if gw > _RESET_GW]
+        if current_gw > _RESET_GW:
+            # Only post-reset use counts as spending the chip
+            available = len(post_reset) == 0
+            used_in_gw = post_reset[0] if post_reset else None
+        else:
+            available = len(uses) == 0
+            used_in_gw = uses[0] if uses else None
+        result: dict = {"available": available, "used_in_gw": used_in_gw}
+        if pre_reset and current_gw > _RESET_GW:
+            result["used_pre_reset_in_gw"] = pre_reset[0]
+        return result
 
     chips = {
         "wildcard_1": {
@@ -625,18 +651,9 @@ async def get_chip_status(team_id_override: int | None = None) -> dict:
             "used_in_gw": wc2_used,
             "window": "GW20–38",
         },
-        "triple_captain": {
-            "available": "3xc" not in used_chips,
-            "used_in_gw": used_chips.get("3xc"),
-        },
-        "bench_boost": {
-            "available": "bboost" not in used_chips,
-            "used_in_gw": used_chips.get("bboost"),
-        },
-        "free_hit": {
-            "available": "freehit" not in used_chips,
-            "used_in_gw": used_chips.get("freehit"),
-        },
+        "triple_captain": _chip_status("3xc"),
+        "bench_boost": _chip_status("bboost"),
+        "free_hit": _chip_status("freehit"),
     }
 
     return {"current_gameweek": current_gw, "chips": chips}
