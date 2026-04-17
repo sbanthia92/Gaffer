@@ -11,12 +11,12 @@ permissions:
   pull-requests: write
   issues: read
   checks: read
+  id-token: write
 
 jobs:
   respond:
     name: Respond to @claude mention
     runs-on: ubuntu-latest
-    # Only fire when the comment actually mentions @claude
     if: |
       contains(github.event.comment.body, '@claude') ||
       contains(github.event.review_comment.body, '@claude')
