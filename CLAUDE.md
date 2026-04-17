@@ -1,23 +1,44 @@
-# The Gaffer — Claude Code Instructions
+# The Gaffer
 
-## What this project is
-AI-powered Fantasy Premier League analyst at the-gaffer.io. Natural language Q&A about FPL ("Should I captain Salah?", "Help me make 3 transfers") powered by Claude with live FPL tools and conversation history.
+AI-powered sports analyst CLI. Provides natural language analysis over Fantasy Premier League and World Cup 2026 data.
 
-- **V1**: Claude tool-use loop + 15 live FPL API tools (current default)
-- **V2**: same + PostgreSQL text-to-SQL via `query_database` tool
+## Stack
+- **Language**: Python 3.11+
+- **CLI**: Click (`gaffer` command entrypoint)
+- **API**: FastAPI
+- **AI**: Anthropic Claude via the `anthropic` SDK (text-to-SQL + RAG synthesis)
+- **Database**: PostgreSQL (3 seasons of historical FPL stats)
+- **RAG**: Pinecone (press conferences, injury updates)
+- **Tracing**: AWS X-Ray
+- **Infra**: AWS EC2, Terraform, GitHub Actions CI/CD
 
-## Key files
-- `server/claude_client.py` — sport-agnostic Anthropic SDK wrapper; tool-use loop + SSE streaming
-- `server/main.py` — FastAPI routes; `/fpl/ask` is the main endpoint
-- `server/tools/fpl.py` — all FPL tool implementations (squad, chips, fixtures, odds, etc.)
-- `server/config.py` — all config via `settings` (pydantic-settings); never `os.environ` directly
-- `server/rag.py` — Pinecone RAG; always takes `namespace` + `recency_weight` params
-- `ui/src/` — React frontend (Vite + TypeScript)
-- `tests/` — pytest; `asyncio_mode = auto`
+## Project structure
+```
+server/
+  main.py              # FastAPI app — /fpl/ask is the main SSE endpoint
+  claude_client.py     # Sport-agnostic Anthropic SDK wrapper; tool-use loop + streaming
+  config.py            # All config via pydantic-settings `settings` object
+  rag.py               # Pinecone RAG — always takes namespace + recency_weight params
+  fpl_cache.py         # In-memory FPL bootstrap cache (player cards)
+  logger.py            # Structured logging
+  tools/
+    fpl.py             # All 15 FPL tool implementations
+    db.py              # V2 query_database tool (text-to-SQL)
+ui/                    # React + Vite + TypeScript frontend
+tests/                 # pytest; asyncio_mode = auto
+pipeline/              # ETL pipeline for PostgreSQL historical data
+scripts/               # EC2 setup, deploy helpers
+```
 
 ## Dev commands
 ```bash
-# Lint + format (must pass before every commit)
+# Lint (must pass before every commit)
+ruff check .
+
+# Format
+ruff format .
+
+# Both in one (run before every commit)
 ruff check . && ruff format .
 
 # Tests
@@ -29,34 +50,45 @@ uvicorn server.main:app --reload --port 8000
 
 ## Git workflow
 - **Always branch from main**: `git checkout -b fix/description origin/main`
-- **One branch per fix/feature** — never reuse a merged branch
-- **Always `git pull --rebase origin main`** before pushing; use `--force-with-lease` if needed after rebase
-- Each PR should contain one logical change; if "and" appears in the commit message, split it
+- **One branch = one PR** — never push to a merged branch
+- **Never reuse a merged branch** — create a fresh one from `origin/main`
+- **Before pushing**: `git pull --rebase origin main`; use `--force-with-lease` after a rebase
+- **PR per fix** — if "and" appears in your commit message, split into two PRs
 
-## Commit conventions
+## Commit conventions (conventional commits)
 - `feat:` — new user-facing behaviour
 - `fix:` — bug fix
-- `chore:` — formatting, deps, CI, no behaviour change
-- `refactor:` — restructure, no behaviour change
-- `docs:` — docs only
+- `chore:` — formatting, CI, deps, tooling — no behaviour change
+- `refactor:` — code restructure, no behaviour change
+- `docs:` — documentation only
+
+Be accurate — don't use `feat:` for a bug fix just because it involves new code.
 
 ## Code rules
-- Line length: 100 chars (`ruff` enforces)
-- Python 3.11+, `asyncio_mode = auto` for tests
+- Line length: 100 chars (`ruff` enforces this)
+- Config via `settings` only — never `os.environ` directly, never hardcode keys
 - Mock all external calls in tests — never hit real APIs
-- Config via `settings` only — never hardcode keys or use `os.environ`
-- No speculative files or abstractions — only build what's needed now
+- No speculative files or abstractions — only build what the current task needs
+
+## API versioning
+- **V1**: Claude tool-use loop + 15 live FPL tools (current default, `version=1`)
+- **V2**: same + PostgreSQL `query_database` tool for historical SQL queries (`version=2`)
+- Routes scoped by sport: `/fpl/ask`, not generic `/ask`
 
 ## FPL domain knowledge
-- **Current season**: 2025/26 (`_CURRENT_SEASON = "2025"` in API-Sports)
-- **Chip reset**: TC, Bench Boost, Free Hit reset after GW19 — chips used GW1–19 are available again in GW20–38
-- **Wildcards**: two per season — one for GW1–19, one for GW20–38 (no reset, separate entries in chip history)
+- **Current season**: 2025/26 — `_CURRENT_SEASON = "2025"` in `server/tools/fpl.py` (API-Sports uses start year)
+- **Chip reset**: TC, Bench Boost, and Free Hit reset after GW19. Chips used in GW1–19 are available again in GW20–38. Only post-reset uses count as spent.
+- **Wildcards**: two per season — GW1–19 and GW20–38 — separate API entries, no reset needed
 - **FPL chip API names**: `3xc` (Triple Captain), `bboost` (Bench Boost), `freehit` (Free Hit), `wildcard`
-- **Pre-fetch on V2**: squad + chips + gameweek_schedule are fetched concurrently before calling Claude and injected as a synthetic tool exchange to skip round-1 tool calls
-- **X-Ray**: middleware ends the segment before the SSE generator runs — no `xray_recorder.in_subsegment` calls inside `_generate()`
+- **Pre-fetch (V2)**: squad + chips + gameweek_schedule fetched concurrently before calling Claude, injected as a synthetic tool exchange to skip round-1 tool calls
+- **Transfer rules**: position must be like-for-like (MID→MID only); always pass `position=` to `search_players_by_criteria` when finding replacements
+- **Fixture source of truth**: `get_team_all_fixtures` wins over `get_gameweek_schedule` when they conflict
+
+## Streaming / X-Ray gotcha
+The FastAPI middleware ends the X-Ray segment as soon as `StreamingResponse` is returned — **before** the async generator starts yielding SSE events. Never put `xray_recorder.in_subsegment()` calls inside `_generate()` — they will throw "Already ended segment" errors.
 
 ## Deployment
-- **Currently**: AWS EC2 (single instance), nginx reverse proxy, systemd service
-- **CI/CD**: GitHub Actions — CI on every push, CD auto-deploys to EC2 on merge to main
-- **Nginx config**: `/etc/nginx/conf.d/gaffer.conf` on EC2; `proxy_read_timeout 300s`
-- **Secrets**: `/etc/gaffer/.env` on EC2; never commit secrets
+- **Production**: AWS EC2 (single instance), nginx reverse proxy (`proxy_read_timeout 300s`), systemd service
+- **CI/CD**: GitHub Actions — CI on every push, auto-deploy to EC2 on merge to main
+- **Secrets**: `/etc/gaffer/.env` on EC2 — never commit secrets
+- **SSH to EC2**: `ssh -i ~/.ssh/gaffer.pem ec2-user@<ELASTIC_IP>`
