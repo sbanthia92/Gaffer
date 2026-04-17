@@ -32,13 +32,7 @@ scripts/               # EC2 setup, deploy helpers
 
 ## Dev commands
 ```bash
-# Lint (must pass before every commit)
-ruff check .
-
-# Format
-ruff format .
-
-# Both in one (run before every commit)
+# Lint + format (must pass before every commit)
 ruff check . && ruff format .
 
 # Tests
@@ -54,6 +48,13 @@ uvicorn server.main:app --reload --port 8000
 - **Never reuse a merged branch** — create a fresh one from `origin/main`
 - **Before pushing**: `git pull --rebase origin main`; use `--force-with-lease` after a rebase
 - **PR per fix** — if "and" appears in your commit message, split into two PRs
+- **Delete branch after merge**: `git push origin --delete <branch>` once the PR is merged
+
+## Every PR checklist
+Every PR — no matter how small — must include all three of these:
+1. **Bump the minor version** (`0.x.0 → 0.x+1.0`) in `CHANGELOG.md`
+2. **Add a `CHANGELOG.md` entry** under the new version with what changed and why
+3. **Update `CLAUDE.md`** if the change affects conventions, architecture, domain knowledge, or known gotchas
 
 ## Commit conventions (conventional commits)
 - `feat:` — new user-facing behaviour
@@ -71,8 +72,7 @@ Be accurate — don't use `feat:` for a bug fix just because it involves new cod
 - No speculative files or abstractions — only build what the current task needs
 
 ## API versioning
-- **V1**: Claude tool-use loop + 15 live FPL tools (current default, `version=1`)
-- **V2**: same + PostgreSQL `query_database` tool for historical SQL queries (`version=2`)
+- **V2 is the only version** — V1 was removed; all requests use V2 (PostgreSQL + live tools + press RAG)
 - Routes scoped by sport: `/fpl/ask`, not generic `/ask`
 
 ## FPL domain knowledge
@@ -80,12 +80,13 @@ Be accurate — don't use `feat:` for a bug fix just because it involves new cod
 - **Chip reset**: TC, Bench Boost, and Free Hit reset after GW19. Chips used in GW1–19 are available again in GW20–38. Only post-reset uses count as spent.
 - **Wildcards**: two per season — GW1–19 and GW20–38 — separate API entries, no reset needed
 - **FPL chip API names**: `3xc` (Triple Captain), `bboost` (Bench Boost), `freehit` (Free Hit), `wildcard`
-- **Pre-fetch (V2)**: squad + chips + gameweek_schedule fetched concurrently before calling Claude, injected as a synthetic tool exchange to skip round-1 tool calls
+- **Pre-fetch**: squad + chips + gameweek_schedule fetched concurrently before calling Claude, injected as a synthetic tool exchange to skip round-1 tool calls
 - **Transfer rules**: position must be like-for-like (MID→MID only); always pass `position=` to `search_players_by_criteria` when finding replacements
 - **Fixture source of truth**: `get_team_all_fixtures` wins over `get_gameweek_schedule` when they conflict
+- **Player search**: `search_player` returns `team` so Claude can disambiguate players sharing a surname
 
 ## Streaming / X-Ray gotcha
-The FastAPI middleware ends the X-Ray segment as soon as `StreamingResponse` is returned — **before** the async generator starts yielding SSE events. Never put `xray_recorder.in_subsegment()` calls inside `_generate()` — they will throw "Already ended segment" errors.
+The FastAPI middleware ends the X-Ray segment as soon as `StreamingResponse` is returned — **before** the async generator starts yielding SSE events. Never put `xray_recorder.in_subsegment()` calls inside `_generate()` — they throw "Already ended segment" errors.
 
 ## Deployment
 - **Production**: AWS EC2 (single instance), nginx reverse proxy (`proxy_read_timeout 300s`), systemd service
