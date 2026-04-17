@@ -185,6 +185,7 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                         league="fpl",
                         history=history,
                         version=2,
+                        fpl_team_id=request.fpl_team_id,
                     )
             else:
                 # V1 — live tools only (fpl Pinecone namespace removed)
@@ -197,6 +198,7 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                         league="fpl",
                         history=history,
                         version=1,
+                        fpl_team_id=request.fpl_team_id,
                     )
 
             async for event_type, data in stream:
