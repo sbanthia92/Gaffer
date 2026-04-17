@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 
@@ -168,13 +169,59 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                             return await db_tool.execute(sql=inp["sql"])
                     return await _tracking_handler(name, inp)
 
-                with xray_recorder.in_subsegment("rag.retrieve"):
-                    press_context = await rag.retrieve(
+                # Pre-fetch high-value context concurrently to skip round 1 tool calls.
+                # RAG + squad + chips + schedule all start at the same time.
+                prefetch_coros = [
+                    rag.retrieve(
                         query=request.question,
                         namespace="press",
                         top_k=3,
                         recency_weight=0.5,
+                    ),
+                    fpl.get_gameweek_schedule(),
+                ]
+                if request.fpl_team_id:
+                    prefetch_coros += [
+                        fpl.get_my_fpl_team(request.fpl_team_id),
+                        fpl.get_chip_status(request.fpl_team_id),
+                    ]
+
+                with xray_recorder.in_subsegment("prefetch"):
+                    prefetch_results = await asyncio.gather(*prefetch_coros, return_exceptions=True)
+
+                press_context = (
+                    prefetch_results[0]
+                    if not isinstance(prefetch_results[0], Exception)
+                    else ""
+                )
+                schedule_data = (
+                    prefetch_results[1]
+                    if not isinstance(prefetch_results[1], Exception)
+                    else None
+                )
+                squad_data = (
+                    prefetch_results[2]
+                    if (
+                        request.fpl_team_id
+                        and not isinstance(prefetch_results[2], Exception)
                     )
+                    else None
+                )
+                chip_data = (
+                    prefetch_results[3]
+                    if (
+                        request.fpl_team_id
+                        and len(prefetch_results) > 3
+                        and not isinstance(prefetch_results[3], Exception)
+                    )
+                    else None
+                )
+
+                prefetched = {"gameweek_schedule": schedule_data}
+                if squad_data:
+                    prefetched["squad"] = squad_data
+                if chip_data:
+                    prefetched["chips"] = chip_data
 
                 with xray_recorder.in_subsegment("claude.ask"):
                     stream = await claude_client.ask(
@@ -186,6 +233,7 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                         history=history,
                         version=2,
                         fpl_team_id=request.fpl_team_id,
+                        prefetched=prefetched,
                     )
             else:
                 # V1 — live tools only (fpl Pinecone namespace removed)

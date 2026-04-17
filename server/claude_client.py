@@ -68,22 +68,20 @@ _SHARED_RULES = (
     "2. THE DATA — the facts, stats, fixture context, and odds that inform the verdict\n"
     "3. THE REASONING — a detailed explanation of why the verdict is what it is, "
     "weighing the data and any alternatives\n\n"
-    "TRANSFER ANALYSIS PROTOCOL — for ANY transfer or squad question, execute ALL of these "
-    "steps in the tool-use loop BEFORE writing a single word of your answer:\n"
-    "1. Call get_my_fpl_team → squad, ITB, selling prices, and free transfer count.\n"
-    "2. Call get_chip_status → which chips remain. Report chips accurately; never state a "
-    "chip is unavailable unless the tool explicitly confirms it is already used.\n"
-    "3. Call get_gameweek_schedule → identify the NEXT gameweek number. Never state or "
-    "assume a GW number from memory — always derive it from the schedule tool result.\n"
-    "4. For EVERY player you are considering transferring OUT, call get_team_all_fixtures "
-    "for their team to check for double/blank gameweeks. A player with a DGW should "
-    "almost never be transferred out unless injured or suspended.\n"
-    "5. For EVERY player you are considering transferring IN, call get_team_all_fixtures "
-    "for their team. NEVER state a fixture (opponent, home/away) without having retrieved "
-    "it from a tool — never construct fixtures from memory. Prioritise IN targets who have "
-    "a double gameweek in the next 2 gameweeks.\n"
-    "6. NEVER recommend a player the user already owns as a transfer IN target. Always "
-    "cross-check every recommendation against the squad from get_my_fpl_team.\n\n"
+    "TRANSFER ANALYSIS PROTOCOL — your squad, chip status, and the gameweek schedule are "
+    "already pre-loaded as tool results at the start of the conversation. Do NOT call "
+    "get_my_fpl_team, get_chip_status, or get_gameweek_schedule again — use that data "
+    "directly. Then:\n"
+    "1. Use the pre-loaded gameweek_schedule to identify DGW/BGW teams. A player whose "
+    "team has a DGW should almost never be transferred out.\n"
+    "2. For players you want to transfer IN, call get_fixtures or get_team_all_fixtures "
+    "to confirm their next fixtures. Only call get_team_all_fixtures for teams where "
+    "get_gameweek_schedule doesn't clearly show their fixture count — avoid redundant calls "
+    "for teams already covered in the schedule.\n"
+    "3. NEVER recommend a player the user already owns as a transfer IN target.\n"
+    "4. Use the pre-loaded ITB for all budget checks — never guess or ask for budget.\n"
+    "5. Use the pre-loaded chip data — never state a chip is unavailable unless it shows "
+    "as used in the pre-loaded data.\n\n"
     "FPL TRANSFER RULES — follow these strictly when giving transfer advice:\n"
     "1. POSITION CONSTRAINT: A transfer must be like-for-like by position. "
     "A MID can only be replaced by a MID, a FWD by a FWD, a DEF by a DEF, a GKP by a GKP. "
@@ -218,13 +216,15 @@ async def ask(
     history: list[dict] | None = None,
     version: int = 1,
     fpl_team_id: int | None = None,
+    prefetched: dict | None = None,
 ) -> AsyncIterator[tuple[str, str]]:
     """
     Send a question to Claude with tools and RAG context. Runs the tool-use
     loop until Claude is ready to answer, then streams the final answer
     token by token.
 
-    history: prior conversation turns as [{"role": "user"|"assistant", "content": str}, ...]
+    prefetched: optional dict of pre-fetched tool results (squad, chips, schedule)
+                injected as a synthetic tool exchange so Claude skips round 1.
 
     Yields:
         ("status", label)  before each tool-use round
@@ -232,8 +232,42 @@ async def ask(
         ("done",   "")     when complete
     """
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+
     # Build messages: prior history + current question
-    messages: list[dict] = [*(history or []), {"role": "user", "content": question}]
+    base_messages: list[dict] = [*(history or []), {"role": "user", "content": question}]
+
+    # If pre-fetched data was provided, prepend a synthetic tool exchange so Claude
+    # sees squad/chips/schedule data immediately without spending a round on tool calls.
+    if prefetched:
+        tool_name_map = {
+            "squad": "get_my_fpl_team",
+            "chips": "get_chip_status",
+            "gameweek_schedule": "get_gameweek_schedule",
+        }
+        synthetic_calls = []
+        synthetic_results = []
+        for key, tool_name in tool_name_map.items():
+            if key in prefetched and prefetched[key] is not None:
+                uid = f"prefetch_{key}"
+                synthetic_calls.append(
+                    {"type": "tool_use", "id": uid, "name": tool_name, "input": {}}
+                )
+                synthetic_results.append(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": uid,
+                        "content": json.dumps(_strip_nulls(prefetched[key])),
+                    }
+                )
+        if synthetic_calls:
+            base_messages = [
+                {"role": "user", "content": "__PREFETCH__"},
+                {"role": "assistant", "content": synthetic_calls},
+                {"role": "user", "content": synthetic_results},
+                *base_messages,
+            ]
+
+    messages: list[dict] = base_messages
     # Wrap system prompt as a cacheable content block — cached tokens count at
     # 10% toward TPM, dramatically reducing rate-limit pressure on long tool loops.
     system = [
