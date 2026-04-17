@@ -437,7 +437,7 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
                 "points_per_game": p.get("points_per_game", "0"),
                 "form": p.get("form", "0"),
                 "minutes": p.get("minutes", 0),
-                "status": p.get("status"),         # a=available d=doubtful i=injured s=suspended
+                "status": p.get("status"),  # a=available d=doubtful i=injured s=suspended
                 "news": p.get("news") or None,
                 "chance_of_playing_this_round": p.get("chance_of_playing_this_round"),
                 "chance_of_playing_next_round": p.get("chance_of_playing_next_round"),
