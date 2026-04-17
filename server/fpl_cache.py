@@ -29,9 +29,16 @@ async def _fetch_bootstrap() -> dict:
 async def get_bootstrap() -> dict:
     global _bootstrap, _bootstrap_ts
     if _bootstrap is None or time.monotonic() - _bootstrap_ts > _CACHE_TTL:
-        _bootstrap = await _fetch_bootstrap()
-        _bootstrap_ts = time.monotonic()
+        try:
+            _bootstrap = await _fetch_bootstrap()
+            _bootstrap_ts = time.monotonic()
+        except:
+            pass
     return _bootstrap
+
+
+def format_price(raw_cost):
+    return raw_cost / 10
 
 
 async def get_player_card(name: str) -> dict | None:
