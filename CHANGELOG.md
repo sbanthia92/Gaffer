@@ -2,6 +2,31 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.10.0] — 2026-04-17
+
+### Added
+- **CLAUDE.md** — project context file loaded by Claude Code at the start of every session (stack, structure, conventions, FPL domain knowledge, deployment setup)
+- **Pre-fetch architecture** — squad, chip status, and gameweek schedule are now fetched concurrently on the server before calling Claude, injected as a synthetic tool exchange to skip the first tool-use round; cuts transfer question latency by ~10–15 s
+- **Prompt caching** — system prompt wrapped as a cacheable content block (`anthropic-beta: prompt-caching-2024-07-31`); cache reads count at 10% toward TPM, reducing 429 rate-limit errors
+- **Null stripping** — `_strip_nulls()` removes `None` values from all tool results before sending to Claude, reducing token usage per round
+- **FPL squad enrichment** — `get_my_fpl_team` now returns injury status, news, xG, xA, xGI, ICT index, ownership %, transfer delta, ITB, and squad value — previously these fields were ignored
+
+### Fixed
+- **Chip mid-season reset** — Triple Captain, Bench Boost, and Free Hit now correctly show as available after GW19 if used pre-reset; only post-GW19 uses count as spent
+- **Position filter on transfer searches** — `search_players_by_criteria` is now always called with `position=` matching the outgoing player; wrong-position suggestions (e.g. FWD for a MID slot) are discarded before Claude sees them
+- **Fixture source of truth** — when `get_gameweek_schedule` and `get_team_all_fixtures` disagree on GW number or opponent, `get_team_all_fixtures` is used as authoritative
+- **Player search ambiguity** — `search_player` now includes `team` in results so Claude picks the correct player when multiple share a surname (e.g. Andersen)
+- **X-Ray streaming error** — removed `xray_recorder.in_subsegment` calls from inside the SSE generator; the middleware ends the segment before the generator runs, causing "Already ended segment" errors
+- **SSE timeout** — status events emitted before and between tool-use rounds keep the SSE connection alive through nginx's `proxy_read_timeout`; nginx timeout bumped to 300 s
+- **FPL team ID in system prompt** — team ID is now threaded into the system prompt so Claude never asks the user for it mid-conversation
+- **Start Fresh / Skip** — both now navigate to `?new=1`, creating a new chat session instead of reopening the existing one
+- **Orphaned messages** — trailing empty assistant message and unpaired user message are cleaned up when loading sessions from localStorage
+- **Transfer analysis accuracy** — tightened protocol: pre-loaded data used directly (no redundant tool calls), DNP vs 0-point distinction enforced, duplicate player names disallowed, chip availability sourced from pre-loaded data only
+
+### Changed
+- **Mobile landing nav** — replaced tag-cloud nav with scroll-only layout; nav hidden on mobile via CSS
+- **Landing page polish** — amber theme, updated logo, global nav, chat mockups
+
 ## [0.8.0] — 2026-04-10
 
 ### Added
