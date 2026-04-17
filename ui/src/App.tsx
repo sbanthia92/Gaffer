@@ -316,9 +316,22 @@ export default function App() {
   }, [activeId]);
 
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("q");
+    const params = new URLSearchParams(window.location.search);
+    const isNew = params.get("new") === "1";
+    const q = params.get("q");
+
+    if (isNew) {
+      const session = newSession();
+      setSessions((prev) => [session, ...prev]);
+      saveSession(session);
+      setActiveId(session.id);
+    }
+
     if (q) {
       setInput(decodeURIComponent(q));
+    }
+
+    if (isNew || q) {
       window.history.replaceState({}, "", "/chat");
       setTimeout(() => inputRef.current?.focus(), 50);
     }
