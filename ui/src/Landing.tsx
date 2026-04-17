@@ -359,7 +359,7 @@ export default function Landing() {
                   {section.children.map((child) => (
                     <button
                       key={child.id}
-                      className={`nav-item nav-item--child ${activeFeature === child.id ? "active" : ""}`}
+                      className={`nav-item nav-item--child ${activeSection === "features" && activeFeature === child.id ? "active" : ""}`}
                       onClick={() => scrollTo(child.id)}
                     >
                       <span className="nav-child-icon">{child.icon}</span>

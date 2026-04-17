@@ -33,7 +33,7 @@
   width: 36px;
   height: 36px;
   object-fit: contain;
-  border-radius: 8px;
+  mix-blend-mode: lighten;
 }
 
 .landing-continue-btn {
