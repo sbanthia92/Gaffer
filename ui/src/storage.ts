@@ -3,10 +3,24 @@ import type { ChatSession, Message } from "./types";
 const SESSIONS_KEY = "gaffer_sessions";
 const ACTIVE_SESSION_KEY = "gaffer_active_session";
 
+function cleanSession(session: ChatSession): ChatSession {
+  let msgs = session.messages;
+  // Drop empty assistant placeholder (stream interrupted before any content)
+  if (msgs.length > 0 && msgs[msgs.length - 1].role === "assistant" && msgs[msgs.length - 1].content === "") {
+    msgs = msgs.slice(0, -1);
+  }
+  // Drop orphaned user message (tab closed before response arrived)
+  if (msgs.length > 0 && msgs[msgs.length - 1].role === "user") {
+    msgs = msgs.slice(0, -1);
+  }
+  return msgs === session.messages ? session : { ...session, messages: msgs };
+}
+
 export function loadSessions(): ChatSession[] {
   try {
     const raw = localStorage.getItem(SESSIONS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const sessions: ChatSession[] = raw ? JSON.parse(raw) : [];
+    return sessions.map(cleanSession);
   } catch {
     return [];
   }
