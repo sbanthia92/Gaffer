@@ -315,6 +315,7 @@ async def get_team_all_fixtures(team_id: int, next_n: int = 7) -> dict:
         league = item.get("league", {})
         fixtures.append(
             {
+                "fixture_id": f.get("id"),
                 "date": f.get("date", "")[:10],
                 "competition": league.get("name"),
                 "round": league.get("round"),
@@ -421,17 +422,32 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
                 1,
             )
 
-        # Build player ID → name/team/position map
+        # Build player ID → enriched map
         position_map = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
         team_map = {t["id"]: t["name"] for t in bootstrap_data["teams"]}
         player_map = {
             p["id"]: {
                 "name": f"{p['first_name']} {p['second_name']}",
+                "web_name": p.get("web_name"),
                 "team": team_map.get(p["team"], ""),
                 "position": position_map.get(p["element_type"], ""),
+                "now_cost": p.get("now_cost", 0) / 10,
                 "event_points": p.get("event_points", 0),
-                "form": p.get("form", "0"),
                 "total_points": p.get("total_points", 0),
+                "points_per_game": p.get("points_per_game", "0"),
+                "form": p.get("form", "0"),
+                "minutes": p.get("minutes", 0),
+                "status": p.get("status"),  # a=available d=doubtful i=injured s=suspended
+                "news": p.get("news") or None,
+                "chance_of_playing_this_round": p.get("chance_of_playing_this_round"),
+                "chance_of_playing_next_round": p.get("chance_of_playing_next_round"),
+                "selected_by_percent": p.get("selected_by_percent"),
+                "transfers_in_event": p.get("transfers_in_event", 0),
+                "transfers_out_event": p.get("transfers_out_event", 0),
+                "expected_goals": p.get("expected_goals"),
+                "expected_assists": p.get("expected_assists"),
+                "expected_goal_involvements": p.get("expected_goal_involvements"),
+                "ict_index": p.get("ict_index"),
             }
             for p in bootstrap_data["elements"]
         }
@@ -441,6 +457,8 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
         picks_resp.raise_for_status()
         picks_data = picks_resp.json()
 
+    entry_history = picks_data.get("entry_history", {})
+
     squad = []
     for pick in picks_data.get("picks", []):
         pid = pick["element"]
@@ -448,15 +466,29 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
         squad.append(
             {
                 "name": info.get("name"),
+                "web_name": info.get("web_name"),
                 "team": info.get("team"),
                 "position": info.get("position"),
                 "selling_price": pick.get("selling_price", 0) / 10,
-                "multiplier": pick.get("multiplier"),  # 2 = captain, 3 = TC, 0 = benched
+                "now_cost": info.get("now_cost"),
+                "multiplier": pick.get("multiplier"),  # 2=captain, 3=TC, 0=benched
                 "is_captain": pick.get("is_captain"),
                 "is_vice_captain": pick.get("is_vice_captain"),
                 "event_points": info.get("event_points"),
-                "form": info.get("form"),
                 "total_points": info.get("total_points"),
+                "points_per_game": info.get("points_per_game"),
+                "form": info.get("form"),
+                "minutes": info.get("minutes"),
+                "status": info.get("status"),
+                "news": info.get("news"),
+                "chance_of_playing_this_round": info.get("chance_of_playing_this_round"),
+                "selected_by_percent": info.get("selected_by_percent"),
+                "transfers_in_event": info.get("transfers_in_event"),
+                "transfers_out_event": info.get("transfers_out_event"),
+                "expected_goals": info.get("expected_goals"),
+                "expected_assists": info.get("expected_assists"),
+                "expected_goal_involvements": info.get("expected_goal_involvements"),
+                "ict_index": info.get("ict_index"),
             }
         )
 
@@ -464,6 +496,10 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
     return {
         "gameweek": current_gw,
         "active_chip": active_chip,
+        "itb": entry_history.get("bank", 0) / 10,
+        "squad_value": entry_history.get("value", 0) / 10,
+        "transfers_made_this_gw": entry_history.get("event_transfers", 0),
+        "transfers_cost_this_gw": entry_history.get("event_transfers_cost", 0),
         "squad": squad,
     }
 
@@ -520,11 +556,22 @@ async def search_players_by_criteria(
                 "position": _POSITION_MAP.get(pos_id, ""),
                 "price": price,
                 "total_points": p.get("total_points", 0),
+                "event_points": p.get("event_points", 0),
+                "points_per_game": p.get("points_per_game", "0.0"),
                 "form": p.get("form", "0.0"),
-                "selected_by_percent": p.get("selected_by_percent", "0.0"),
+                "minutes": p.get("minutes", 0),
                 "goals_scored": p.get("goals_scored", 0),
                 "assists": p.get("assists", 0),
-                "minutes": p.get("minutes", 0),
+                "expected_goals": p.get("expected_goals"),
+                "expected_assists": p.get("expected_assists"),
+                "expected_goal_involvements": p.get("expected_goal_involvements"),
+                "ict_index": p.get("ict_index"),
+                "selected_by_percent": p.get("selected_by_percent", "0.0"),
+                "transfers_in_event": p.get("transfers_in_event", 0),
+                "transfers_out_event": p.get("transfers_out_event", 0),
+                "status": p.get("status"),
+                "news": p.get("news") or None,
+                "chance_of_playing_this_round": p.get("chance_of_playing_this_round"),
             }
         )
 
@@ -671,10 +718,13 @@ TOOL_DEFINITIONS = [
     {
         "name": "get_my_fpl_team",
         "description": (
-            "Get the user's current FPL squad — player names, positions, teams, "
-            "selling prices, and who is currently set as captain. "
-            "Always call this first when the user asks about their team, transfers, "
-            "captaincy, or anything personalised to their FPL squad."
+            "Get the user's current FPL squad with full player data: names, positions, "
+            "teams, selling price, now_cost, event_points, form, total_points, "
+            "points_per_game, minutes, xG, xA, xGI, ICT index, ownership %, "
+            "injury status/news, chance_of_playing, GW transfer trends, "
+            "plus squad-level data: ITB (in the bank), squad value, "
+            "transfers made and cost this GW. "
+            "Always call this first for any squad, transfer, captaincy, or chip question."
         ),
         "input_schema": {
             "type": "object",
