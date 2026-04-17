@@ -1,0 +1,123 @@
+name: Claude CI Fix
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches-ignore: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+  checks: read
+  id-token: write
+
+jobs:
+  fix:
+    name: Fix CI failure
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find associated PR and check attempt count
+        id: pr_info
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const branch = context.payload.workflow_run.head_branch;
+
+            const prs = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${branch}`,
+            });
+            if (prs.data.length === 0) {
+              console.log('No open PR found for branch, skipping.');
+              core.setOutput('skip', 'true');
+              return;
+            }
+            const pr = prs.data[0];
+            core.setOutput('pr_number', pr.number);
+            core.setOutput('skip', 'false');
+
+            const labels = pr.labels.map(l => l.name);
+            const attempts = [1, 2, 3].filter(n => labels.includes(`ci-fix-attempt-${n}`)).length;
+            core.setOutput('attempts', attempts.toString());
+
+            if (attempts >= 3) {
+              core.setOutput('exhausted', 'true');
+            } else {
+              core.setOutput('exhausted', 'false');
+              core.setOutput('next_attempt', (attempts + 1).toString());
+            }
+
+      - name: Post exhaustion comment and stop
+        if: steps.pr_info.outputs.skip == 'false' && steps.pr_info.outputs.exhausted == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt('${{ steps.pr_info.outputs.pr_number }}'),
+              body: '🛑 **CI auto-fix exhausted** — 3 fix attempts have already been made on this PR without resolving the failure. This needs human review.\n\nPlease check the CI logs and fix manually.',
+            });
+
+      - name: Apply fix label
+        if: steps.pr_info.outputs.skip == 'false' && steps.pr_info.outputs.exhausted == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const label = `ci-fix-attempt-${{ steps.pr_info.outputs.next_attempt }}`;
+            try {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: label,
+                color: 'e4e669',
+              });
+            } catch (_) {}
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt('${{ steps.pr_info.outputs.pr_number }}'),
+              labels: [label],
+            });
+
+      - name: Run Claude CI fix
+        if: steps.pr_info.outputs.skip == 'false' && steps.pr_info.outputs.exhausted == 'false'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            The CI workflow failed on this branch. This is fix attempt
+            ${{ steps.pr_info.outputs.next_attempt }} of 3.
+
+            Your job:
+            1. Fetch the failed CI run logs and identify which job(s) failed and why.
+            2. Investigate the root cause in the codebase — read relevant files, trace the error.
+            3. Decide:
+               a. If it's a real code bug: make the minimal fix, commit it with a clear message
+                  explaining what changed and why, and push to this branch.
+               b. If it looks like a flaky test, a missing environment variable, or an
+                  infrastructure issue (not a code bug): do NOT push a speculative fix.
+                  Instead post a PR comment explaining what you found and why you believe
+                  it's environmental, not a code issue.
+
+            CONSTRAINTS:
+            - Never auto-merge the PR.
+            - Never modify test assertions to make tests pass artificially.
+            - Never skip or bypass linter/formatter checks — fix the actual violation.
+            - Keep fixes minimal and focused — do not refactor surrounding code.
+            - If you push a commit, the message must start with "fix(ci): " and include
+              a brief explanation of the root cause.
+
+            The PR number is ${{ steps.pr_info.outputs.pr_number }}.
+            The failing commit SHA is ${{ github.event.workflow_run.head_sha }}.

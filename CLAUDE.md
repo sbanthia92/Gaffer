@@ -88,6 +88,15 @@ Be accurate — don't use `feat:` for a bug fix just because it involves new cod
 ## Streaming / X-Ray gotcha
 The FastAPI middleware ends the X-Ray segment as soon as `StreamingResponse` is returned — **before** the async generator starts yielding SSE events. Never put `xray_recorder.in_subsegment()` calls inside `_generate()` — they throw "Already ended segment" errors.
 
+## Agentic PR pipeline
+Three Claude GitHub Actions workflows in `.github/workflows/`:
+- **`claude-pr-review.yml`** — fires on PR open/push; posts inline Important 🔴 / Nit 🟡 comments; reads `REVIEW.md` for conventions; max 5 turns; concurrency-controlled per PR
+- **`claude-ci-fix.yml`** — fires when CI fails on a branch; investigates logs, pushes a minimal fix commit; tracks attempts via `ci-fix-attempt-N` labels; stops after 3 attempts
+- **`claude-interactive.yml`** — fires on `@claude` mentions in PR/issue comments
+
+Review conventions live in `REVIEW.md` at the repo root. Update it when conventions change.
+Required secret: `ANTHROPIC_API_KEY` (set via GitHub repo settings → Secrets).
+
 ## Deployment
 - **Production**: AWS EC2 (single instance), nginx reverse proxy (`proxy_read_timeout 300s`), systemd service
 - **CI/CD**: GitHub Actions — CI on every push, auto-deploy to EC2 on merge to main
