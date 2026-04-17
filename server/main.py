@@ -187,21 +187,13 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                         version=2,
                     )
             else:
-                # V1 — RAG + live tools
-                with xray_recorder.in_subsegment("rag.retrieve"):
-                    context = await rag.retrieve(
-                        query=request.question,
-                        namespace="fpl",
-                        top_k=5,
-                        recency_weight=0.3,
-                    )
-
+                # V1 — live tools only (fpl Pinecone namespace removed)
                 with xray_recorder.in_subsegment("claude.ask"):
                     stream = await claude_client.ask(
                         question=request.question,
                         tool_definitions=fpl.TOOL_DEFINITIONS,
                         tool_handler=_tracking_handler,
-                        rag_context=context,
+                        rag_context="",
                         league="fpl",
                         history=history,
                         version=1,

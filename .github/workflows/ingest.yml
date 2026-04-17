@@ -21,14 +21,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt -e .
 
-      - name: Run FPL ingestion pipeline (historical player data)
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
-          PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
-          API_SPORTS_KEY: ${{ secrets.API_SPORTS_KEY }}
-        run: python -m pipeline.ingest_fpl
-
       - name: Run press ingestion pipeline (news & injury updates)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
