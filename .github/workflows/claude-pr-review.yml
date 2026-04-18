@@ -74,23 +74,25 @@ jobs:
             const prNumber = pr.number;
             const branch = pr.head.ref;
 
-            // Find Claude's sticky summary comment — fetch newest first so we get the latest run
+            // Find Claude's sticky summary comment — fetch newest 20 (summary is always recent)
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
-              per_page: 100,
+              per_page: 20,
+              sort: 'created',
               direction: 'desc',
             });
 
-            const CLEAN_VERDICT = '✅ Looks good';
+            // Anchor to the verdict line so partial matches in code snippets don't trigger
+            const CLEAN_PATTERN = /verdict[^\n]*✅ Looks good/i;
             const summary = comments
               .find(c => c.user.login === 'github-actions[bot]' &&
-                         (c.body.includes('🔴') || c.body.includes(CLEAN_VERDICT) || c.body.includes('⚠️')));
+                         (c.body.includes('🔴') || CLEAN_PATTERN.test(c.body) || c.body.includes('⚠️')));
 
             // Distinguish: clean | findings | claude never ran (skip/error)
             const reviewRan = summary != null;
-            const isClean = summary?.body.includes(CLEAN_VERDICT) ?? false;
+            const isClean = reviewRan && CLEAN_PATTERN.test(summary.body);
 
             const statusState = !reviewRan ? 'error' : isClean ? 'success' : 'failure';
             const statusDescription = !reviewRan
@@ -110,7 +112,12 @@ jobs:
               target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${prNumber}`,
             });
 
-            if (isClean && !branch.startsWith('test/')) {
+            // Only auto-merge PRs opened by the repo owner. External contributors and
+            // bot-authored PRs always require a human merge click, closing the path where
+            // a PR could influence its own review prompt and self-merge.
+            const prAuthor = pr.user.login;
+            const repoOwner = context.repo.owner;
+            if (isClean && prAuthor === repoOwner && !branch.startsWith('test/')) {
               // Enable GitHub's native auto-merge — waits for all required checks.
               // SQUASH is deliberate: keeps main history linear (one commit per PR).
               try {
