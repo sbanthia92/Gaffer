@@ -74,7 +74,18 @@ jobs:
             const prNumber = pr.number;
             const branch = pr.head.ref;
 
-            // Find Claude's sticky summary comment — fetch newest 20 (summary is always recent)
+            // Anchor to the verdict line so partial matches in code snippets don't trigger
+            const CLEAN_PATTERN = /verdict[^\n]*✅ Looks good/i;
+
+            // Fetch the run start time so we only consider comments from THIS run,
+            // not a stale summary left by a previous push on the same PR.
+            const { data: run } = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+            });
+            const runStarted = new Date(run.created_at);
+
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -84,10 +95,9 @@ jobs:
               direction: 'desc',
             });
 
-            // Anchor to the verdict line so partial matches in code snippets don't trigger
-            const CLEAN_PATTERN = /verdict[^\n]*✅ Looks good/i;
             const summary = comments
               .find(c => c.user.login === 'github-actions[bot]' &&
+                         new Date(c.created_at) >= runStarted &&
                          (c.body.includes('🔴') || CLEAN_PATTERN.test(c.body) || c.body.includes('⚠️')));
 
             // Distinguish: clean | findings | claude never ran (skip/error)
@@ -118,21 +128,37 @@ jobs:
             const prAuthor = pr.user.login;
             const repoOwner = context.repo.owner;
             if (isClean && prAuthor === repoOwner && !branch.startsWith('test/')) {
-              // Enable GitHub's native auto-merge — waits for all required checks.
-              // SQUASH is deliberate: keeps main history linear (one commit per PR).
-              try {
-                await github.graphql(`
-                  mutation($id: ID!) {
-                    enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: SQUASH }) {
-                      pullRequest { autoMergeRequest { mergeMethod } }
+              // Guard: only enable auto-merge when branch protection has at least one other
+              // required status check (e.g. CI / lint). Without it the PR would merge the
+              // moment Claude votes clean — before any tests run.
+              const { data: protection } = await github.rest.repos.getBranchProtection({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                branch: pr.base.ref,
+              }).catch(() => ({ data: null }));
+
+              const requiredChecks = protection?.required_status_checks?.contexts ?? [];
+              const hasOtherChecks = requiredChecks.some(c => c !== 'claude-review');
+
+              if (!hasOtherChecks) {
+                console.log('Skipping auto-merge: no other required CI checks in branch protection. Configure tests/lint as required checks first.');
+              } else {
+                // Enable GitHub's native auto-merge — waits for all required checks.
+                // SQUASH is deliberate: keeps main history linear (one commit per PR).
+                try {
+                  await github.graphql(`
+                    mutation($id: ID!) {
+                      enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: SQUASH }) {
+                        pullRequest { autoMergeRequest { mergeMethod } }
+                      }
                     }
-                  }
-                `, { id: pr.node_id });
-                console.log('Auto-merge enabled.');
-              } catch (e) {
-                // Auto-merge requires it to be enabled in repo settings
-                console.log('Auto-merge not available:', e.message);
+                  `, { id: pr.node_id });
+                  console.log('Auto-merge enabled.');
+                } catch (e) {
+                  // Auto-merge requires it to be enabled in repo settings
+                  console.log('Auto-merge not available:', e.message);
+                }
               }
             } else {
-              console.log(`Verdict: findings present or test branch — skipping auto-merge.`);
+              console.log(`Verdict: findings present, non-owner PR, or test branch — skipping auto-merge.`);
             }
