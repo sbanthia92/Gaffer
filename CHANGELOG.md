@@ -5,7 +5,7 @@ All notable changes to The Gaffer are documented here.
 ## [0.14.0] — 2026-04-18
 
 ### Added
-- **Review verdict + auto-merge** — PR review workflow now posts a `claude-review` commit status after Claude runs: `success` when clean (✅ Looks good), `failure` when Important 🔴 findings exist. Clean PRs on non-test branches have GitHub auto-merge enabled automatically (merges once CI also passes). Requires "Allow auto-merge" and branch protection requiring the `claude-review` status check to be enabled in repo settings.
+- **Review commit status** — PR review workflow now posts a `claude-review` commit status after Claude runs: `success` when clean or nit-only, `failure` when Important 🔴 findings exist. Requires branch protection with `claude-review` as a required status check to block merges on failing reviews.
 
 ## [0.13.0] — 2026-04-18
 
