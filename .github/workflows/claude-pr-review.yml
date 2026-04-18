@@ -93,7 +93,7 @@ jobs:
 
             const summary = claudeRan
               ? comments.find(c => c.user.login === 'github-actions[bot]' &&
-                                   (c.body.includes('🔴') || CLEAN_PATTERN.test(c.body) || c.body.includes('⚠️')))
+                                   (c.body.includes('✅') || c.body.includes('🔴') || c.body.includes('⚠️')))
               : null;
 
             // Distinguish four states: clean | nits-only | important findings | never ran
