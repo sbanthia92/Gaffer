@@ -15,7 +15,6 @@ permissions:
   checks: read
   id-token: write
   statuses: write
-  actions: read
 
 jobs:
   review:
@@ -27,6 +26,7 @@ jobs:
           fetch-depth: 0
 
       - uses: anthropics/claude-code-action@v1
+        id: claude
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
@@ -78,14 +78,9 @@ jobs:
             // Anchor to the verdict line so partial matches in code snippets don't trigger
             const CLEAN_PATTERN = /verdict[^\n]*✅ Looks good/i;
 
-            // Fetch the run start time so we only consider comments from THIS run,
-            // not a stale summary left by a previous push on the same PR.
-            const { data: run } = await github.rest.actions.getWorkflowRun({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: context.runId,
-            });
-            const runStarted = new Date(run.created_at);
+            // Use step outcome rather than timestamp heuristics to determine if Claude ran.
+            // Clock skew between run.created_at and comment.updated_at caused false negatives.
+            const claudeRan = '${{ steps.claude.outcome }}' === 'success';
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -96,12 +91,10 @@ jobs:
               direction: 'desc',
             });
 
-            // use_sticky_comment updates the same comment in-place, so created_at is frozen
-            // at the first push. Use updated_at to detect whether this run refreshed it.
-            const summary = comments
-              .find(c => c.user.login === 'github-actions[bot]' &&
-                         new Date(c.updated_at) >= runStarted &&
-                         (c.body.includes('🔴') || CLEAN_PATTERN.test(c.body) || c.body.includes('⚠️')));
+            const summary = claudeRan
+              ? comments.find(c => c.user.login === 'github-actions[bot]' &&
+                                   (c.body.includes('🔴') || CLEAN_PATTERN.test(c.body) || c.body.includes('⚠️')))
+              : null;
 
             // Distinguish four states: clean | nits-only | important findings | never ran
             const reviewRan = summary != null;
