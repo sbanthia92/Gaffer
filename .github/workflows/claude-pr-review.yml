@@ -15,6 +15,7 @@ permissions:
   checks: read
   id-token: write
   statuses: write
+  actions: read
 
 jobs:
   review:
@@ -95,21 +96,26 @@ jobs:
               direction: 'desc',
             });
 
+            // use_sticky_comment updates the same comment in-place, so created_at is frozen
+            // at the first push. Use updated_at to detect whether this run refreshed it.
             const summary = comments
               .find(c => c.user.login === 'github-actions[bot]' &&
-                         new Date(c.created_at) >= runStarted &&
+                         new Date(c.updated_at) >= runStarted &&
                          (c.body.includes('🔴') || CLEAN_PATTERN.test(c.body) || c.body.includes('⚠️')));
 
-            // Distinguish: clean | findings | claude never ran (skip/error)
+            // Distinguish four states: clean | nits-only | important findings | never ran
             const reviewRan = summary != null;
             const isClean = reviewRan && CLEAN_PATTERN.test(summary.body);
+            const hasImportant = reviewRan && summary.body.includes('Must fix before merge');
 
             const statusState = !reviewRan ? 'error' : isClean ? 'success' : 'failure';
             const statusDescription = !reviewRan
               ? 'Claude review did not run — re-run the workflow'
               : isClean
                 ? 'No findings — good to merge'
-                : 'Important findings must be resolved before merging';
+                : hasImportant
+                  ? 'Important findings must be resolved before merging'
+                  : 'Nit findings present — review before merging';
 
             // Post a commit status so branch protection can require it
             await github.rest.repos.createCommitStatus({
