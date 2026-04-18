@@ -11,7 +11,7 @@ concurrency:
 permissions:
   contents: read
   pull-requests: write
-  issues: read
+  issues: write
   checks: read
   id-token: write
   statuses: write
@@ -165,5 +165,5 @@ jobs:
                 }
               }
             } else {
-              console.log(`Verdict: findings present, non-owner PR, or test branch — skipping auto-merge.`);
+              console.log('Verdict: findings present, non-owner PR, or test branch — skipping auto-merge.');
             }
