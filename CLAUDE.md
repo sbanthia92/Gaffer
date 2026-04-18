@@ -4,7 +4,7 @@ AI-powered Fantasy Premier League analyst web app. Provides natural language ana
 
 ## Stack
 - **Language**: Python 3.11+
-- **API**: FastAPI
+- **API**: FastAPI (rate-limited via `slowapi` — 10 req/min, 50 req/hour per IP on `/fpl/ask`)
 - **AI**: Anthropic Claude via the `anthropic` SDK (text-to-SQL + RAG synthesis)
 - **Database**: PostgreSQL (3 seasons of historical FPL stats)
 - **RAG**: Pinecone (press conferences, injury updates)

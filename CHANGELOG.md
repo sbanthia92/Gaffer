@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.13.0] — 2026-04-18
+
+### Added
+- **Rate limiting on `/fpl/ask`** — 10 requests/minute and 50/hour per IP using `slowapi`. Returns HTTP 429 when exceeded, protecting against accidental or intentional Anthropic API abuse.
+
 ## [0.12.0] — 2026-04-18
 
 ### Changed
