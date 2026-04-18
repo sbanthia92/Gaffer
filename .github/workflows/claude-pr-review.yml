@@ -142,7 +142,12 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 branch: pr.base.ref,
-              }).catch(() => ({ data: null }));
+              }).catch(e => {
+                // 404 = branch has no protection rules (treat as no required checks)
+                // any other error (403, 5xx) re-throws so the step fails visibly
+                if (e.status === 404) return { data: null };
+                throw e;
+              });
 
               const requiredChecks = protection?.required_status_checks?.contexts ?? [];
               const hasOtherChecks = requiredChecks.some(c => c !== 'claude-review');
