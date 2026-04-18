@@ -12,7 +12,7 @@ permissions:
   contents: read
   pull-requests: write
   issues: read
-  checks: write
+  checks: read
   id-token: write
   statuses: write
 
@@ -74,36 +74,45 @@ jobs:
             const prNumber = pr.number;
             const branch = pr.head.ref;
 
-            // Find Claude's sticky summary comment
+            // Find Claude's sticky summary comment — fetch newest first so we get the latest run
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
               per_page: 100,
+              direction: 'desc',
             });
 
+            const CLEAN_VERDICT = '✅ Looks good';
             const summary = comments
-              .reverse()
               .find(c => c.user.login === 'github-actions[bot]' &&
-                         (c.body.includes('🔴') || c.body.includes('✅ Looks good') || c.body.includes('⚠️')));
+                         (c.body.includes('🔴') || c.body.includes(CLEAN_VERDICT) || c.body.includes('⚠️')));
 
-            const isClean = summary?.body.includes('✅ Looks good') ?? false;
+            // Distinguish: clean | findings | claude never ran (skip/error)
+            const reviewRan = summary != null;
+            const isClean = summary?.body.includes(CLEAN_VERDICT) ?? false;
+
+            const statusState = !reviewRan ? 'error' : isClean ? 'success' : 'failure';
+            const statusDescription = !reviewRan
+              ? 'Claude review did not run — re-run the workflow'
+              : isClean
+                ? 'No findings — good to merge'
+                : 'Important findings must be resolved before merging';
 
             // Post a commit status so branch protection can require it
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
               sha,
-              state: isClean ? 'success' : 'failure',
+              state: statusState,
               context: 'claude-review',
-              description: isClean
-                ? 'No findings — good to merge'
-                : 'Important findings must be resolved before merging',
+              description: statusDescription,
               target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${prNumber}`,
             });
 
             if (isClean && !branch.startsWith('test/')) {
-              // Enable GitHub's native auto-merge — waits for all required checks
+              // Enable GitHub's native auto-merge — waits for all required checks.
+              // SQUASH is deliberate: keeps main history linear (one commit per PR).
               try {
                 await github.graphql(`
                   mutation($id: ID!) {
