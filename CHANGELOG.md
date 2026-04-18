@@ -2,6 +2,16 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.12.0] — 2026-04-18
+
+### Changed
+- **Removed Docker and Kubernetes** — `docker/`, `docker-compose.yml`, and `k8s/` deleted; deployment is EC2 + systemd + nginx and these were never used in production
+- **Removed unused dependencies** — `typer`, `rich`, and `mcp` removed from `requirements.txt`; CLI was removed in v0.8.0 and `mcp` was never imported
+- **Fixed `CLAUDE.md`** — removed stale CLI/Click references; description updated to reflect web-app architecture
+
+### Fixed
+- **PR review workflow — inline comments now post correctly** (#84–#91) — resolved four sequential blockers: missing `github_token`, `--allowedTools` restriction blocking action-provided tools, `gh`/`git` commands blocked by `settings.local.json`, and prompt giving Claude no orientation on PR number or how to post comments
+
 ## [0.11.0] — 2026-04-17
 
 ### Added
