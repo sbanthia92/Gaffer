@@ -1,10 +1,9 @@
 # The Gaffer
 
-AI-powered sports analyst CLI. Provides natural language analysis over Fantasy Premier League and World Cup 2026 data.
+AI-powered Fantasy Premier League analyst web app. Provides natural language analysis over FPL and World Cup 2026 data via a React chat UI backed by FastAPI and Claude tool-use.
 
 ## Stack
 - **Language**: Python 3.11+
-- **CLI**: Click (`gaffer` command entrypoint)
 - **API**: FastAPI
 - **AI**: Anthropic Claude via the `anthropic` SDK (text-to-SQL + RAG synthesis)
 - **Database**: PostgreSQL (3 seasons of historical FPL stats)
