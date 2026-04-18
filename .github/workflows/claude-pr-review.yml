@@ -91,7 +91,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
-              per_page: 20,
+              per_page: 100,
               sort: 'updated',
               direction: 'desc',
             });
@@ -116,7 +116,7 @@ jobs:
                 ? 'No findings — good to merge'
                 : hasImportant
                   ? 'Important findings must be resolved before merging'
-                  : 'Nit findings present — review before merging';
+                  : 'Nit findings only — good to merge';
 
             // Post a commit status so branch protection can require it
             await github.rest.repos.createCommitStatus({
