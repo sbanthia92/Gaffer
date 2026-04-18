@@ -89,7 +89,7 @@ The FastAPI middleware ends the X-Ray segment as soon as `StreamingResponse` is 
 
 ## Agentic PR pipeline
 Three Claude GitHub Actions workflows in `.github/workflows/`:
-- **`claude-pr-review.yml`** — fires on PR open/push; posts inline Important 🔴 / Nit 🟡 comments; reads `REVIEW.md` for conventions; max 5 turns; concurrency-controlled per PR
+- **`claude-pr-review.yml`** — fires on PR open/push; posts inline Important 🔴 / Nit 🟡 comments; sets `claude-review` commit status (success/failure); auto-merges clean non-test PRs once CI passes. Requires "Allow auto-merge" + branch protection on `claude-review` in repo settings.
 - **`claude-ci-fix.yml`** — fires when CI fails on a branch; investigates logs, pushes a minimal fix commit; tracks attempts via `ci-fix-attempt-N` labels; stops after 3 attempts
 - **`claude-interactive.yml`** — fires on `@claude` mentions in PR/issue comments
 

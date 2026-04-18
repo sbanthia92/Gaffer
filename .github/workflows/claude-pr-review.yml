@@ -12,8 +12,9 @@ permissions:
   contents: read
   pull-requests: write
   issues: read
-  checks: read
+  checks: write
   id-token: write
+  statuses: write
 
 jobs:
   review:
@@ -61,3 +62,61 @@ jobs:
             - Do not repeat findings already posted on a previous run of this workflow.
             - Do not suggest changes outside the diff unless they are directly related to a bug
               introduced by the diff.
+
+      - name: Set review verdict and auto-merge
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const pr = context.payload.pull_request;
+            const sha = pr.head.sha;
+            const prNumber = pr.number;
+            const branch = pr.head.ref;
+
+            // Find Claude's sticky summary comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+
+            const summary = comments
+              .reverse()
+              .find(c => c.user.login === 'github-actions[bot]' &&
+                         (c.body.includes('🔴') || c.body.includes('✅ Looks good') || c.body.includes('⚠️')));
+
+            const isClean = summary?.body.includes('✅ Looks good') ?? false;
+
+            // Post a commit status so branch protection can require it
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha,
+              state: isClean ? 'success' : 'failure',
+              context: 'claude-review',
+              description: isClean
+                ? 'No findings — good to merge'
+                : 'Important findings must be resolved before merging',
+              target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${prNumber}`,
+            });
+
+            if (isClean && !branch.startsWith('test/')) {
+              // Enable GitHub's native auto-merge — waits for all required checks
+              try {
+                await github.graphql(`
+                  mutation($id: ID!) {
+                    enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: SQUASH }) {
+                      pullRequest { autoMergeRequest { mergeMethod } }
+                    }
+                  }
+                `, { id: pr.node_id });
+                console.log('Auto-merge enabled.');
+              } catch (e) {
+                // Auto-merge requires it to be enabled in repo settings
+                console.log('Auto-merge not available:', e.message);
+              }
+            } else {
+              console.log(`Verdict: findings present or test branch — skipping auto-merge.`);
+            }
