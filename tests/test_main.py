@@ -1,9 +1,11 @@
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-from server.main import _fpl_tool_handler, app
+from server.main import _fpl_tool_handler, _on_rate_limit_exceeded, app
 
 client = TestClient(app)
 
@@ -84,12 +86,6 @@ def test_fpl_ask_passes_question_to_claude() -> None:
 
 
 def test_rate_limit_handler_returns_429() -> None:
-    import json
-
-    from fastapi.responses import JSONResponse
-
-    from server.main import _on_rate_limit_exceeded
-
     # Build a minimal fake exception with the same interface the handler uses
     exc = Exception()
     exc.detail = "10 per 1 minute"

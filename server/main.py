@@ -21,9 +21,12 @@ patch_all()  # auto-patches httpx, boto3
 
 
 def _real_ip(request: Request) -> str:
-    # nginx forwards the real client IP in X-Forwarded-For; fall back to direct host
+    # nginx appends the real client IP as the rightmost X-Forwarded-For entry;
+    # reading [-1] prevents spoofing via a client-supplied leftmost entry.
     forwarded = request.headers.get("X-Forwarded-For")
-    return forwarded.split(",")[0].strip() if forwarded else (request.client.host or "unknown")
+    if forwarded:
+        return forwarded.split(",")[-1].strip()
+    return (request.client and request.client.host) or "unknown"
 
 
 def _on_rate_limit_exceeded(request: Request, exc: RateLimitExceeded) -> JSONResponse:
