@@ -8,6 +8,9 @@ from aws_xray_sdk.core import patch_all, xray_recorder
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from server import claude_client, fpl_cache, rag
 from server.config import settings
@@ -17,7 +20,10 @@ from server.tools import fpl
 xray_recorder.configure(service="gaffer-api", daemon_address="127.0.0.1:2000")
 patch_all()  # auto-patches httpx, boto3
 
+limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="The Gaffer", version="0.1.0")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 @app.middleware("http")
@@ -136,8 +142,9 @@ async def contact(request: ContactRequest) -> dict[str, str]:
 
 
 @app.post("/fpl/ask")
-async def fpl_ask(request: AskRequest) -> StreamingResponse:
-    if not request.question.strip():
+@limiter.limit("10/minute;50/hour")
+async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
+    if not body.question.strip():
         raise HTTPException(status_code=422, detail="Question must not be empty.")
 
     async def _generate():
@@ -146,18 +153,18 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
         try:
             log.info(
                 "ask.start",
-                question=request.question,
-                fpl_team_id=request.fpl_team_id,
-                version=request.version,
+                question=body.question,
+                fpl_team_id=body.fpl_team_id,
+                version=body.version,
             )
 
-            history = [{"role": m.role, "content": m.content} for m in request.history]
+            history = [{"role": m.role, "content": m.content} for m in body.history]
 
             async def _tracking_handler(name: str, inp: dict) -> dict:
                 tools_called.append(name)
-                return await _fpl_tool_handler(name, inp, request.fpl_team_id)
+                return await _fpl_tool_handler(name, inp, body.fpl_team_id)
 
-            if request.version == 2:
+            if body.version == 2:
                 # V2 — PostgreSQL + live tools + press/news RAG
                 async def _v2_handler(name: str, inp: dict) -> dict:
                     if name == "query_database":
@@ -171,17 +178,17 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                 # RAG + squad + chips + schedule all start at the same time.
                 prefetch_coros = [
                     rag.retrieve(
-                        query=request.question,
+                        query=body.question,
                         namespace="press",
                         top_k=3,
                         recency_weight=0.5,
                     ),
                     fpl.get_gameweek_schedule(),
                 ]
-                if request.fpl_team_id:
+                if body.fpl_team_id:
                     prefetch_coros += [
-                        fpl.get_my_fpl_team(request.fpl_team_id),
-                        fpl.get_chip_status(request.fpl_team_id),
+                        fpl.get_my_fpl_team(body.fpl_team_id),
+                        fpl.get_chip_status(body.fpl_team_id),
                     ]
 
                 prefetch_results = await asyncio.gather(*prefetch_coros, return_exceptions=True)
@@ -194,13 +201,13 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                 )
                 squad_data = (
                     prefetch_results[2]
-                    if (request.fpl_team_id and not isinstance(prefetch_results[2], Exception))
+                    if (body.fpl_team_id and not isinstance(prefetch_results[2], Exception))
                     else None
                 )
                 chip_data = (
                     prefetch_results[3]
                     if (
-                        request.fpl_team_id
+                        body.fpl_team_id
                         and len(prefetch_results) > 3
                         and not isinstance(prefetch_results[3], Exception)
                     )
@@ -214,27 +221,27 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
                     prefetched["chips"] = chip_data
 
                 stream = await claude_client.ask(
-                    question=request.question,
+                    question=body.question,
                     tool_definitions=fpl.get_v2_tool_definitions(),
                     tool_handler=_v2_handler,
                     rag_context=press_context,
                     league="fpl",
                     history=history,
                     version=2,
-                    fpl_team_id=request.fpl_team_id,
+                    fpl_team_id=body.fpl_team_id,
                     prefetched=prefetched,
                 )
             else:
                 # V1 — live tools only (fpl Pinecone namespace removed)
                 stream = await claude_client.ask(
-                    question=request.question,
+                    question=body.question,
                     tool_definitions=fpl.TOOL_DEFINITIONS,
                     tool_handler=_tracking_handler,
                     rag_context="",
                     league="fpl",
                     history=history,
                     version=1,
-                    fpl_team_id=request.fpl_team_id,
+                    fpl_team_id=body.fpl_team_id,
                 )
 
             async for event_type, data in stream:
@@ -242,8 +249,8 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
 
             log.info(
                 "ask.complete",
-                question=request.question,
-                fpl_team_id=request.fpl_team_id,
+                question=body.question,
+                fpl_team_id=body.fpl_team_id,
                 tools=tools_called,
                 latency_ms=round((time.monotonic() - t0) * 1000),
             )
@@ -251,7 +258,7 @@ async def fpl_ask(request: AskRequest) -> StreamingResponse:
         except Exception as e:
             log.error(
                 "ask.error",
-                question=request.question,
+                question=body.question,
                 error=str(e),
                 latency_ms=round((time.monotonic() - t0) * 1000),
             )
