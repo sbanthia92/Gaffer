@@ -55,16 +55,18 @@ jobs:
             - Do NOT comment on files matching these patterns:
                 tests/fixtures/**, **/package-lock.json, **/*.lock,
                 db/migrations/**, terraform/**, k8s/**, infra/**
-            - After all inline comments, post one summary comment on the PR with:
+            - After all inline comments, post one summary comment on the PR. Start the comment
+              with the exact header "## PR Review Summary" on its own line, then include:
                 - Total Important 🔴 findings
                 - Total Nit 🟡 findings (including any uncapped remainder)
                 - An overall verdict: ✅ Looks good / ⚠️ Needs changes / 🔴 Must fix before merge
-            - If there are zero findings, post a single short approval comment.
+            - If there are zero findings, still post the summary comment with the header
+              "## PR Review Summary" and verdict ✅ Looks good.
             - Do not repeat findings already posted on a previous run of this workflow.
             - Do not suggest changes outside the diff unless they are directly related to a bug
               introduced by the diff.
 
-      - name: Set review verdict and auto-merge
+      - name: Set commit status from review verdict
         if: always()
         uses: actions/github-script@v7
         with:
@@ -73,15 +75,15 @@ jobs:
             const pr = context.payload.pull_request;
             const sha = pr.head.sha;
             const prNumber = pr.number;
-            const branch = pr.head.ref;
 
-            // Anchor to the verdict line so partial matches in code snippets don't trigger
+            const SUMMARY_HEADER = '## PR Review Summary';
             const CLEAN_PATTERN = /verdict[^\n]*✅ Looks good/i;
 
             // Use step outcome rather than timestamp heuristics to determine if Claude ran.
-            // Clock skew between run.created_at and comment.updated_at caused false negatives.
             const claudeRan = '${{ steps.claude.outcome }}' === 'success';
 
+            // Fetch the 100 most-recently-updated bot comments. The summary is always recent;
+            // 100 is the API maximum and sufficient for any realistic PR.
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -91,27 +93,32 @@ jobs:
               direction: 'desc',
             });
 
+            // Match only comments that start with the sentinel header to avoid false positives
+            // from deploy notifications or other bot comments containing verdict emoji.
             const summary = claudeRan
               ? comments.find(c => c.user.login === 'github-actions[bot]' &&
-                                   (c.body.includes('✅') || c.body.includes('🔴') || c.body.includes('⚠️')))
+                                   c.body.includes(SUMMARY_HEADER))
               : null;
 
-            // Distinguish four states: clean | nits-only | important findings | never ran
-            const reviewRan = summary != null;
-            const isClean = reviewRan && CLEAN_PATTERN.test(summary.body);
-            const hasImportant = reviewRan && summary.body.includes('Must fix before merge');
-
-            // nit-only (⚠️) counts as success — only Important 🔴 findings block the PR
-            const statusState = !reviewRan ? 'error' : (isClean || !hasImportant) ? 'success' : 'failure';
-            const statusDescription = !reviewRan
-              ? 'Claude review did not run — re-run the workflow'
-              : isClean
+            let statusState, statusDescription;
+            if (!claudeRan) {
+              statusState = 'error';
+              statusDescription = 'Claude review did not run — re-run the workflow';
+            } else if (!summary) {
+              statusState = 'error';
+              statusDescription = 'Claude ran but posted no summary — re-run the workflow';
+            } else {
+              const isClean = CLEAN_PATTERN.test(summary.body);
+              const hasImportant = summary.body.includes('Must fix before merge');
+              // nit-only (⚠️) counts as success — only Important 🔴 findings block the PR
+              statusState = (isClean || !hasImportant) ? 'success' : 'failure';
+              statusDescription = isClean
                 ? 'No findings — good to merge'
                 : hasImportant
                   ? 'Important findings must be resolved before merging'
                   : 'Nit findings only — good to merge';
+            }
 
-            // Post a commit status so branch protection can require it
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -121,49 +128,3 @@ jobs:
               description: statusDescription,
               target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${prNumber}`,
             });
-
-            // Only auto-merge PRs opened by the repo owner. External contributors and
-            // bot-authored PRs always require a human merge click, closing the path where
-            // a PR could influence its own review prompt and self-merge.
-            const prAuthor = pr.user.login;
-            const repoOwner = context.repo.owner;
-            if (isClean && prAuthor === repoOwner && !branch.startsWith('test/')) {
-              // Guard: only enable auto-merge when branch protection has at least one other
-              // required status check (e.g. CI / lint). Without it the PR would merge the
-              // moment Claude votes clean — before any tests run.
-              const { data: protection } = await github.rest.repos.getBranchProtection({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                branch: pr.base.ref,
-              }).catch(e => {
-                // 404 = branch has no protection rules (treat as no required checks)
-                // any other error (403, 5xx) re-throws so the step fails visibly
-                if (e.status === 404) return { data: null };
-                throw e;
-              });
-
-              const requiredChecks = protection?.required_status_checks?.contexts ?? [];
-              const hasOtherChecks = requiredChecks.some(c => c !== 'claude-review');
-
-              if (!hasOtherChecks) {
-                console.log('Skipping auto-merge: no other required CI checks in branch protection. Configure tests/lint as required checks first.');
-              } else {
-                // Enable GitHub's native auto-merge — waits for all required checks.
-                // SQUASH is deliberate: keeps main history linear (one commit per PR).
-                try {
-                  await github.graphql(`
-                    mutation($id: ID!) {
-                      enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: SQUASH }) {
-                        pullRequest { autoMergeRequest { mergeMethod } }
-                      }
-                    }
-                  `, { id: pr.node_id });
-                  console.log('Auto-merge enabled.');
-                } catch (e) {
-                  // Auto-merge requires it to be enabled in repo settings
-                  console.log('Auto-merge not available:', e.message);
-                }
-              }
-            } else {
-              console.log('Verdict: findings present, non-owner PR, or test branch — skipping auto-merge.');
-            }
