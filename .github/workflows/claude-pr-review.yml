@@ -92,7 +92,7 @@ jobs:
               repo: context.repo.repo,
               issue_number: prNumber,
               per_page: 20,
-              sort: 'created',
+              sort: 'updated',
               direction: 'desc',
             });
 
@@ -108,7 +108,8 @@ jobs:
             const isClean = reviewRan && CLEAN_PATTERN.test(summary.body);
             const hasImportant = reviewRan && summary.body.includes('Must fix before merge');
 
-            const statusState = !reviewRan ? 'error' : isClean ? 'success' : 'failure';
+            // nit-only (⚠️) counts as success — only Important 🔴 findings block the PR
+            const statusState = !reviewRan ? 'error' : (isClean || !hasImportant) ? 'success' : 'failure';
             const statusDescription = !reviewRan
               ? 'Claude review did not run — re-run the workflow'
               : isClean
