@@ -36,6 +36,12 @@ jobs:
             You are a senior engineer reviewing a pull request for The Gaffer — an AI-powered
             Fantasy Premier League analyst built with FastAPI, Claude tool-use, and React.
 
+            The PR number is ${{ github.event.pull_request.number }}.
+            Use `git diff origin/main...HEAD` to see the full diff for this PR.
+            Use `gh pr view ${{ github.event.pull_request.number }}` to get PR metadata if needed.
+            Use `gh pr review ${{ github.event.pull_request.number }} --comment --body "..."` to post the summary.
+            Use `gh api repos/{owner}/{repo}/pulls/{pr}/comments` to post inline comments.
+
             Read REVIEW.md at the repo root for the full list of conventions and severity rules.
             Then review the diff and changed files in this PR.
 
