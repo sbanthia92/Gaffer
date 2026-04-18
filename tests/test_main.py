@@ -83,6 +83,23 @@ def test_fpl_ask_passes_question_to_claude() -> None:
     assert call_kwargs["league"] == "fpl"
 
 
+def test_rate_limit_handler_returns_429() -> None:
+    import json
+
+    from fastapi.responses import JSONResponse
+
+    from server.main import _on_rate_limit_exceeded
+
+    # Build a minimal fake exception with the same interface the handler uses
+    exc = Exception()
+    exc.detail = "10 per 1 minute"
+    mock_request = object()
+    response = _on_rate_limit_exceeded(mock_request, exc)
+    assert isinstance(response, JSONResponse)
+    assert response.status_code == 429
+    assert "Rate limit exceeded" in json.loads(response.body)["detail"]
+
+
 @pytest.mark.asyncio
 async def test_fpl_tool_handler_unknown_tool_raises() -> None:
     with pytest.raises(ValueError, match="Unknown tool"):

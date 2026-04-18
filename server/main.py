@@ -6,11 +6,10 @@ import httpx
 import resend
 from aws_xray_sdk.core import patch_all, xray_recorder
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from server import claude_client, fpl_cache, rag
 from server.config import settings
@@ -20,10 +19,21 @@ from server.tools import fpl
 xray_recorder.configure(service="gaffer-api", daemon_address="127.0.0.1:2000")
 patch_all()  # auto-patches httpx, boto3
 
-limiter = Limiter(key_func=get_remote_address)
+
+def _real_ip(request: Request) -> str:
+    # nginx forwards the real client IP in X-Forwarded-For; fall back to direct host
+    forwarded = request.headers.get("X-Forwarded-For")
+    return forwarded.split(",")[0].strip() if forwarded else (request.client.host or "unknown")
+
+
+def _on_rate_limit_exceeded(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return JSONResponse({"detail": f"Rate limit exceeded: {exc.detail}"}, status_code=429)
+
+
+limiter = Limiter(key_func=_real_ip)
 app = FastAPI(title="The Gaffer", version="0.1.0")
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _on_rate_limit_exceeded)
 
 
 @app.middleware("http")
