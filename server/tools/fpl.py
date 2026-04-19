@@ -23,12 +23,14 @@ _PREMIER_LEAGUE_ID = 39
 _CURRENT_SEASON = "2025"  # 2025-26 season
 
 _SLOW_CACHE_TTL = 6 * 3600  # 6 hours — for data that updates at most once per gameweek
+_MAX_CACHE_ENTRIES = 20  # safety cap; in practice we have ~2 keys
 _MISSING = object()  # sentinel — distinguishes absent entry from empty-but-valid cached result
-_slow_cache: dict[str, tuple[dict, float]] = {}
-_slow_cache_locks: dict[str, asyncio.Lock] = {}
+_slow_cache: dict[str, tuple[dict[str, Any], float]] = {}
+_slow_cache_lock = asyncio.Lock()  # single lock; avoids per-key dynamic creation races
 
 
 def _cache_get(key: str) -> Any:
+    """Return the cached result for key, or _MISSING sentinel if absent or expired."""
     entry = _slow_cache.get(key, _MISSING)
     if entry is _MISSING:
         return _MISSING
@@ -38,13 +40,10 @@ def _cache_get(key: str) -> Any:
     return result
 
 
-def _cache_set(key: str, result: dict) -> None:
+def _cache_set(key: str, result: dict[str, Any]) -> None:
+    if len(_slow_cache) >= _MAX_CACHE_ENTRIES:
+        _slow_cache.clear()
     _slow_cache[key] = (result, time.monotonic())
-
-
-def _cache_lock(key: str) -> asyncio.Lock:
-    # setdefault is atomic under CPython's GIL — safe for concurrent coroutines
-    return _slow_cache_locks.setdefault(key, asyncio.Lock())
 
 
 def _headers() -> dict[str, str]:
@@ -118,7 +117,7 @@ async def get_standings() -> dict:
     if cached is not _MISSING:
         return cached  # type: ignore[return-value]
 
-    async with _cache_lock(key):
+    async with _slow_cache_lock:
         # Re-check after acquiring lock — another coroutine may have populated it
         cached = _cache_get(key)
         if cached is not _MISSING:
@@ -712,7 +711,7 @@ async def get_gameweek_schedule(next_n: int = 8) -> dict:
     if cached is not _MISSING:
         return cached  # type: ignore[return-value]
 
-    async with _cache_lock(key):
+    async with _slow_cache_lock:
         cached = _cache_get(key)
         if cached is not _MISSING:
             return cached  # type: ignore[return-value]
