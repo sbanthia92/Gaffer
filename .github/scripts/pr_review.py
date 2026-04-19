@@ -254,6 +254,24 @@ def post_comment(body: str, pr_number: str, repo: str) -> None:
     )
 
 
+def set_commit_status(state: str, description: str, sha: str, repo: str, run_id: str) -> None:
+    owner, repo_name = repo.split("/", 1)
+    target_url = f"https://github.com/{owner}/{repo_name}/actions/runs/{run_id}"
+    subprocess.run(
+        ["gh", "api", f"/repos/{owner}/{repo_name}/statuses/{sha}", "--input", "-"],
+        input=json.dumps(
+            {
+                "state": state,
+                "context": "claude-review",
+                "description": description,
+                "target_url": target_url,
+            }
+        ),
+        text=True,
+        check=True,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Diff parsing
 # ---------------------------------------------------------------------------
@@ -292,6 +310,8 @@ def parse_file_diffs(diff: str) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 def main() -> None:
     pr_number = os.environ["PR_NUMBER"]
+    pr_sha = os.environ["PR_SHA"]
+    run_id = os.environ["RUN_ID"]
     repo = os.environ["REPO"]
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
@@ -332,6 +352,7 @@ def main() -> None:
             body += "\n".join(f"- `{f}`" for f in skipped)
             body += "\n\n</details>"
         post_comment(body, pr_number, repo)
+        set_commit_status("success", "No findings — good to merge", pr_sha, repo, run_id)
         return
 
     trivial: list[tuple[str, str]] = []
@@ -354,6 +375,22 @@ def main() -> None:
 
     summary = build_summary(skipped, trivial, minor, significant)
     post_comment(summary, pr_number, repo)
+
+    # Derive verdict from the summary we just built — avoids scanning old comments.
+    total_imp, total_nit = 0, 0
+    for _, rev in significant + minor:
+        i, n = count_findings(rev)
+        total_imp += i
+        total_nit += n
+
+    if total_imp > 0:
+        state, desc = "failure", "Important findings must be resolved before merging"
+    elif total_nit > 0:
+        state, desc = "success", "Nit findings only — good to merge"
+    else:
+        state, desc = "success", "No findings — good to merge"
+
+    set_commit_status(state, desc, pr_sha, repo, run_id)
     print("Review posted.", flush=True)
 
 
