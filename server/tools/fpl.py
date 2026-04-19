@@ -26,7 +26,17 @@ _SLOW_CACHE_TTL = 6 * 3600  # 6 hours — for data that updates at most once per
 _MAX_CACHE_ENTRIES = 20  # safety cap; in practice we have ~2 keys
 _MISSING = object()  # sentinel — distinguishes absent entry from empty-but-valid cached result
 _slow_cache: dict[str, tuple[dict[str, Any], float]] = {}
-_slow_cache_lock = asyncio.Lock()  # single lock; avoids per-key dynamic creation races
+# Initialised lazily inside a coroutine so the Lock is always bound to a running event loop.
+# Creating asyncio.Lock() at import time raises DeprecationWarning in Python 3.10+ and
+# fails in 3.12+ when no event loop exists yet.
+_slow_cache_lock: asyncio.Lock | None = None
+
+
+def _get_slow_cache_lock() -> asyncio.Lock:
+    global _slow_cache_lock
+    if _slow_cache_lock is None:
+        _slow_cache_lock = asyncio.Lock()
+    return _slow_cache_lock
 
 
 def _cache_get(key: str) -> Any:
@@ -41,6 +51,8 @@ def _cache_get(key: str) -> Any:
 
 
 def _cache_set(key: str, result: dict[str, Any]) -> None:
+    # Blunt eviction: clear all entries when the cap is hit. Acceptable because
+    # we only ever store ~2 keys; the cap exists purely as a safety net.
     if len(_slow_cache) >= _MAX_CACHE_ENTRIES:
         _slow_cache.clear()
     _slow_cache[key] = (result, time.monotonic())
@@ -113,12 +125,7 @@ async def get_fixtures(next_n: int = 10) -> dict:
 async def get_standings() -> dict:
     """Fetch current Premier League standings."""
     key = "standings"
-    cached = _cache_get(key)
-    if cached is not _MISSING:
-        return cached  # type: ignore[return-value]
-
-    async with _slow_cache_lock:
-        # Re-check after acquiring lock — another coroutine may have populated it
+    async with _get_slow_cache_lock():
         cached = _cache_get(key)
         if cached is not _MISSING:
             return cached  # type: ignore[return-value]
@@ -707,11 +714,7 @@ async def get_gameweek_schedule(next_n: int = 8) -> dict:
     Flags double gameweeks (team plays twice) and blank gameweeks (team doesn't play).
     """
     key = f"gameweek_schedule_{next_n}"
-    cached = _cache_get(key)
-    if cached is not _MISSING:
-        return cached  # type: ignore[return-value]
-
-    async with _slow_cache_lock:
+    async with _get_slow_cache_lock():
         cached = _cache_get(key)
         if cached is not _MISSING:
             return cached  # type: ignore[return-value]
