@@ -11,9 +11,10 @@ concurrency:
 permissions:
   contents: read
   pull-requests: write
-  issues: read
+  issues: write
   checks: read
   id-token: write
+  statuses: write
 
 jobs:
   review:
@@ -25,6 +26,7 @@ jobs:
           fetch-depth: 0
 
       - uses: anthropics/claude-code-action@v1
+        id: claude
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ github.token }}
@@ -39,7 +41,7 @@ jobs:
             The PR number is ${{ github.event.pull_request.number }}.
             Use `git diff origin/main...HEAD` to see the full diff for this PR.
             Use `gh pr view ${{ github.event.pull_request.number }}` to get PR metadata if needed.
-            Use `gh pr review ${{ github.event.pull_request.number }} --comment --body "..."` to post the summary.
+            Use `gh pr comment ${{ github.event.pull_request.number }} --body "..."` to post the summary.
             Use `gh api repos/{owner}/{repo}/pulls/{pr}/comments` to post inline comments.
 
             Read REVIEW.md at the repo root for the full list of conventions and severity rules.
@@ -53,11 +55,76 @@ jobs:
             - Do NOT comment on files matching these patterns:
                 tests/fixtures/**, **/package-lock.json, **/*.lock,
                 db/migrations/**, terraform/**, k8s/**, infra/**
-            - After all inline comments, post one summary comment on the PR with:
+            - After all inline comments, post one summary comment on the PR. Start the comment
+              with the exact header "## PR Review Summary" on its own line, then include:
                 - Total Important 🔴 findings
                 - Total Nit 🟡 findings (including any uncapped remainder)
                 - An overall verdict: ✅ Looks good / ⚠️ Needs changes / 🔴 Must fix before merge
-            - If there are zero findings, post a single short approval comment.
+            - If there are zero findings, still post the summary comment with the header
+              "## PR Review Summary" and verdict ✅ Looks good.
             - Do not repeat findings already posted on a previous run of this workflow.
             - Do not suggest changes outside the diff unless they are directly related to a bug
               introduced by the diff.
+
+      - name: Set commit status from review verdict
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const pr = context.payload.pull_request;
+            const sha = pr.head.sha;
+            const prNumber = pr.number;
+
+            const SUMMARY_HEADER = '## PR Review Summary';
+            const CLEAN_PATTERN = /verdict[^\n]*✅ Looks good/i;
+
+            // Use step outcome rather than timestamp heuristics to determine if Claude ran.
+            const claudeRan = '${{ steps.claude.outcome }}' === 'success';
+
+            // Fetch the 100 most-recently-updated bot comments. The summary is always recent;
+            // 100 is the API maximum and sufficient for any realistic PR.
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+              sort: 'updated',
+              direction: 'desc',
+            });
+
+            // Match only comments that start with the sentinel header to avoid false positives
+            // from deploy notifications or other bot comments containing verdict emoji.
+            const summary = claudeRan
+              ? comments.find(c => c.user.login === 'github-actions[bot]' &&
+                                   c.body.includes(SUMMARY_HEADER))
+              : null;
+
+            let statusState, statusDescription;
+            if (!claudeRan) {
+              statusState = 'error';
+              statusDescription = 'Claude review did not run — re-run the workflow';
+            } else if (!summary) {
+              statusState = 'error';
+              statusDescription = 'Claude ran but posted no summary — re-run the workflow';
+            } else {
+              const isClean = CLEAN_PATTERN.test(summary.body);
+              const hasImportant = summary.body.includes('Must fix before merge');
+              // nit-only (⚠️) counts as success — only Important 🔴 findings block the PR
+              statusState = (isClean || !hasImportant) ? 'success' : 'failure';
+              statusDescription = isClean
+                ? 'No findings — good to merge'
+                : hasImportant
+                  ? 'Important findings must be resolved before merging'
+                  : 'Nit findings only — good to merge';
+            }
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha,
+              state: statusState,
+              context: 'claude-review',
+              description: statusDescription,
+              target_url: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });
