@@ -89,7 +89,7 @@ jobs:
               repo: context.repo.repo,
               issue_number: prNumber,
               per_page: 100,
-              sort: 'updated',
+              sort: 'created',
               direction: 'desc',
             });
 
