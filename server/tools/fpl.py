@@ -11,6 +11,7 @@ Premier League ID: 39
 
 import asyncio
 import time
+from typing import Any
 
 import httpx
 
@@ -27,7 +28,7 @@ _slow_cache: dict[str, tuple[dict, float]] = {}
 _slow_cache_locks: dict[str, asyncio.Lock] = {}
 
 
-def _cache_get(key: str) -> dict | object:
+def _cache_get(key: str) -> Any:
     entry = _slow_cache.get(key, _MISSING)
     if entry is _MISSING:
         return _MISSING
@@ -42,9 +43,8 @@ def _cache_set(key: str, result: dict) -> None:
 
 
 def _cache_lock(key: str) -> asyncio.Lock:
-    if key not in _slow_cache_locks:
-        _slow_cache_locks[key] = asyncio.Lock()
-    return _slow_cache_locks[key]
+    # setdefault is atomic under CPython's GIL — safe for concurrent coroutines
+    return _slow_cache_locks.setdefault(key, asyncio.Lock())
 
 
 def _headers() -> dict[str, str]:
