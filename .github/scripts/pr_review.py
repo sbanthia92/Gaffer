@@ -8,7 +8,6 @@ import json
 import os
 import re
 import subprocess
-import sys
 
 import anthropic
 
@@ -148,6 +147,7 @@ def build_summary(
     minor: list[tuple[str, str]],        # (filename, review_text)
     significant: list[tuple[str, str]],  # (filename, review_text)
 ) -> str:
+    """Assemble the roll-up PR Review Summary comment from per-file review results."""
     total_imp = total_nit = 0
     for _, rev in significant + minor:
         i, n = count_findings(rev)
@@ -258,7 +258,8 @@ def main() -> None:
     client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
     try:
-        review_md = open("REVIEW.md").read()
+        with open("REVIEW.md") as f:
+            review_md = f.read()
     except FileNotFoundError:
         review_md = ""
 
@@ -307,10 +308,10 @@ def main() -> None:
         if tier == "TRIVIAL":
             trivial.append((filename, verdict_text))
         elif tier == "MINOR":
-            print(f"  → Haiku review …", flush=True)
+            print("  → Haiku review …", flush=True)
             minor.append((filename, review_file(filename, diff, HAIKU, system, client)))
         else:
-            print(f"  → Sonnet review …", flush=True)
+            print("  → Sonnet review …", flush=True)
             significant.append((filename, review_file(filename, diff, SONNET, system, client)))
 
     summary = build_summary(skipped, trivial, minor, significant)

@@ -11,7 +11,7 @@ This file is read by the automated PR review workflow. It defines what to flag a
 ## Python conventions
 
 ### Always flag as Important 🔴
-- `os.environ` used directly — must use `settings` from `server/config.py`
+- `os.environ` used directly in `server/` code — must use `settings` from `server/config.py` (standalone scripts in `.github/scripts/` are exempt)
 - Hardcoded API keys, secrets, or credentials anywhere in code
 - `except:` or `except Exception:` with no re-raise or structured error return — swallowed exceptions hide bugs
 - Tool handler functions that hit real external APIs in tests — all external calls must be mocked
@@ -26,7 +26,7 @@ This file is read by the automated PR review workflow. It defines what to flag a
 - Line length over 100 chars (ruff enforces this — flag only if ruff wouldn't catch it, e.g. comments)
 - Multi-line docstrings on internal helpers — one short line max
 - Comments that describe *what* the code does rather than *why*
-- `print()` statements left in server code — use `log` from `server/logger.py`
+- `print()` statements left in `server/` code — use `log` from `server/logger.py` (stdout is the correct log sink in `.github/scripts/`)
 - Unused imports
 
 ---
@@ -64,6 +64,7 @@ This file is read by the automated PR review workflow. It defines what to flag a
 - `db/migrations/` — migration files
 - `terraform/`, `k8s/`, `infra/` — infrastructure definitions
 - `pipeline/` — ETL pipeline (separate concern, reviewed separately)
+- `.github/scripts/` — CI/CD helper scripts (infrastructure, not application code)
 
 ---
 
