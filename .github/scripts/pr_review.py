@@ -79,7 +79,9 @@ def truncate(diff: str) -> tuple[str, bool]:
     return diff[:MAX_DIFF_CHARS] + "\n\n[… diff truncated at ~4 000 tokens …]", True
 
 
-def classify(filename: str, diff: str, system: list[dict], client: anthropic.Anthropic) -> tuple[str, str]:
+def classify(
+    filename: str, diff: str, system: list[dict], client: anthropic.Anthropic
+) -> tuple[str, str]:
     """Return (tier, one_liner). Tier is TRIVIAL | MINOR | SIGNIFICANT."""
     d, _ = truncate(diff)
     resp = client.messages.create(
@@ -112,7 +114,9 @@ def classify(filename: str, diff: str, system: list[dict], client: anthropic.Ant
     return tier, verdict
 
 
-def review_file(filename: str, diff: str, model: str, system: list[dict], client: anthropic.Anthropic) -> str:
+def review_file(
+    filename: str, diff: str, model: str, system: list[dict], client: anthropic.Anthropic
+) -> str:
     d, truncated = truncate(diff)
     note = "\n\n⚠️ Diff truncated — review may be incomplete." if truncated else ""
     resp = client.messages.create(

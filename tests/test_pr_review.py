@@ -1,10 +1,8 @@
-from unittest.mock import MagicMock, patch
+import importlib.util
+import pathlib
+from unittest.mock import MagicMock
 
 import pytest
-
-# pr_review.py lives in .github/scripts/ which is not a package.
-# Load it as a module directly so tests don't require install.
-import importlib.util, pathlib
 
 _spec = importlib.util.spec_from_file_location(
     "pr_review",
