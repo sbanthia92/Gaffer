@@ -15,30 +15,36 @@ _spec.loader.exec_module(pr_review)
 # ---------------------------------------------------------------------------
 # should_skip
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("filename", [
-    "package-lock.json",
-    "yarn.lock",
-    "Gemfile.lock",
-    "poetry.lock",
-    "frontend/yarn.lock",
-    "tests/fixtures/player.json",
-    "db/migrations/0001_init.sql",
-    "infra/main.tf",
-    "image.png",
-    "bundle.min.js",
-    "font.woff2",
-])
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "package-lock.json",
+        "yarn.lock",
+        "Gemfile.lock",
+        "poetry.lock",
+        "frontend/yarn.lock",
+        "tests/fixtures/player.json",
+        "db/migrations/0001_init.sql",
+        "infra/main.tf",
+        "image.png",
+        "bundle.min.js",
+        "font.woff2",
+    ],
+)
 def test_should_skip_returns_true(filename):
     assert pr_review.should_skip(filename) is True
 
 
-@pytest.mark.parametrize("filename", [
-    "server/main.py",
-    "server/tools/fpl.py",
-    "ui/src/App.tsx",
-    "tests/test_main.py",
-    "REVIEW.md",
-])
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "server/main.py",
+        "server/tools/fpl.py",
+        "ui/src/App.tsx",
+        "tests/test_main.py",
+        "REVIEW.md",
+    ],
+)
 def test_should_skip_returns_false(filename):
     assert pr_review.should_skip(filename) is False
 
@@ -133,7 +139,9 @@ def test_build_summary_clean_verdict():
 
 def test_build_summary_important_verdict():
     body = pr_review.build_summary(
-        [], [], [],
+        [],
+        [],
+        [],
         [("server/main.py", "Important 🔴: bad thing — why — Fix: do X")],
     )
     assert "Must fix before merge" in body
@@ -142,7 +150,8 @@ def test_build_summary_important_verdict():
 
 def test_build_summary_nit_only_verdict():
     body = pr_review.build_summary(
-        [], [],
+        [],
+        [],
         [("server/tools/fpl.py", "Nit 🟡: minor issue")],
         [],
     )
@@ -164,7 +173,9 @@ def test_build_summary_trivial_in_collapsed_section():
 
 def test_build_summary_significant_in_main_body():
     body = pr_review.build_summary(
-        [], [], [],
+        [],
+        [],
+        [],
         [("server/main.py", "Important 🔴: something bad")],
     )
     assert "### Significant files" in body
@@ -176,9 +187,7 @@ def test_build_summary_significant_in_main_body():
 # ---------------------------------------------------------------------------
 def _make_client(text: str) -> MagicMock:
     client = MagicMock()
-    client.messages.create.return_value = MagicMock(
-        content=[MagicMock(text=text)]
-    )
+    client.messages.create.return_value = MagicMock(content=[MagicMock(text=text)])
     return client
 
 

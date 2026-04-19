@@ -4,6 +4,7 @@ Three-tier PR review: Haiku classifies every file, reviews minor ones itself,
 escalates significant files to Sonnet. Prompt caching on the shared system
 prompt + REVIEW.md cuts repeat token cost across all per-file calls.
 """
+
 import json
 import os
 import re
@@ -16,21 +17,43 @@ import anthropic
 # ---------------------------------------------------------------------------
 HAIKU = "claude-haiku-4-5-20251001"
 SONNET = "claude-sonnet-4-6"
-MAX_DIFF_CHARS = 16_000   # ~4 000 tokens at 4 chars/token
+MAX_DIFF_CHARS = 16_000  # ~4 000 tokens at 4 chars/token
 CACHE_BETA = {"anthropic-beta": "prompt-caching-2024-07-31"}
 
 # ---------------------------------------------------------------------------
 # File classification
 # ---------------------------------------------------------------------------
 SKIP_PATTERNS = [
-    "package-lock.json", "yarn.lock", "Gemfile.lock", "poetry.lock",
-    "pnpm-lock.yaml", "composer.lock", "Cargo.lock",
-    "tests/fixtures/", "db/migrations/", "terraform/", "k8s/", "infra/", "pipeline/",
+    "package-lock.json",
+    "yarn.lock",
+    "Gemfile.lock",
+    "poetry.lock",
+    "pnpm-lock.yaml",
+    "composer.lock",
+    "Cargo.lock",
+    "tests/fixtures/",
+    "db/migrations/",
+    "terraform/",
+    "k8s/",
+    "infra/",
+    "pipeline/",
 ]
 SKIP_EXTENSIONS = {
     ".lock",
-    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
-    ".woff", ".woff2", ".ttf", ".eot", ".mp4", ".pdf", ".zip",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".svg",
+    ".ico",
+    ".webp",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot",
+    ".mp4",
+    ".pdf",
+    ".zip",
 }
 SKIP_SUFFIXES = (".min.js", ".min.css")
 DOCS_EXTENSIONS = {".md", ".txt", ".rst", ".mdx"}
@@ -88,22 +111,25 @@ def classify(
         model=HAIKU,
         max_tokens=60,
         system=system,
-        messages=[{
-            "role": "user",
-            "content": (
-                "Classify this diff into exactly one tier, then give a one-line verdict.\n\n"
-                "Tiers:\n"
-                "- TRIVIAL: whitespace, comments, minor renames, README tweaks, version bumps\n"
-                "- MINOR: small logic changes, simple refactors, test additions, config changes\n"
-                "- SIGNIFICANT: complex logic, new features, security-relevant, "
-                "API/schema changes, new dependencies\n\n"
-                f"File: `{filename}`\n\n"
-                f"```diff\n{d}\n```\n\n"
-                "Reply in this exact format (two lines, nothing else):\n"
-                "TIER: <TRIVIAL|MINOR|SIGNIFICANT>\n"
-                "VERDICT: <one sentence>"
-            ),
-        }],
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    "Classify this diff into exactly one tier, then give a one-line verdict.\n\n"
+                    "Tiers:\n"
+                    "- TRIVIAL: whitespace, comments, minor renames, README tweaks, version bumps\n"
+                    "- MINOR: small logic changes, simple refactors, "
+                    "test additions, config changes\n"
+                    "- SIGNIFICANT: complex logic, new features, security-relevant, "
+                    "API/schema changes, new dependencies\n\n"
+                    f"File: `{filename}`\n\n"
+                    f"```diff\n{d}\n```\n\n"
+                    "Reply in this exact format (two lines, nothing else):\n"
+                    "TIER: <TRIVIAL|MINOR|SIGNIFICANT>\n"
+                    "VERDICT: <one sentence>"
+                ),
+            }
+        ],
         extra_headers=CACHE_BETA,
     )
     text = resp.content[0].text.strip()
@@ -123,17 +149,19 @@ def review_file(
         model=model,
         max_tokens=800,
         system=system,
-        messages=[{
-            "role": "user",
-            "content": (
-                "Review this file diff. List every finding:\n"
-                "- Important 🔴: [issue] — [why it matters] — Fix: [suggestion]\n"
-                "- Nit 🟡: [issue]\n\n"
-                "Or respond with exactly 'No findings.' if nothing to flag.\n\n"
-                f"File: `{filename}`{note}\n\n"
-                f"```diff\n{d}\n```"
-            ),
-        }],
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    "Review this file diff. List every finding:\n"
+                    "- Important 🔴: [issue] — [why it matters] — Fix: [suggestion]\n"
+                    "- Nit 🟡: [issue]\n\n"
+                    "Or respond with exactly 'No findings.' if nothing to flag.\n\n"
+                    f"File: `{filename}`{note}\n\n"
+                    f"```diff\n{d}\n```"
+                ),
+            }
+        ],
         extra_headers=CACHE_BETA,
     )
     return resp.content[0].text.strip()
@@ -151,8 +179,8 @@ def count_findings(text: str) -> tuple[int, int]:
 
 def build_summary(
     skipped: list[str],
-    trivial: list[tuple[str, str]],      # (filename, one_liner)
-    minor: list[tuple[str, str]],        # (filename, review_text)
+    trivial: list[tuple[str, str]],  # (filename, one_liner)
+    minor: list[tuple[str, str]],  # (filename, review_text)
     significant: list[tuple[str, str]],  # (filename, review_text)
 ) -> str:
     """Assemble the roll-up PR Review Summary comment from per-file review results."""
@@ -232,7 +260,9 @@ def post_comment(body: str, pr_number: str, repo: str) -> None:
 def get_diff() -> str:
     return subprocess.run(
         ["git", "diff", "origin/main...HEAD"],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
 
 
