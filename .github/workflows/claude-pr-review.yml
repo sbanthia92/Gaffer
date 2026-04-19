@@ -25,46 +25,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: anthropics/claude-code-action@v1
-        id: claude
+      - uses: actions/setup-python@v5
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ github.token }}
-          trigger_phrase: ""
-          use_sticky_comment: true
-          classify_inline_comments: true
-          show_full_output: true
-          prompt: |
-            You are a senior engineer reviewing a pull request for The Gaffer — an AI-powered
-            Fantasy Premier League analyst built with FastAPI, Claude tool-use, and React.
+          python-version: '3.11'
 
-            The PR number is ${{ github.event.pull_request.number }}.
-            Use `git diff origin/main...HEAD` to see the full diff for this PR.
-            Use `gh pr view ${{ github.event.pull_request.number }}` to get PR metadata if needed.
-            Use `gh pr comment ${{ github.event.pull_request.number }} --body "..."` to post the summary.
-            Use `gh api repos/{owner}/{repo}/pulls/{pr}/comments` to post inline comments.
+      - name: Install dependencies
+        run: pip install anthropic
 
-            Read REVIEW.md at the repo root for the full list of conventions and severity rules.
-            Then review the diff and changed files in this PR.
-
-            RULES:
-            - Post inline comments at the exact file path and line number for each finding.
-            - Tag each finding as Important 🔴 (must fix before merge) or Nit 🟡 (style/minor).
-            - Post at most 5 Nit comments. If there are more nits, mention the remaining count
-              in the summary comment instead.
-            - Do NOT comment on files matching these patterns:
-                tests/fixtures/**, **/package-lock.json, **/*.lock,
-                db/migrations/**, terraform/**, k8s/**, infra/**
-            - After all inline comments, post one summary comment on the PR. Start the comment
-              with the exact header "## PR Review Summary" on its own line, then include:
-                - Total Important 🔴 findings
-                - Total Nit 🟡 findings (including any uncapped remainder)
-                - An overall verdict: ✅ Looks good / ⚠️ Needs changes / 🔴 Must fix before merge
-            - If there are zero findings, still post the summary comment with the header
-              "## PR Review Summary" and verdict ✅ Looks good.
-            - Do not repeat findings already posted on a previous run of this workflow.
-            - Do not suggest changes outside the diff unless they are directly related to a bug
-              introduced by the diff.
+      - name: Run three-tier PR review
+        id: review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: python .github/scripts/pr_review.py
 
       - name: Set commit status from review verdict
         if: always()
@@ -79,29 +54,24 @@ jobs:
             const SUMMARY_HEADER = '## PR Review Summary';
             const CLEAN_PATTERN = /verdict[^\n]*✅ Looks good/i;
 
-            // Use step outcome rather than timestamp heuristics to determine if Claude ran.
-            const claudeRan = '${{ steps.claude.outcome }}' === 'success';
+            const reviewRan = '${{ steps.review.outcome }}' === 'success';
 
-            // Fetch the 100 most-recently-updated bot comments. The summary is always recent;
-            // 100 is the API maximum and sufficient for any realistic PR.
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: prNumber,
               per_page: 100,
-              sort: 'updated',
+              sort: 'created',
               direction: 'desc',
             });
 
-            // Match only comments that start with the sentinel header to avoid false positives
-            // from deploy notifications or other bot comments containing verdict emoji.
-            const summary = claudeRan
+            const summary = reviewRan
               ? comments.find(c => c.user.login === 'github-actions[bot]' &&
                                    c.body.includes(SUMMARY_HEADER))
               : null;
 
             let statusState, statusDescription;
-            if (!claudeRan) {
+            if (!reviewRan) {
               statusState = 'error';
               statusDescription = 'Claude review did not run — re-run the workflow';
             } else if (!summary) {
@@ -110,7 +80,6 @@ jobs:
             } else {
               const isClean = CLEAN_PATTERN.test(summary.body);
               const hasImportant = summary.body.includes('Must fix before merge');
-              // nit-only (⚠️) counts as success — only Important 🔴 findings block the PR
               statusState = (isClean || !hasImportant) ? 'success' : 'failure';
               statusDescription = isClean
                 ? 'No findings — good to merge'
