@@ -9,6 +9,8 @@ API-Sports docs: https://www.api-football.com/documentation-v3
 Premier League ID: 39
 """
 
+import time
+
 import httpx
 
 from server.config import settings
@@ -17,6 +19,9 @@ _BASE_URL = "https://v3.football.api-sports.io"
 _FPL_BASE_URL = "https://fantasy.premierleague.com/api"
 _PREMIER_LEAGUE_ID = 39
 _CURRENT_SEASON = "2025"  # 2025-26 season
+
+_SLOW_CACHE_TTL = 6 * 3600  # 6 hours — for data that updates at most once per gameweek
+_slow_cache: dict[str, tuple[dict, float]] = {}
 
 
 def _headers() -> dict[str, str]:
@@ -85,6 +90,10 @@ async def get_fixtures(next_n: int = 10) -> dict:
 
 async def get_standings() -> dict:
     """Fetch current Premier League standings."""
+    cached, ts = _slow_cache.get("standings", ({}, 0.0))
+    if cached and time.monotonic() - ts < _SLOW_CACHE_TTL:
+        return cached
+
     async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
         response = await client.get(
             "/standings",
@@ -116,7 +125,9 @@ async def get_standings() -> dict:
             )
     except (IndexError, KeyError):
         pass
-    return {"standings": standings}
+    result = {"standings": standings}
+    _slow_cache["standings"] = (result, time.monotonic())
+    return result
 
 
 async def get_player_stats(player_id: int) -> dict:
@@ -664,6 +675,11 @@ async def get_gameweek_schedule(next_n: int = 8) -> dict:
     Return the upcoming N gameweeks with fixture counts per team.
     Flags double gameweeks (team plays twice) and blank gameweeks (team doesn't play).
     """
+    cache_key = f"gameweek_schedule_{next_n}"
+    cached, ts = _slow_cache.get(cache_key, ({}, 0.0))
+    if cached and time.monotonic() - ts < _SLOW_CACHE_TTL:
+        return cached
+
     data = await _get_bootstrap()
     events = data.get("events", [])
     team_map = {t["id"]: t["short_name"] for t in data.get("teams", [])}
@@ -726,7 +742,9 @@ async def get_gameweek_schedule(next_n: int = 8) -> dict:
             }
         )
 
-    return {"gameweek_schedule": schedule}
+    result = {"gameweek_schedule": schedule}
+    _slow_cache[cache_key] = (result, time.monotonic())
+    return result
 
 
 # Tool definitions in Anthropic tool-use format.
