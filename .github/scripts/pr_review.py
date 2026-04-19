@@ -28,16 +28,20 @@ SKIP_PATTERNS = [
     "tests/fixtures/", "db/migrations/", "terraform/", "k8s/", "infra/", "pipeline/",
 ]
 SKIP_EXTENSIONS = {
-    ".lock", ".min.js", ".min.css",
+    ".lock",
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
     ".woff", ".woff2", ".ttf", ".eot", ".mp4", ".pdf", ".zip",
 }
+SKIP_SUFFIXES = (".min.js", ".min.css")
 DOCS_EXTENSIONS = {".md", ".txt", ".rst", ".mdx"}
 
 
 def should_skip(filename: str) -> bool:
-    ext = os.path.splitext(filename)[1].lower()
+    lower = filename.lower()
+    ext = os.path.splitext(lower)[1]
     if ext in SKIP_EXTENSIONS:
+        return True
+    if lower.endswith(SKIP_SUFFIXES):
         return True
     return any(pat in filename for pat in SKIP_PATTERNS)
 
