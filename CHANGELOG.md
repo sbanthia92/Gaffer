@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.15.0] — 2026-04-18
+
+### Changed
+- **Three-tier PR review** — replaced the single `claude-code-action` call with a custom Python script (`.github/scripts/pr_review.py`) that classifies each file via Haiku first: trivial files get a one-liner verdict only, minor files are fully reviewed by Haiku, significant files escalate to Sonnet. Prompt caching on the system prompt + REVIEW.md shared across all per-file calls. Non-reviewable files (lock files, generated, binary) are skipped before any API call. PRs touching only docs/comments across all files skip the review entirely. Token cap of ~4 000 tokens per file diff. Roll-up summary comment lists all files reviewed with collapsed section for trivial/skipped — nothing silently disappears.
+
 ## [0.14.0] — 2026-04-18
 
 ### Added
