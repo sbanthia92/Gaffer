@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.16.0] — 2026-04-19
+
+### Fixed
+- **CI auto-fix workflow** — `github_token` was missing from the `claude-code-action` call so Claude could authenticate but couldn't push commits. `git add`, `git commit`, and `git push` were also absent from `.claude/settings.local.json`, blocking Claude from writing fixes even if auth worked. Both gaps meant 3 attempts were consumed on every CI failure with no actual fix pushed.
+
 ## [0.15.0] — 2026-04-18
 
 ### Changed
