@@ -1,6 +1,6 @@
 # The Gaffer
 
-AI-powered Fantasy Premier League analyst web app. Provides natural language analysis over FPL and World Cup 2026 data via a React chat UI backed by FastAPI and Claude tool-use.
+AI-powered Fantasy Premier League analyst web app. Provides natural language analysis over FPL data via a React chat UI backed by FastAPI and Claude tool-use.
 
 ## Stack
 - **Language**: Python 3.11+
@@ -27,6 +27,10 @@ ui/                    # React + Vite + TypeScript frontend
 tests/                 # pytest; asyncio_mode = auto
 pipeline/              # ETL pipeline for PostgreSQL historical data
 scripts/               # EC2 setup, deploy helpers
+.github/
+  scripts/
+    pr_review.py       # Three-tier Haiku/Sonnet PR review script (called by claude-pr-review.yml)
+  workflows/           # CI, CD, PR review, CI auto-fix, interactive Claude workflows
 ```
 
 ## Dev commands
@@ -66,7 +70,7 @@ Be accurate — don't use `feat:` for a bug fix just because it involves new cod
 
 ## Code rules
 - Line length: 100 chars (`ruff` enforces this)
-- Config via `settings` only — never `os.environ` directly, never hardcode keys
+- Config via `settings` only in `server/` — never `os.environ` directly, never hardcode keys (`.github/scripts/` is exempt — no pydantic-settings instance available in Actions runners)
 - Mock all external calls in tests — never hit real APIs
 - No speculative files or abstractions — only build what the current task needs
 
