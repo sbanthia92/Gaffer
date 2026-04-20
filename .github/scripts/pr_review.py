@@ -179,10 +179,9 @@ def review_file(
 # Summary assembly
 # ---------------------------------------------------------------------------
 def has_issues(text: str) -> bool:
-    # Detect presence of a formatted issue line rather than relying on exact sentinel match.
-    # Models sometimes append explanation after "No issues." — checking for the issue marker
-    # format (`- \`filename`) is more robust than equality on the whole response.
-    return bool(re.search(r"^- `", text, re.MULTILINE))
+    # Match the specific issue format: `- \`filename:line\`` where filename:line contains a colon
+    # followed by digits. Generic bullet points like `- \`function_name()\`` won't match.
+    return bool(re.search(r"^- `[^`\n]+:\d+[^`\n]*`", text, re.MULTILINE))
 
 
 def build_summary(

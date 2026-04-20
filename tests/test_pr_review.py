@@ -137,6 +137,22 @@ def test_has_issues_requires_marker_format():
     assert pr_review.has_issues("server/main.py looks fine.") is False
 
 
+def test_has_issues_bullet_with_function_name_not_flagged():
+    # Haiku explains findings with bullets like `- \`has_issues()\` correctly...`
+    # These must NOT match — no colon+digits pattern inside the backticks
+    text = (
+        "No issues.\n\n"
+        "- `has_issues()` correctly identifies the sentinel\n"
+        "- `build_summary()` returns a tuple"
+    )
+    assert pr_review.has_issues(text) is False
+
+
+def test_has_issues_real_issue_with_line_number():
+    text = "- `server/tools/fpl.py:42` — cache not invalidated on deploy"
+    assert pr_review.has_issues(text) is True
+
+
 # ---------------------------------------------------------------------------
 # build_summary — verdict line
 # ---------------------------------------------------------------------------
