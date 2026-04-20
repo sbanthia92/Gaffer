@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.17.0] — 2026-04-20
+
+### Changed
+- **Simplified PR review** — replaced Important 🔴 / Nit 🟡 two-tier system with a single **Issues** list. A finding is only posted if it answers yes to: (1) is the change not doing what it's intended to do? or (2) will it break something in production causing a bad customer experience? Style concerns, theoretical correctness issues, and code that is ugly but correct are no longer flagged. `REVIEW.md` rewritten around these two questions. Commit status is now `failure` if any issues found, `success` otherwise.
+
 ## [0.16.0] — 2026-04-19
 
 ### Fixed
