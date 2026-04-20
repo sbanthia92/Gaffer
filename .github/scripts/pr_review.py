@@ -367,6 +367,10 @@ def main() -> None:
         state, desc = "failure", "Issues found — must fix before merging"
     else:
         state, desc = "success", "No issues — good to merge"
+        subprocess.run(
+            ["gh", "pr", "merge", pr_number, "--auto", "--squash", "--repo", repo],
+            check=True,
+        )
 
     set_commit_status(state, desc, pr_sha, repo, run_id)
     print("Review posted.", flush=True)
