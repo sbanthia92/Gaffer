@@ -47,4 +47,26 @@ echo "==> Starting CloudWatch agent..."
 systemctl enable amazon-cloudwatch-agent
 systemctl start amazon-cloudwatch-agent
 
+echo "==> Creating ETL dead-man's switch alarm..."
+# Fires if no SnapshotSuccess metric arrives within 2 hours (2 × 1-hour periods).
+# The ETL emits this metric via boto3 after every successful snapshot run.
+# Requires the EC2 IAM role to have cloudwatch:PutMetricData + cloudwatch:PutMetricAlarm.
+aws cloudwatch put-metric-alarm \
+  --region "$REGION" \
+  --alarm-name "gaffer-etl-snapshot-missing" \
+  --alarm-description "ETL snapshot has not completed in over 2 hours" \
+  --namespace "Gaffer/ETL" \
+  --metric-name "SnapshotSuccess" \
+  --dimensions Name=Mode,Value=snapshot \
+  --statistic Sum \
+  --period 3600 \
+  --evaluation-periods 2 \
+  --threshold 1 \
+  --comparison-operator LessThanThreshold \
+  --treat-missing-data breaching \
+  --alarm-actions "arn:aws:sns:${REGION}:$(aws sts get-caller-identity --query Account --output text):gaffer-alerts" \
+  --ok-actions    "arn:aws:sns:${REGION}:$(aws sts get-caller-identity --query Account --output text):gaffer-alerts"
+
 echo "==> Done. Logs will appear in CloudWatch under: $LOG_GROUP"
+echo "    ETL alarm: gaffer-etl-snapshot-missing (fires if silent for 2h)"
+echo "    NOTE: create SNS topic 'gaffer-alerts' and subscribe your email to receive alerts."

@@ -22,6 +22,26 @@ _FPL_BASE_URL = "https://fantasy.premierleague.com/api"
 _PREMIER_LEAGUE_ID = 39
 _CURRENT_SEASON = "2025"  # 2025-26 season
 
+# Persistent clients — one TCP connection pool per upstream, reused across all tool calls.
+# Created lazily so tests can patch settings before the first call.
+_api_sports_client: httpx.AsyncClient | None = None
+_fpl_client: httpx.AsyncClient | None = None
+
+
+def _get_api_sports_client() -> httpx.AsyncClient:
+    global _api_sports_client
+    if _api_sports_client is None or _api_sports_client.is_closed:
+        _api_sports_client = httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0)
+    return _api_sports_client
+
+
+def _get_fpl_client() -> httpx.AsyncClient:
+    global _fpl_client
+    if _fpl_client is None or _fpl_client.is_closed:
+        _fpl_client = httpx.AsyncClient(base_url=_FPL_BASE_URL, timeout=10.0)
+    return _fpl_client
+
+
 _SLOW_CACHE_TTL = 6 * 3600  # 6 hours — for data that updates at most once per gameweek
 _MAX_CACHE_ENTRIES = 20  # safety cap; in practice we have ~2 keys
 _MISSING = object()  # sentinel — distinguishes absent entry from empty-but-valid cached result
@@ -64,17 +84,17 @@ def _headers() -> dict[str, str]:
 
 async def search_player(name: str) -> dict:
     """Search for a player by name and return their ID and basic info."""
-    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
-        response = await client.get(
-            "/players",
-            params={
-                "search": name,
-                "league": _PREMIER_LEAGUE_ID,
-                "season": _CURRENT_SEASON,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
+    client = _get_api_sports_client()
+    response = await client.get(
+        "/players",
+        params={
+            "search": name,
+            "league": _PREMIER_LEAGUE_ID,
+            "season": _CURRENT_SEASON,
+        },
+    )
+    response.raise_for_status()
+    data = response.json()
 
     players = []
     for item in data.get("response", [])[:5]:
@@ -94,17 +114,17 @@ async def search_player(name: str) -> dict:
 
 async def get_fixtures(next_n: int = 10) -> dict:
     """Fetch the next N Premier League fixtures."""
-    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
-        response = await client.get(
-            "/fixtures",
-            params={
-                "league": _PREMIER_LEAGUE_ID,
-                "season": _CURRENT_SEASON,
-                "next": next_n,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
+    client = _get_api_sports_client()
+    response = await client.get(
+        "/fixtures",
+        params={
+            "league": _PREMIER_LEAGUE_ID,
+            "season": _CURRENT_SEASON,
+            "next": next_n,
+        },
+    )
+    response.raise_for_status()
+    data = response.json()
 
     fixtures = []
     for item in data.get("response", []):
@@ -130,18 +150,16 @@ async def get_standings() -> dict:
         if cached is not _MISSING:
             return cached  # type: ignore[return-value]
 
-        async with httpx.AsyncClient(
-            base_url=_BASE_URL, headers=_headers(), timeout=10.0
-        ) as client:
-            response = await client.get(
-                "/standings",
-                params={
-                    "league": _PREMIER_LEAGUE_ID,
-                    "season": _CURRENT_SEASON,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
+        client = _get_api_sports_client()
+        response = await client.get(
+            "/standings",
+            params={
+                "league": _PREMIER_LEAGUE_ID,
+                "season": _CURRENT_SEASON,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
 
         standings = []
         try:
@@ -170,17 +188,17 @@ async def get_standings() -> dict:
 
 async def get_player_stats(player_id: int) -> dict:
     """Fetch season stats for a player in the Premier League."""
-    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
-        response = await client.get(
-            "/players",
-            params={
-                "id": player_id,
-                "league": _PREMIER_LEAGUE_ID,
-                "season": _CURRENT_SEASON,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
+    client = _get_api_sports_client()
+    response = await client.get(
+        "/players",
+        params={
+            "id": player_id,
+            "league": _PREMIER_LEAGUE_ID,
+            "season": _CURRENT_SEASON,
+        },
+    )
+    response.raise_for_status()
+    data = response.json()
 
     try:
         item = data["response"][0]
@@ -212,65 +230,65 @@ async def get_player_recent_form(player_id: int, last_n: int = 5) -> dict:
     Fetch a player's recent form — goals, assists, minutes, and rating per game.
     Uses /fixtures/players to get individual stats per match.
     """
-    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
-        # Step 1: get the last N fixture IDs the player appeared in
-        fix_resp = await client.get(
-            "/fixtures",
-            params={
-                "league": _PREMIER_LEAGUE_ID,
-                "season": _CURRENT_SEASON,
-                "last": last_n,
-                "player": player_id,
-            },
-        )
-        fix_resp.raise_for_status()
-        fixture_data = fix_resp.json()
+    client = _get_api_sports_client()
+    # Step 1: get the last N fixture IDs the player appeared in
+    fix_resp = await client.get(
+        "/fixtures",
+        params={
+            "league": _PREMIER_LEAGUE_ID,
+            "season": _CURRENT_SEASON,
+            "last": last_n,
+            "player": player_id,
+        },
+    )
+    fix_resp.raise_for_status()
+    fixture_data = fix_resp.json()
 
-        fixture_ids = [item["fixture"]["id"] for item in fixture_data.get("response", [])]
+    fixture_ids = [item["fixture"]["id"] for item in fixture_data.get("response", [])]
 
-        # Step 2: for each fixture, fetch individual player stats
-        games = []
-        for fid in fixture_ids:
-            pr = await client.get("/fixtures/players", params={"fixture": fid})
-            if pr.status_code != 200:
-                continue
-            pr_data = pr.json()
-            for team in pr_data.get("response", []):
-                for player in team.get("players", []):
-                    if player.get("player", {}).get("id") == player_id:
-                        s = player.get("statistics", [{}])[0]
-                        fix_meta = fixture_data["response"]
-                        meta = next((f for f in fix_meta if f["fixture"]["id"] == fid), {})
-                        teams = meta.get("teams", {})
-                        games.append(
-                            {
-                                "fixture_id": fid,
-                                "date": meta.get("fixture", {}).get("date", "")[:10],
-                                "home": teams.get("home", {}).get("name"),
-                                "away": teams.get("away", {}).get("name"),
-                                "result": (
-                                    f"{meta.get('goals', {}).get('home')}-"
-                                    f"{meta.get('goals', {}).get('away')}"
-                                ),
-                                "minutes": s.get("games", {}).get("minutes"),
-                                "goals": s.get("goals", {}).get("total") or 0,
-                                "assists": s.get("goals", {}).get("assists") or 0,
-                                "shots_on": s.get("shots", {}).get("on") or 0,
-                                "rating": s.get("games", {}).get("rating"),
-                            }
-                        )
+    # Step 2: for each fixture, fetch individual player stats
+    games = []
+    for fid in fixture_ids:
+        pr = await client.get("/fixtures/players", params={"fixture": fid})
+        if pr.status_code != 200:
+            continue
+        pr_data = pr.json()
+        for team in pr_data.get("response", []):
+            for player in team.get("players", []):
+                if player.get("player", {}).get("id") == player_id:
+                    s = player.get("statistics", [{}])[0]
+                    fix_meta = fixture_data["response"]
+                    meta = next((f for f in fix_meta if f["fixture"]["id"] == fid), {})
+                    teams = meta.get("teams", {})
+                    games.append(
+                        {
+                            "fixture_id": fid,
+                            "date": meta.get("fixture", {}).get("date", "")[:10],
+                            "home": teams.get("home", {}).get("name"),
+                            "away": teams.get("away", {}).get("name"),
+                            "result": (
+                                f"{meta.get('goals', {}).get('home')}-"
+                                f"{meta.get('goals', {}).get('away')}"
+                            ),
+                            "minutes": s.get("games", {}).get("minutes"),
+                            "goals": s.get("goals", {}).get("total") or 0,
+                            "assists": s.get("goals", {}).get("assists") or 0,
+                            "shots_on": s.get("shots", {}).get("on") or 0,
+                            "rating": s.get("games", {}).get("rating"),
+                        }
+                    )
     return {"recent_form": games}
 
 
 async def search_team(name: str) -> dict:
     """Search for a Premier League team by name to get their team ID."""
-    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
-        response = await client.get(
-            "/teams",
-            params={"search": name},
-        )
-        response.raise_for_status()
-        data = response.json()
+    client = _get_api_sports_client()
+    response = await client.get(
+        "/teams",
+        params={"search": name},
+    )
+    response.raise_for_status()
+    data = response.json()
 
     teams = []
     for item in data.get("response", [])[:5]:
@@ -281,18 +299,18 @@ async def search_team(name: str) -> dict:
 
 async def get_team_recent_fixtures(team_id: int, last_n: int = 5) -> dict:
     """Fetch a team's last N results in the Premier League."""
-    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
-        response = await client.get(
-            "/fixtures",
-            params={
-                "league": _PREMIER_LEAGUE_ID,
-                "season": _CURRENT_SEASON,
-                "last": last_n,
-                "team": team_id,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
+    client = _get_api_sports_client()
+    response = await client.get(
+        "/fixtures",
+        params={
+            "league": _PREMIER_LEAGUE_ID,
+            "season": _CURRENT_SEASON,
+            "last": last_n,
+            "team": team_id,
+        },
+    )
+    response.raise_for_status()
+    data = response.json()
 
     fixtures = []
     for item in data.get("response", []):
@@ -317,16 +335,16 @@ async def get_team_recent_fixtures(team_id: int, last_n: int = 5) -> dict:
 
 async def get_head_to_head(team1_id: int, team2_id: int, last_n: int = 5) -> dict:
     """Fetch head-to-head results between two teams."""
-    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
-        response = await client.get(
-            "/fixtures/headtohead",
-            params={
-                "h2h": f"{team1_id}-{team2_id}",
-                "last": last_n,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
+    client = _get_api_sports_client()
+    response = await client.get(
+        "/fixtures/headtohead",
+        params={
+            "h2h": f"{team1_id}-{team2_id}",
+            "last": last_n,
+        },
+    )
+    response.raise_for_status()
+    data = response.json()
 
     fixtures = []
     for item in data.get("response", []):
@@ -354,17 +372,17 @@ async def get_team_all_fixtures(team_id: int, next_n: int = 7) -> dict:
     Fetch a team's next N fixtures across ALL competitions — PL, UCL, FA Cup etc.
     Use this to assess fixture congestion and rotation risk.
     """
-    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
-        response = await client.get(
-            "/fixtures",
-            params={
-                "team": team_id,
-                "next": next_n,
-                "season": _CURRENT_SEASON,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
+    client = _get_api_sports_client()
+    response = await client.get(
+        "/fixtures",
+        params={
+            "team": team_id,
+            "next": next_n,
+            "season": _CURRENT_SEASON,
+        },
+    )
+    response.raise_for_status()
+    data = response.json()
 
     fixtures = []
     for item in data.get("response", []):
@@ -392,55 +410,55 @@ async def get_player_vs_opponent(
     Fetch a player's individual stats in past h2h games between their team and the opponent.
     Returns goals, assists, minutes and rating per match.
     """
-    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
-        # Step 1: get h2h fixture IDs
-        h2h_resp = await client.get(
-            "/fixtures/headtohead",
-            params={"h2h": f"{team1_id}-{team2_id}", "last": last_n},
-        )
-        h2h_resp.raise_for_status()
-        h2h_data = h2h_resp.json()
-        fixture_items = h2h_data.get("response", [])
-        fixture_ids = [item["fixture"]["id"] for item in fixture_items]
+    client = _get_api_sports_client()
+    # Step 1: get h2h fixture IDs
+    h2h_resp = await client.get(
+        "/fixtures/headtohead",
+        params={"h2h": f"{team1_id}-{team2_id}", "last": last_n},
+    )
+    h2h_resp.raise_for_status()
+    h2h_data = h2h_resp.json()
+    fixture_items = h2h_data.get("response", [])
+    fixture_ids = [item["fixture"]["id"] for item in fixture_items]
 
-        # Step 2: fetch player stats for each fixture
-        games = []
-        for fid in fixture_ids:
-            pr = await client.get("/fixtures/players", params={"fixture": fid})
-            if pr.status_code != 200:
-                continue
-            for team in pr.json().get("response", []):
-                for player in team.get("players", []):
-                    if player.get("player", {}).get("id") == player_id:
-                        s = player.get("statistics", [{}])[0]
-                        meta = next((f for f in fixture_items if f["fixture"]["id"] == fid), {})
-                        teams = meta.get("teams", {})
-                        goals_data = meta.get("goals", {})
-                        games.append(
-                            {
-                                "date": meta.get("fixture", {}).get("date", "")[:10],
-                                "home": teams.get("home", {}).get("name"),
-                                "away": teams.get("away", {}).get("name"),
-                                "result": (f"{goals_data.get('home')}-{goals_data.get('away')}"),
-                                "minutes": s.get("games", {}).get("minutes"),
-                                "goals": s.get("goals", {}).get("total") or 0,
-                                "assists": s.get("goals", {}).get("assists") or 0,
-                                "shots_on": s.get("shots", {}).get("on") or 0,
-                                "rating": s.get("games", {}).get("rating"),
-                            }
-                        )
+    # Step 2: fetch player stats for each fixture
+    games = []
+    for fid in fixture_ids:
+        pr = await client.get("/fixtures/players", params={"fixture": fid})
+        if pr.status_code != 200:
+            continue
+        for team in pr.json().get("response", []):
+            for player in team.get("players", []):
+                if player.get("player", {}).get("id") == player_id:
+                    s = player.get("statistics", [{}])[0]
+                    meta = next((f for f in fixture_items if f["fixture"]["id"] == fid), {})
+                    teams = meta.get("teams", {})
+                    goals_data = meta.get("goals", {})
+                    games.append(
+                        {
+                            "date": meta.get("fixture", {}).get("date", "")[:10],
+                            "home": teams.get("home", {}).get("name"),
+                            "away": teams.get("away", {}).get("name"),
+                            "result": (f"{goals_data.get('home')}-{goals_data.get('away')}"),
+                            "minutes": s.get("games", {}).get("minutes"),
+                            "goals": s.get("goals", {}).get("total") or 0,
+                            "assists": s.get("goals", {}).get("assists") or 0,
+                            "shots_on": s.get("shots", {}).get("on") or 0,
+                            "rating": s.get("games", {}).get("rating"),
+                        }
+                    )
     return {"player_vs_opponent": games}
 
 
 async def get_odds(fixture_id: int) -> dict:
     """Fetch current odds for a fixture."""
-    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
-        response = await client.get(
-            "/odds",
-            params={"fixture": fixture_id},
-        )
-        response.raise_for_status()
-        data = response.json()
+    client = _get_api_sports_client()
+    response = await client.get(
+        "/odds",
+        params={"fixture": fixture_id},
+    )
+    response.raise_for_status()
+    data = response.json()
 
     try:
         bookmaker = data["response"][0]["bookmakers"][0]
@@ -462,58 +480,58 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
     if not team_id:
         return {"error": "FPL_TEAM_ID is not set in config."}
 
-    async with httpx.AsyncClient(base_url=_FPL_BASE_URL, timeout=10.0) as client:
-        # Fetch bootstrap to get current gameweek and player name mapping
-        bootstrap = await client.get("/bootstrap-static/")
-        bootstrap.raise_for_status()
-        bootstrap_data = bootstrap.json()
+    client = _get_fpl_client()
+    # Fetch bootstrap to get current gameweek and player name mapping
+    bootstrap = await client.get("/bootstrap-static/")
+    bootstrap.raise_for_status()
+    bootstrap_data = bootstrap.json()
 
-        # Find the current gameweek
+    # Find the current gameweek
+    current_gw = next(
+        (e["id"] for e in bootstrap_data["events"] if e["is_current"]),
+        None,
+    )
+    if not current_gw:
+        # Fall back to next gameweek if between gameweeks
         current_gw = next(
-            (e["id"] for e in bootstrap_data["events"] if e["is_current"]),
-            None,
+            (e["id"] for e in bootstrap_data["events"] if e["is_next"]),
+            1,
         )
-        if not current_gw:
-            # Fall back to next gameweek if between gameweeks
-            current_gw = next(
-                (e["id"] for e in bootstrap_data["events"] if e["is_next"]),
-                1,
-            )
 
-        # Build player ID → enriched map
-        position_map = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
-        team_map = {t["id"]: t["name"] for t in bootstrap_data["teams"]}
-        player_map = {
-            p["id"]: {
-                "name": f"{p['first_name']} {p['second_name']}",
-                "web_name": p.get("web_name"),
-                "team": team_map.get(p["team"], ""),
-                "position": position_map.get(p["element_type"], ""),
-                "now_cost": p.get("now_cost", 0) / 10,
-                "event_points": p.get("event_points", 0),
-                "total_points": p.get("total_points", 0),
-                "points_per_game": p.get("points_per_game", "0"),
-                "form": p.get("form", "0"),
-                "minutes": p.get("minutes", 0),
-                "status": p.get("status"),  # a=available d=doubtful i=injured s=suspended
-                "news": p.get("news") or None,
-                "chance_of_playing_this_round": p.get("chance_of_playing_this_round"),
-                "chance_of_playing_next_round": p.get("chance_of_playing_next_round"),
-                "selected_by_percent": p.get("selected_by_percent"),
-                "transfers_in_event": p.get("transfers_in_event", 0),
-                "transfers_out_event": p.get("transfers_out_event", 0),
-                "expected_goals": p.get("expected_goals"),
-                "expected_assists": p.get("expected_assists"),
-                "expected_goal_involvements": p.get("expected_goal_involvements"),
-                "ict_index": p.get("ict_index"),
-            }
-            for p in bootstrap_data["elements"]
+    # Build player ID → enriched map
+    position_map = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
+    team_map = {t["id"]: t["name"] for t in bootstrap_data["teams"]}
+    player_map = {
+        p["id"]: {
+            "name": f"{p['first_name']} {p['second_name']}",
+            "web_name": p.get("web_name"),
+            "team": team_map.get(p["team"], ""),
+            "position": position_map.get(p["element_type"], ""),
+            "now_cost": p.get("now_cost", 0) / 10,
+            "event_points": p.get("event_points", 0),
+            "total_points": p.get("total_points", 0),
+            "points_per_game": p.get("points_per_game", "0"),
+            "form": p.get("form", "0"),
+            "minutes": p.get("minutes", 0),
+            "status": p.get("status"),  # a=available d=doubtful i=injured s=suspended
+            "news": p.get("news") or None,
+            "chance_of_playing_this_round": p.get("chance_of_playing_this_round"),
+            "chance_of_playing_next_round": p.get("chance_of_playing_next_round"),
+            "selected_by_percent": p.get("selected_by_percent"),
+            "transfers_in_event": p.get("transfers_in_event", 0),
+            "transfers_out_event": p.get("transfers_out_event", 0),
+            "expected_goals": p.get("expected_goals"),
+            "expected_assists": p.get("expected_assists"),
+            "expected_goal_involvements": p.get("expected_goal_involvements"),
+            "ict_index": p.get("ict_index"),
         }
+        for p in bootstrap_data["elements"]
+    }
 
-        # Fetch the team's picks for the current gameweek
-        picks_resp = await client.get(f"/entry/{team_id}/event/{current_gw}/picks/")
-        picks_resp.raise_for_status()
-        picks_data = picks_resp.json()
+    # Fetch the team's picks for the current gameweek
+    picks_resp = await client.get(f"/entry/{team_id}/event/{current_gw}/picks/")
+    picks_resp.raise_for_status()
+    picks_data = picks_resp.json()
 
     entry_history = picks_data.get("entry_history", {})
 
@@ -576,11 +594,10 @@ _BOOTSTRAP_TTL = 3600  # 1 hour
 async def _get_bootstrap() -> dict:
     global _bootstrap_cache, _bootstrap_ts
     if _bootstrap_cache is None or _time.monotonic() - _bootstrap_ts > _BOOTSTRAP_TTL:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.get(f"{_FPL_BASE_URL}/bootstrap-static/")
-            r.raise_for_status()
-            _bootstrap_cache = r.json()
-            _bootstrap_ts = _time.monotonic()
+        r = await _get_fpl_client().get("/bootstrap-static/")
+        r.raise_for_status()
+        _bootstrap_cache = r.json()
+        _bootstrap_ts = _time.monotonic()
     return _bootstrap_cache
 
 
@@ -647,14 +664,14 @@ async def get_chip_status(team_id_override: int | None = None) -> dict:
     if not team_id:
         return {"error": "FPL_TEAM_ID is not set in config."}
 
-    async with httpx.AsyncClient(base_url=_FPL_BASE_URL, timeout=10.0) as client:
-        bootstrap = await client.get("/bootstrap-static/")
-        bootstrap.raise_for_status()
-        bootstrap_data = bootstrap.json()
+    client = _get_fpl_client()
+    bootstrap = await client.get("/bootstrap-static/")
+    bootstrap.raise_for_status()
+    bootstrap_data = bootstrap.json()
 
-        history_resp = await client.get(f"/entry/{team_id}/history/")
-        history_resp.raise_for_status()
-        history_data = history_resp.json()
+    history_resp = await client.get(f"/entry/{team_id}/history/")
+    history_resp.raise_for_status()
+    history_data = history_resp.json()
 
     current_gw = next(
         (e["id"] for e in bootstrap_data["events"] if e["is_current"]),
@@ -728,10 +745,9 @@ async def get_gameweek_schedule(next_n: int = 8) -> dict:
         start_gw = current_gw or next_gw or 1
         upcoming = [e for e in events if e["id"] >= start_gw][:next_n]
 
-        async with httpx.AsyncClient(base_url=_FPL_BASE_URL, timeout=10.0) as client:
-            fixtures_resp = await client.get("/fixtures/")
-            fixtures_resp.raise_for_status()
-            all_fixtures = fixtures_resp.json()
+        fixtures_resp = await _get_fpl_client().get("/fixtures/")
+        fixtures_resp.raise_for_status()
+        all_fixtures = fixtures_resp.json()
 
         fixtures_by_gw: dict[int, list] = {}
         for f in all_fixtures:
