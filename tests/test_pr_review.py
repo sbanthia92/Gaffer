@@ -117,66 +117,72 @@ def test_parse_file_diffs_empty():
 
 
 # ---------------------------------------------------------------------------
-# count_findings
+# has_issues
 # ---------------------------------------------------------------------------
-def test_count_findings_mixed():
-    text = "Important 🔴: bad thing\nNit 🟡: minor\nNit 🟡: also minor"
-    assert pr_review.count_findings(text) == (1, 2)
+def test_has_issues_clean():
+    assert pr_review.has_issues("No issues.") is False
 
 
-def test_count_findings_clean():
-    assert pr_review.count_findings("No findings.") == (0, 0)
+def test_has_issues_with_content():
+    assert pr_review.has_issues("- `server/main.py:10` — unused import breaks CI") is True
+
+
+def test_has_issues_whitespace_insensitive():
+    assert pr_review.has_issues("  No issues.  ") is False
 
 
 # ---------------------------------------------------------------------------
 # build_summary — verdict line
 # ---------------------------------------------------------------------------
 def test_build_summary_clean_verdict():
-    body = pr_review.build_summary([], [], [], [])
+    body, found = pr_review.build_summary([], [], [], [])
     assert "✅ Looks good" in body
     assert "## PR Review Summary" in body
+    assert found is False
 
 
-def test_build_summary_important_verdict():
-    body = pr_review.build_summary(
+def test_build_summary_issues_verdict():
+    body, found = pr_review.build_summary(
         [],
         [],
         [],
-        [("server/main.py", "Important 🔴: bad thing — why — Fix: do X")],
+        [("server/main.py", "- `server/main.py:5` — missing validation breaks user flow")],
     )
-    assert "Must fix before merge" in body
+    assert "Issues found" in body
     assert "🔴" in body
+    assert found is True
 
 
-def test_build_summary_nit_only_verdict():
-    body = pr_review.build_summary(
+def test_build_summary_no_issues_verdict():
+    body, found = pr_review.build_summary(
         [],
         [],
-        [("server/tools/fpl.py", "Nit 🟡: minor issue")],
+        [("server/tools/fpl.py", "No issues.")],
         [],
     )
-    assert "⚠️ Needs changes" in body
+    assert "✅ Looks good" in body
+    assert found is False
 
 
 def test_build_summary_skipped_files_in_collapsed_section():
-    body = pr_review.build_summary(["package-lock.json"], [], [], [])
+    body, _ = pr_review.build_summary(["package-lock.json"], [], [], [])
     assert "<details>" in body
     assert "package-lock.json" in body
 
 
 def test_build_summary_trivial_in_collapsed_section():
-    body = pr_review.build_summary([], [("CHANGELOG.md", "Version bump only.")], [], [])
+    body, _ = pr_review.build_summary([], [("CHANGELOG.md", "Version bump only.")], [], [])
     assert "<details>" in body
     assert "CHANGELOG.md" in body
     assert "Version bump only." in body
 
 
 def test_build_summary_significant_in_main_body():
-    body = pr_review.build_summary(
+    body, _ = pr_review.build_summary(
         [],
         [],
         [],
-        [("server/main.py", "Important 🔴: something bad")],
+        [("server/main.py", "- `server/main.py:1` — something bad")],
     )
     assert "### Significant files" in body
     assert "server/main.py" in body
@@ -214,9 +220,9 @@ def test_classify_defaults_to_significant_on_bad_response():
 # review_file — mocked
 # ---------------------------------------------------------------------------
 def test_review_file_returns_text():
-    client = _make_client("Important 🔴: missing input validation — Fix: add check.")
+    client = _make_client("- `server/main.py:10` — missing input validation breaks user requests")
     result = pr_review.review_file("server/main.py", "diff", pr_review.SONNET, [], client)
-    assert "Important 🔴" in result
+    assert "server/main.py" in result
 
 
 def test_review_file_truncation_note_added_for_large_diff():

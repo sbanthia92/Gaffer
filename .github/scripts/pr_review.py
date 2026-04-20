@@ -84,7 +84,11 @@ def build_system(review_md: str) -> list[dict]:
             "text": (
                 "You are a senior engineer reviewing pull requests for The Gaffer — "
                 "an AI-powered Fantasy Premier League analyst built with FastAPI, "
-                "Claude tool-use, and React."
+                "Claude tool-use, and React. "
+                "Before flagging anything, you must answer yes to at least one of: "
+                "(1) Is the change not doing what it's intended to do? "
+                "(2) Will it break something in production causing a bad customer experience? "
+                "If neither answer is yes, do not flag it."
             ),
             "cache_control": {"type": "ephemeral"},
         },
@@ -153,10 +157,14 @@ def review_file(
             {
                 "role": "user",
                 "content": (
-                    "Review this file diff. List every finding:\n"
-                    "- Important 🔴: [issue] — [why it matters] — Fix: [suggestion]\n"
-                    "- Nit 🟡: [issue]\n\n"
-                    "Or respond with exactly 'No findings.' if nothing to flag.\n\n"
+                    "Review this file diff. For each problem, ask yourself:\n"
+                    "1. Is the change not doing what it's intended to do?\n"
+                    "2. Will it break something in production causing a bad customer"
+                    " experience?\n\n"
+                    "Only flag something if the answer to at least one question is yes.\n"
+                    "List each issue as:\n"
+                    "- `filename:line` — what's wrong and why it breaks something\n\n"
+                    "If there are no issues, respond with exactly 'No issues.'\n\n"
                     f"File: `{filename}`{note}\n\n"
                     f"```diff\n{d}\n```"
                 ),
@@ -170,11 +178,8 @@ def review_file(
 # ---------------------------------------------------------------------------
 # Summary assembly
 # ---------------------------------------------------------------------------
-def count_findings(text: str) -> tuple[int, int]:
-    return (
-        len(re.findall(r"Important 🔴", text)),
-        len(re.findall(r"Nit 🟡", text)),
-    )
+def has_issues(text: str) -> bool:
+    return text.strip().lower() != "no issues."
 
 
 def build_summary(
@@ -182,29 +187,12 @@ def build_summary(
     trivial: list[tuple[str, str]],  # (filename, one_liner)
     minor: list[tuple[str, str]],  # (filename, review_text)
     significant: list[tuple[str, str]],  # (filename, review_text)
-) -> str:
-    """Assemble the roll-up PR Review Summary comment from per-file review results."""
-    total_imp = total_nit = 0
-    for _, rev in significant + minor:
-        i, n = count_findings(rev)
-        total_imp += i
-        total_nit += n
+) -> tuple[str, bool]:
+    """Assemble the roll-up PR Review Summary comment. Returns (body, found_issues)."""
+    found_issues = any(has_issues(rev) for _, rev in significant + minor)
+    verdict = "🔴 Issues found — must fix before merge" if found_issues else "✅ Looks good"
 
-    if total_imp > 0:
-        verdict = "🔴 Must fix before merge"
-    elif total_nit > 0:
-        verdict = "⚠️ Needs changes"
-    else:
-        verdict = "✅ Looks good"
-
-    lines = [
-        "## PR Review Summary",
-        "",
-        f"**Important 🔴 findings:** {total_imp}",
-        f"**Nit 🟡 findings:** {total_nit}",
-        f"**Verdict:** {verdict}",
-        "",
-    ]
+    lines = ["## PR Review Summary", "", f"**Verdict:** {verdict}", ""]
 
     if significant:
         lines += ["---", "### Significant files — reviewed by Sonnet", ""]
@@ -216,7 +204,6 @@ def build_summary(
         for filename, rev in minor:
             lines += [f"#### `{filename}`", rev, ""]
 
-    # Collapsed section: trivial verdicts + skipped files
     if trivial or skipped:
         collapsed = []
         if trivial:
@@ -238,7 +225,7 @@ def build_summary(
             "</details>",
         ]
 
-    return "\n".join(lines)
+    return "\n".join(lines), found_issues
 
 
 # ---------------------------------------------------------------------------
@@ -342,8 +329,6 @@ def main() -> None:
     if reviewable and all(is_docs(f) for f in reviewable):
         body = (
             "## PR Review Summary\n\n"
-            "**Important 🔴 findings:** 0\n"
-            "**Nit 🟡 findings:** 0\n"
             "**Verdict:** ✅ Looks good\n\n"
             "Docs/comments/formatting only — no code review needed."
         )
@@ -352,7 +337,7 @@ def main() -> None:
             body += "\n".join(f"- `{f}`" for f in skipped)
             body += "\n\n</details>"
         post_comment(body, pr_number, repo)
-        set_commit_status("success", "No findings — good to merge", pr_sha, repo, run_id)
+        set_commit_status("success", "No issues — good to merge", pr_sha, repo, run_id)
         return
 
     trivial: list[tuple[str, str]] = []
@@ -373,22 +358,13 @@ def main() -> None:
             print("  → Sonnet review …", flush=True)
             significant.append((filename, review_file(filename, diff, SONNET, system, client)))
 
-    summary = build_summary(skipped, trivial, minor, significant)
+    summary, found_issues = build_summary(skipped, trivial, minor, significant)
     post_comment(summary, pr_number, repo)
 
-    # Derive verdict from the summary we just built — avoids scanning old comments.
-    total_imp, total_nit = 0, 0
-    for _, rev in significant + minor:
-        i, n = count_findings(rev)
-        total_imp += i
-        total_nit += n
-
-    if total_imp > 0:
-        state, desc = "failure", "Important findings must be resolved before merging"
-    elif total_nit > 0:
-        state, desc = "success", "Nit findings only — good to merge"
+    if found_issues:
+        state, desc = "failure", "Issues found — must fix before merging"
     else:
-        state, desc = "success", "No findings — good to merge"
+        state, desc = "success", "No issues — good to merge"
 
     set_commit_status(state, desc, pr_sha, repo, run_id)
     print("Review posted.", flush=True)
