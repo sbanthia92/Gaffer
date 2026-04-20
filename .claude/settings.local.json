@@ -18,7 +18,12 @@
       "Bash(python3 -m pytest tests/test_ingest_fpl.py -v)",
       "Bash(python3 -m pytest --tb=short -q)",
       "Bash(python3 -m ruff check .)",
-      "Bash(python3 -m pytest tests/test_ingest_fpl.py -q)"
+      "Bash(python3 -m pytest tests/test_ingest_fpl.py -q)",
+      "Bash(python3 -m ruff check .github/scripts/pr_review.py)",
+      "Bash(python3 -m ruff check server/claude_client.py)",
+      "Bash(python3 -c \"import sys, json; lines = sys.stdin.read\\(\\).strip\\(\\).split\\('\\\\n'\\); [print\\(json.dumps\\(json.loads\\(l\\), indent=2\\)[:500]\\) for l in lines[-10:]]\")",
+      "Bash(pytest tests/ -q)",
+      "Bash(pytest tests/test_ingest_fpl.py)"
     ]
   }
 }

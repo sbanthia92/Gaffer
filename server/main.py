@@ -73,7 +73,6 @@ class AskRequest(BaseModel):
     question: str
     fpl_team_id: int | None = None
     history: list[HistoryMessage] = []
-    version: int = 1  # 1 = V1 (live tools + RAG), 2 = V2 (DB tool, no RAG)
 
 
 class FeedbackRequest(BaseModel):
@@ -168,7 +167,6 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
                 "ask.start",
                 question=body.question,
                 fpl_team_id=body.fpl_team_id,
-                version=body.version,
             )
 
             history = [{"role": m.role, "content": m.content} for m in body.history]
@@ -177,85 +175,70 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
                 tools_called.append(name)
                 return await _fpl_tool_handler(name, inp, body.fpl_team_id)
 
-            if body.version == 2:
-                # V2 — PostgreSQL + live tools + press/news RAG
-                async def _v2_handler(name: str, inp: dict) -> dict:
-                    if name == "query_database":
-                        from server.tools import db as db_tool
+            async def _v2_handler(name: str, inp: dict) -> dict:
+                if name == "query_database":
+                    from server.tools import db as db_tool
 
-                        tools_called.append(name)
-                        return await db_tool.execute(sql=inp["sql"])
-                    return await _tracking_handler(name, inp)
+                    tools_called.append(name)
+                    return await db_tool.execute(sql=inp["sql"])
+                return await _tracking_handler(name, inp)
 
-                # Pre-fetch high-value context concurrently to skip round 1 tool calls.
-                # RAG + squad + chips + schedule all start at the same time.
-                prefetch_coros = [
-                    rag.retrieve(
-                        query=body.question,
-                        namespace="press",
-                        top_k=3,
-                        recency_weight=0.5,
-                    ),
-                    fpl.get_gameweek_schedule(),
+            # Pre-fetch high-value context concurrently to skip round 1 tool calls.
+            # RAG + squad + chips + schedule all start at the same time.
+            prefetch_coros = [
+                rag.retrieve(
+                    query=body.question,
+                    namespace="press",
+                    top_k=3,
+                    recency_weight=0.5,
+                ),
+                fpl.get_gameweek_schedule(),
+            ]
+            if body.fpl_team_id:
+                prefetch_coros += [
+                    fpl.get_my_fpl_team(body.fpl_team_id),
+                    fpl.get_chip_status(body.fpl_team_id),
                 ]
-                if body.fpl_team_id:
-                    prefetch_coros += [
-                        fpl.get_my_fpl_team(body.fpl_team_id),
-                        fpl.get_chip_status(body.fpl_team_id),
-                    ]
 
-                prefetch_results = await asyncio.gather(*prefetch_coros, return_exceptions=True)
+            prefetch_results = await asyncio.gather(*prefetch_coros, return_exceptions=True)
 
-                press_context = (
-                    prefetch_results[0] if not isinstance(prefetch_results[0], Exception) else ""
+            press_context = (
+                prefetch_results[0] if not isinstance(prefetch_results[0], Exception) else ""
+            )
+            schedule_data = (
+                prefetch_results[1] if not isinstance(prefetch_results[1], Exception) else None
+            )
+            squad_data = (
+                prefetch_results[2]
+                if (body.fpl_team_id and not isinstance(prefetch_results[2], Exception))
+                else None
+            )
+            chip_data = (
+                prefetch_results[3]
+                if (
+                    body.fpl_team_id
+                    and len(prefetch_results) > 3
+                    and not isinstance(prefetch_results[3], Exception)
                 )
-                schedule_data = (
-                    prefetch_results[1] if not isinstance(prefetch_results[1], Exception) else None
-                )
-                squad_data = (
-                    prefetch_results[2]
-                    if (body.fpl_team_id and not isinstance(prefetch_results[2], Exception))
-                    else None
-                )
-                chip_data = (
-                    prefetch_results[3]
-                    if (
-                        body.fpl_team_id
-                        and len(prefetch_results) > 3
-                        and not isinstance(prefetch_results[3], Exception)
-                    )
-                    else None
-                )
+                else None
+            )
 
-                prefetched = {"gameweek_schedule": schedule_data}
-                if squad_data:
-                    prefetched["squad"] = squad_data
-                if chip_data:
-                    prefetched["chips"] = chip_data
+            prefetched = {"gameweek_schedule": schedule_data}
+            if squad_data:
+                prefetched["squad"] = squad_data
+            if chip_data:
+                prefetched["chips"] = chip_data
 
-                stream = await claude_client.ask(
-                    question=body.question,
-                    tool_definitions=fpl.get_v2_tool_definitions(),
-                    tool_handler=_v2_handler,
-                    rag_context=press_context,
-                    league="fpl",
-                    history=history,
-                    version=2,
-                    fpl_team_id=body.fpl_team_id,
-                    prefetched=prefetched,
-                )
-            else:
-                # V1 — live tools only (fpl Pinecone namespace removed)
-                stream = await claude_client.ask(
-                    question=body.question,
-                    tool_definitions=fpl.TOOL_DEFINITIONS,
-                    tool_handler=_tracking_handler,
-                    rag_context="",
-                    league="fpl",
-                    history=history,
-                    version=1,
-                    fpl_team_id=body.fpl_team_id,
-                )
+            stream = await claude_client.ask(
+                question=body.question,
+                tool_definitions=fpl.get_tool_definitions(),
+                tool_handler=_v2_handler,
+                rag_context=press_context,
+                league="fpl",
+                history=history,
+                fpl_team_id=body.fpl_team_id,
+                prefetched=prefetched,
+            )
 
             async for event_type, data in stream:
                 yield _sse(event_type, data)
