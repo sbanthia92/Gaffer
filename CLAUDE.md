@@ -89,7 +89,7 @@ The FastAPI middleware ends the X-Ray segment as soon as `StreamingResponse` is 
 
 ## Agentic PR pipeline
 Three Claude GitHub Actions workflows in `.github/workflows/`:
-- **`claude-pr-review.yml`** — fires on PR open/push; runs `.github/scripts/pr_review.py` which classifies each file via Haiku (trivial/minor/significant), reviews minor files with Haiku and significant files with Sonnet, skips lock/binary/generated files and docs-only PRs, caps diffs at ~4 000 tokens, posts a single roll-up summary comment. Sets `claude-review` commit status (`success` when clean/nit-only, `failure` on Important 🔴 findings). Configure `claude-review` as a required status check in branch protection to block merges.
+- **`claude-pr-review.yml`** — fires on PR open/push; runs `.github/scripts/pr_review.py` which classifies each file via Haiku (trivial/minor/significant), reviews minor files with Haiku and significant files with Sonnet, skips lock/binary/generated files and docs-only PRs, caps diffs at ~4 000 tokens, posts a single roll-up summary comment. A finding is only posted if it answers yes to: (1) is the change not doing what it's intended to do? or (2) will it break something in production causing a bad customer experience? Sets `claude-review` commit status (`success` when no issues, `failure` when issues found). Configure `claude-review` as a required status check in branch protection to block merges.
 - **`claude-ci-fix.yml`** — fires when CI fails on a branch; investigates logs, pushes a minimal fix commit; tracks attempts via `ci-fix-attempt-N` labels; stops after 3 attempts
 - **`claude-interactive.yml`** — fires on `@claude` mentions in PR/issue comments
 
@@ -98,6 +98,6 @@ Required secret: `ANTHROPIC_API_KEY` (set via GitHub repo settings → Secrets).
 
 ## Deployment
 - **Production**: AWS EC2 (single instance), nginx reverse proxy (`proxy_read_timeout 300s`), systemd service
-- **CI/CD**: GitHub Actions — CI on every push, auto-deploy to EC2 on merge to main
+- **CI/CD**: GitHub Actions — CI on every PR targeting main, auto-deploy to EC2 on merge to main
 - **Secrets**: `/etc/gaffer/.env` on EC2 — never commit secrets
 - **SSH to EC2**: `ssh -i ~/.ssh/gaffer.pem ec2-user@<ELASTIC_IP>`
