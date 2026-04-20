@@ -9,6 +9,10 @@ API-Sports docs: https://www.api-football.com/documentation-v3
 Premier League ID: 39
 """
 
+import asyncio
+import time
+from typing import Any
+
 import httpx
 
 from server.config import settings
@@ -17,6 +21,41 @@ _BASE_URL = "https://v3.football.api-sports.io"
 _FPL_BASE_URL = "https://fantasy.premierleague.com/api"
 _PREMIER_LEAGUE_ID = 39
 _CURRENT_SEASON = "2025"  # 2025-26 season
+
+_SLOW_CACHE_TTL = 6 * 3600  # 6 hours — for data that updates at most once per gameweek
+_MAX_CACHE_ENTRIES = 20  # safety cap; in practice we have ~2 keys
+_MISSING = object()  # sentinel — distinguishes absent entry from empty-but-valid cached result
+_slow_cache: dict[str, tuple[dict[str, Any], float]] = {}
+# Initialised lazily inside a coroutine so the Lock is always bound to a running event loop.
+# Creating asyncio.Lock() at import time raises DeprecationWarning in Python 3.10+ and
+# fails in 3.12+ when no event loop exists yet.
+_slow_cache_lock: asyncio.Lock | None = None
+
+
+def _get_slow_cache_lock() -> asyncio.Lock:
+    global _slow_cache_lock
+    if _slow_cache_lock is None:
+        _slow_cache_lock = asyncio.Lock()
+    return _slow_cache_lock
+
+
+def _cache_get(key: str) -> Any:
+    """Return the cached result for key, or _MISSING sentinel if absent or expired."""
+    entry = _slow_cache.get(key, _MISSING)
+    if entry is _MISSING:
+        return _MISSING
+    result, ts = entry
+    if time.monotonic() - ts >= _SLOW_CACHE_TTL:
+        return _MISSING
+    return result
+
+
+def _cache_set(key: str, result: dict[str, Any]) -> None:
+    # Blunt eviction: clear all entries when the cap is hit. Acceptable because
+    # we only ever store ~2 keys; the cap exists purely as a safety net.
+    if len(_slow_cache) >= _MAX_CACHE_ENTRIES:
+        _slow_cache.clear()
+    _slow_cache[key] = (result, time.monotonic())
 
 
 def _headers() -> dict[str, str]:
@@ -85,38 +124,48 @@ async def get_fixtures(next_n: int = 10) -> dict:
 
 async def get_standings() -> dict:
     """Fetch current Premier League standings."""
-    async with httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0) as client:
-        response = await client.get(
-            "/standings",
-            params={
-                "league": _PREMIER_LEAGUE_ID,
-                "season": _CURRENT_SEASON,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
+    key = "standings"
+    async with _get_slow_cache_lock():
+        cached = _cache_get(key)
+        if cached is not _MISSING:
+            return cached  # type: ignore[return-value]
 
-    standings = []
-    try:
-        table = data["response"][0]["league"]["standings"][0]
-        for entry in table:
-            standings.append(
-                {
-                    "rank": entry.get("rank"),
-                    "team": entry.get("team", {}).get("name"),
-                    "played": entry.get("all", {}).get("played"),
-                    "won": entry.get("all", {}).get("win"),
-                    "drawn": entry.get("all", {}).get("draw"),
-                    "lost": entry.get("all", {}).get("lose"),
-                    "goals_for": entry.get("all", {}).get("goals", {}).get("for"),
-                    "goals_against": entry.get("all", {}).get("goals", {}).get("against"),
-                    "points": entry.get("points"),
-                    "form": entry.get("form"),
-                }
+        async with httpx.AsyncClient(
+            base_url=_BASE_URL, headers=_headers(), timeout=10.0
+        ) as client:
+            response = await client.get(
+                "/standings",
+                params={
+                    "league": _PREMIER_LEAGUE_ID,
+                    "season": _CURRENT_SEASON,
+                },
             )
-    except (IndexError, KeyError):
-        pass
-    return {"standings": standings}
+            response.raise_for_status()
+            data = response.json()
+
+        standings = []
+        try:
+            table = data["response"][0]["league"]["standings"][0]
+            for entry in table:
+                standings.append(
+                    {
+                        "rank": entry.get("rank"),
+                        "team": entry.get("team", {}).get("name"),
+                        "played": entry.get("all", {}).get("played"),
+                        "won": entry.get("all", {}).get("win"),
+                        "drawn": entry.get("all", {}).get("draw"),
+                        "lost": entry.get("all", {}).get("lose"),
+                        "goals_for": entry.get("all", {}).get("goals", {}).get("for"),
+                        "goals_against": entry.get("all", {}).get("goals", {}).get("against"),
+                        "points": entry.get("points"),
+                        "form": entry.get("form"),
+                    }
+                )
+        except (IndexError, KeyError):
+            pass
+        result = {"standings": standings}
+        _cache_set(key, result)
+        return result
 
 
 async def get_player_stats(player_id: int) -> dict:
@@ -664,69 +713,71 @@ async def get_gameweek_schedule(next_n: int = 8) -> dict:
     Return the upcoming N gameweeks with fixture counts per team.
     Flags double gameweeks (team plays twice) and blank gameweeks (team doesn't play).
     """
-    data = await _get_bootstrap()
-    events = data.get("events", [])
-    team_map = {t["id"]: t["short_name"] for t in data.get("teams", [])}
-    all_fixtures = data.get("fixtures", [])  # not always present in bootstrap
+    key = f"gameweek_schedule_{next_n}"
+    async with _get_slow_cache_lock():
+        cached = _cache_get(key)
+        if cached is not _MISSING:
+            return cached  # type: ignore[return-value]
 
-    # Find upcoming GWs
-    current_gw = next((e["id"] for e in events if e["is_current"]), None)
-    next_gw = next((e["id"] for e in events if e["is_next"]), None)
-    start_gw = current_gw or next_gw or 1
+        data = await _get_bootstrap()
+        events = data.get("events", [])
+        team_map = {t["id"]: t["short_name"] for t in data.get("teams", [])}
 
-    upcoming = [e for e in events if e["id"] >= start_gw][:next_n]
+        current_gw = next((e["id"] for e in events if e["is_current"]), None)
+        next_gw = next((e["id"] for e in events if e["is_next"]), None)
+        start_gw = current_gw or next_gw or 1
+        upcoming = [e for e in events if e["id"] >= start_gw][:next_n]
 
-    # Fetch fixtures separately since bootstrap-static doesn't always include them
-    async with httpx.AsyncClient(base_url=_FPL_BASE_URL, timeout=10.0) as client:
-        fixtures_resp = await client.get("/fixtures/")
-        fixtures_resp.raise_for_status()
-        all_fixtures = fixtures_resp.json()
+        async with httpx.AsyncClient(base_url=_FPL_BASE_URL, timeout=10.0) as client:
+            fixtures_resp = await client.get("/fixtures/")
+            fixtures_resp.raise_for_status()
+            all_fixtures = fixtures_resp.json()
 
-    # Group fixtures by GW
-    fixtures_by_gw: dict[int, list] = {}
-    for f in all_fixtures:
-        gw = f.get("event")
-        if gw is None:
-            continue
-        fixtures_by_gw.setdefault(gw, []).append(f)
+        fixtures_by_gw: dict[int, list] = {}
+        for f in all_fixtures:
+            gw = f.get("event")
+            if gw is None:
+                continue
+            fixtures_by_gw.setdefault(gw, []).append(f)
 
-    schedule = []
-    all_team_ids = set(team_map.keys())
+        schedule = []
+        all_team_ids = set(team_map.keys())
 
-    for event in upcoming:
-        gw_id = event["id"]
-        gw_fixtures = fixtures_by_gw.get(gw_id, [])
+        for event in upcoming:
+            gw_id = event["id"]
+            gw_fixtures = fixtures_by_gw.get(gw_id, [])
 
-        # Count appearances per team this GW
-        team_fixture_count: dict[int, int] = {}
-        gw_fixture_list = []
-        for f in gw_fixtures:
-            h = f.get("team_h")
-            a = f.get("team_a")
-            if h:
-                team_fixture_count[h] = team_fixture_count.get(h, 0) + 1
-            if a:
-                team_fixture_count[a] = team_fixture_count.get(a, 0) + 1
-            gw_fixture_list.append(f"{team_map.get(h, '?')} vs {team_map.get(a, '?')}")
+            team_fixture_count: dict[int, int] = {}
+            gw_fixture_list = []
+            for f in gw_fixtures:
+                h = f.get("team_h")
+                a = f.get("team_a")
+                if h:
+                    team_fixture_count[h] = team_fixture_count.get(h, 0) + 1
+                if a:
+                    team_fixture_count[a] = team_fixture_count.get(a, 0) + 1
+                gw_fixture_list.append(f"{team_map.get(h, '?')} vs {team_map.get(a, '?')}")
 
-        double_gw_teams = [team_map[tid] for tid, cnt in team_fixture_count.items() if cnt >= 2]
-        blank_gw_teams = [
-            team_map[tid] for tid in all_team_ids if team_fixture_count.get(tid, 0) == 0
-        ]
+            double_gw_teams = [team_map[tid] for tid, cnt in team_fixture_count.items() if cnt >= 2]
+            blank_gw_teams = [
+                team_map[tid] for tid in all_team_ids if team_fixture_count.get(tid, 0) == 0
+            ]
 
-        schedule.append(
-            {
-                "gameweek": gw_id,
-                "deadline": event.get("deadline_time", "")[:16],
-                "fixtures": gw_fixture_list,
-                "double_gameweek_teams": sorted(double_gw_teams),
-                "blank_gameweek_teams": sorted(blank_gw_teams),
-                "is_double_gw": len(double_gw_teams) > 0,
-                "is_blank_gw": len(blank_gw_teams) > 0,
-            }
-        )
+            schedule.append(
+                {
+                    "gameweek": gw_id,
+                    "deadline": event.get("deadline_time", "")[:16],
+                    "fixtures": gw_fixture_list,
+                    "double_gameweek_teams": sorted(double_gw_teams),
+                    "blank_gameweek_teams": sorted(blank_gw_teams),
+                    "is_double_gw": len(double_gw_teams) > 0,
+                    "is_blank_gw": len(blank_gw_teams) > 0,
+                }
+            )
 
-    return {"gameweek_schedule": schedule}
+        result = {"gameweek_schedule": schedule}
+        _cache_set(key, result)
+        return result
 
 
 # Tool definitions in Anthropic tool-use format.

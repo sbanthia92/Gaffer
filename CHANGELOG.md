@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.17.0] — 2026-04-19
+
+### Changed
+- **6-hour TTL cache for `get_standings` and `get_gameweek_schedule`** — both are now served from an in-memory cache for 6 hours before hitting the external API again. GW schedule changes at most once per gameweek; standings update after match days. Cuts API-Sports calls on these two high-frequency tools to ~4/day regardless of request volume.
+
 ## [0.16.0] — 2026-04-19
 
 ### Fixed
