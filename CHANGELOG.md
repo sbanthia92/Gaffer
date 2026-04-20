@@ -2,6 +2,15 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.19.0] — 2026-04-20
+
+### Fixed
+- **Free-Hit/Wildcard squad composition** — system prompt now specifies the exact 15-player bench structure (2 GKP + 5 DEF + 5 MID + 3 FWD). Previously Claude could suggest 6 MID + 2 FWD because the rule only covered the starting XI minimum, not the total bench slots per position.
+- **ETL dead-man's switch** — `run_snapshot` now emits a `Gaffer/ETL SnapshotSuccess` custom CloudWatch metric after every successful run. `setup_cloudwatch.sh` creates a CloudWatch alarm (`gaffer-etl-snapshot-missing`) that fires if no metric arrives in 2 consecutive hours, catching silent cron failures before users notice stale data.
+
+### Changed
+- **Shared httpx clients** — all FPL tool functions now share two persistent `httpx.AsyncClient` instances (one for API-Sports, one for the FPL API) instead of creating a new client per call. Eliminates repeated TCP handshakes on concurrent tool rounds, reducing per-request latency.
+
 ## [0.18.0] — 2026-04-20
 
 ### Changed
