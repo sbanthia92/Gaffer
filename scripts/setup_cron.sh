@@ -47,25 +47,25 @@ echo "==> Configuring cron jobs..."
 # Snapshot — every hour at :05 to avoid thundering herd at :00
 add_job \
     "5 * * * *" \
-    "cd $APP_DIR && $PYTHON -m pipeline.etl_v2 --mode=snapshot >> $LOG_DIR/etl_snapshot.log 2>&1" \
+    "cd $APP_DIR && ENVIRONMENT=production $PYTHON -m pipeline.etl_v2 --mode=snapshot >> $LOG_DIR/etl_snapshot.log 2>&1" \
     "gaffer etl snapshot (hourly)"
 
 # GW sync — Tuesday 03:00 UTC (Mon night fixtures settled, Tue deadlines ahead)
 add_job \
     "0 3 * * 2" \
-    "cd $APP_DIR && $PYTHON -m pipeline.etl_v2 --mode=gw >> $LOG_DIR/etl_gw.log 2>&1" \
+    "cd $APP_DIR && ENVIRONMENT=production $PYTHON -m pipeline.etl_v2 --mode=gw >> $LOG_DIR/etl_gw.log 2>&1" \
     "gaffer etl gw (weekly)"
 
 # Press & news ingestion — 07:00 and 19:00 UTC
 add_job \
     "0 7,19 * * *" \
-    "cd $APP_DIR && $PYTHON -m pipeline.ingest_press >> $LOG_DIR/ingest_press.log 2>&1" \
+    "cd $APP_DIR && ENVIRONMENT=production $PYTHON -m pipeline.ingest_press >> $LOG_DIR/ingest_press.log 2>&1" \
     "gaffer press ingestion (twice daily)"
 
 # Historical FPL ingestion — midnight UTC (player season history + vs-opponent docs)
 add_job \
     "0 0 * * *" \
-    "cd $APP_DIR && $PYTHON -m pipeline.ingest_fpl >> $LOG_DIR/ingest_fpl.log 2>&1" \
+    "cd $APP_DIR && ENVIRONMENT=production $PYTHON -m pipeline.ingest_fpl >> $LOG_DIR/ingest_fpl.log 2>&1" \
     "gaffer fpl ingestion (daily)"
 
 echo "$CRONTAB" | crontab -
