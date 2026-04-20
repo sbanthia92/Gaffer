@@ -1,8 +1,8 @@
 """
 RAG retrieval — Pinecone semantic search with recency weighting.
 
-Always namespace-scoped (fpl | worldcup | laliga) and never hardcoded
-to a specific sport. The caller provides the namespace and recency weight.
+Queries the 'press' namespace: BBC Sport / Sky Sports match reports and
+FPL injury updates ingested twice daily by pipeline/ingest_press.py.
 
 Pinecone's built-in inference handles embeddings — no separate embeddings API.
 """
@@ -31,7 +31,7 @@ async def retrieve(
 
     Args:
         query: The natural language question to embed and search.
-        namespace: Pinecone namespace — fpl | worldcup | laliga.
+        namespace: Pinecone namespace — currently always "press".
         top_k: Number of documents to retrieve.
         recency_weight: How much to boost recent documents (0.0–1.0).
                         Applied as a score multiplier using recency_score metadata.

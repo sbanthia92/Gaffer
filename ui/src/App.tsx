@@ -450,8 +450,7 @@ export default function App() {
         (status) => {
           setStatusText(status);
         },
-        history,
-        2
+        history
       );
 
       // Persist the final answer

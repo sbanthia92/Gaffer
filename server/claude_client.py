@@ -132,26 +132,7 @@ _SHARED_RULES = (
 )
 
 
-def _build_system_prompt(
-    rag_context: str, league: str, version: int = 1, fpl_team_id: int | None = None
-) -> str:
-    if version == 2:
-        return _build_v2_system_prompt(rag_context, league, fpl_team_id)
-
-    context_block = rag_context or "No historical context available for this query."
-    return (
-        f"You are The Gaffer, an expert AI football analyst specialising in {league.upper()}.\n\n"
-        "You have access to two sources of information:\n"
-        "1. Live data via tools — current fixtures, player stats, standings, and odds.\n"
-        "2. Historical context from the knowledge base below — past seasons and h2h records.\n\n"
-        "Use both sources together to give the most accurate, data-driven answer possible.\n"
-        "Be specific and cite the data you used. If data is missing or unclear, say so.\n\n"
-        + _SHARED_RULES
-        + f"--- HISTORICAL CONTEXT ---\n{context_block}\n--- END HISTORICAL CONTEXT ---"
-    )
-
-
-def _build_v2_system_prompt(rag_context: str, league: str, fpl_team_id: int | None = None) -> str:
+def _build_system_prompt(rag_context: str, league: str, fpl_team_id: int | None = None) -> str:
     press_block = (
         rag_context if rag_context else "No recent press conference or news context available."
     )
@@ -226,7 +207,6 @@ async def ask(
     rag_context: str = "",
     league: str = "fpl",
     history: list[dict] | None = None,
-    version: int = 1,
     fpl_team_id: int | None = None,
     prefetched: dict | None = None,
 ) -> AsyncIterator[tuple[str, str]]:
@@ -285,7 +265,7 @@ async def ask(
     system = [
         {
             "type": "text",
-            "text": _build_system_prompt(rag_context, league, version, fpl_team_id),
+            "text": _build_system_prompt(rag_context, league, fpl_team_id),
             "cache_control": {"type": "ephemeral"},
         }
     ]
