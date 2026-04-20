@@ -33,6 +33,33 @@ from server.config import settings
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
+try:
+    import boto3  # optional — only available on EC2 with the CloudWatch agent installed
+
+    _cw = boto3.client("cloudwatch", region_name="us-east-1")
+except Exception:
+    _cw = None
+
+
+def _heartbeat(mode: str) -> None:
+    """Emit a custom CloudWatch metric so an alarm can fire if the ETL goes silent."""
+    if _cw is None:
+        return
+    try:
+        _cw.put_metric_data(
+            Namespace="Gaffer/ETL",
+            MetricData=[
+                {
+                    "MetricName": "SnapshotSuccess",
+                    "Dimensions": [{"Name": "Mode", "Value": mode}],
+                    "Value": 1,
+                    "Unit": "Count",
+                }
+            ],
+        )
+    except Exception as exc:
+        log.warning("CloudWatch heartbeat failed: %s", exc)
+
 
 def _parse_dt(value: str | None) -> datetime | None:
     """Parse an ISO 8601 datetime string into a timezone-aware datetime for asyncpg."""
@@ -701,6 +728,7 @@ async def run_snapshot(conn: asyncpg.Connection) -> None:
     await upsert_players(conn, season_id, bootstrap)
     await upsert_fixtures_fpl(conn, season_id, all_fixtures)
     log.info("=== SNAPSHOT complete ===")
+    _heartbeat("snapshot")
 
 
 async def run_gw_update(pool: asyncpg.Pool) -> None:
