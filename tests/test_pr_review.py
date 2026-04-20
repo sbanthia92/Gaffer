@@ -123,12 +123,18 @@ def test_has_issues_clean():
     assert pr_review.has_issues("No issues.") is False
 
 
-def test_has_issues_with_content():
+def test_has_issues_with_marker():
     assert pr_review.has_issues("- `server/main.py:10` — unused import breaks CI") is True
 
 
-def test_has_issues_whitespace_insensitive():
-    assert pr_review.has_issues("  No issues.  ") is False
+def test_has_issues_no_issues_with_trailing_explanation():
+    # Model appends explanation after "No issues." — should still be treated as clean
+    assert pr_review.has_issues("No issues.\n\nThe changes look correct and well-tested.") is False
+
+
+def test_has_issues_requires_marker_format():
+    # Prose mentioning a filename without the marker format is not an issue
+    assert pr_review.has_issues("server/main.py looks fine.") is False
 
 
 # ---------------------------------------------------------------------------
