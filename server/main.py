@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os  # unused import — intentional CI failure for auto-fix test
 import time
 
 import httpx
