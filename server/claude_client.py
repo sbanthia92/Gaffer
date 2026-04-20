@@ -26,7 +26,7 @@ import anthropic
 from server.config import settings
 
 _MODEL = "claude-sonnet-4-6"
-_MAX_TOKENS = 8192
+_MAX_TOKENS = 4096
 
 # Type alias for an async tool handler function
 ToolHandler = Callable[[str, dict], Coroutine[Any, Any, dict]]
