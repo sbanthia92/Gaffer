@@ -9,6 +9,15 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.25.0",
+    date: "21 Apr 2026",
+    changed: [
+      "Player stats now use PostgreSQL — accurate season aggregates (points, xG, ownership, form) instead of API-Sports raw data",
+      "Bootstrap cache now reused across squad/chip tools — saves 2 redundant API calls per request",
+      "Removed search_player tool — get_player_stats now takes a player name directly",
+    ],
+  },
+  {
     version: "0.24.0",
     date: "21 Apr 2026",
     changed: [

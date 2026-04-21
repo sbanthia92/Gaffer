@@ -36,7 +36,6 @@ _TOOL_LABELS: dict[str, str] = {
     "get_my_fpl_team": "Fetching your FPL squad…",
     "get_chip_status": "Checking your chip availability…",
     "get_gameweek_schedule": "Loading gameweek schedule…",
-    "search_player": "Looking up player stats…",
     "search_team": "Looking up team data…",
     "get_fixtures": "Checking upcoming fixtures…",
     "get_standings": "Fetching league standings…",

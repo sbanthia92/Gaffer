@@ -277,11 +277,10 @@ async def _fpl_tool_handler(
         "get_my_fpl_team": lambda i: fpl.get_my_fpl_team(team_id_override=fpl_team_id),
         "get_chip_status": lambda i: fpl.get_chip_status(team_id_override=fpl_team_id),
         "get_gameweek_schedule": lambda i: fpl.get_gameweek_schedule(next_n=i.get("next_n", 8)),
-        "search_player": lambda i: fpl.search_player(name=i["name"]),
         "search_team": lambda i: fpl.search_team(name=i["name"]),
         "get_fixtures": lambda i: fpl.get_fixtures(next_n=i.get("next_n", 10)),
         "get_standings": lambda i: fpl.get_standings(),
-        "get_player_stats": lambda i: fpl.get_player_stats(player_id=i["player_id"]),
+        "get_player_stats": lambda i: fpl.get_player_stats(player_name=i["player_name"]),
         "get_player_recent_form": lambda i: fpl.get_player_recent_form(
             player_name=i["player_name"],
             last_n=i.get("last_n", 5),

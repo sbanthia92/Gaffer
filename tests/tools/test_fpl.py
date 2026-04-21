@@ -16,7 +16,6 @@ from server.tools.fpl import (
     get_standings,
     get_team_all_fixtures,
     get_team_recent_fixtures,
-    search_player,
     search_team,
 )
 
@@ -49,21 +48,6 @@ _PLAYER_FIXTURE_STATS = {
         }
     ]
 }
-
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_search_player_returns_trimmed_response():
-    respx.get(f"{_BASE}/players").mock(
-        return_value=httpx.Response(
-            200,
-            json={"response": [{"player": {"id": 1100, "name": "Erling Haaland", "age": 24}}]},
-        )
-    )
-    result = await search_player(name="Haaland")
-    assert "players" in result
-    assert result["players"][0]["id"] == 1100
-    assert result["players"][0]["name"] == "Erling Haaland"
 
 
 @respx.mock
@@ -147,47 +131,59 @@ async def test_get_standings_returns_trimmed_response():
     assert result["standings"][0]["points"] == 70
 
 
-@respx.mock
 @pytest.mark.asyncio
-async def test_get_player_stats_returns_trimmed_response():
-    respx.get(f"{_BASE}/players").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "response": [
-                    {
-                        "player": {
-                            "id": 276,
-                            "name": "Erling Haaland",
-                            "age": 24,
-                            "nationality": "Norwegian",
-                        },
-                        "statistics": [
-                            {
-                                "team": {"name": "Man City"},
-                                "games": {
-                                    "position": "Attacker",
-                                    "appearences": 28,
-                                    "minutes": 2340,
-                                    "rating": "8.5",
-                                },
-                                "goals": {"total": 22, "assists": 5},
-                                "cards": {"yellow": 1, "red": 0},
-                                "shots": {"on": 45},
-                                "passes": {"key": 12},
-                                "dribbles": {"success": 18},
-                            }
-                        ],
-                    }
-                ]
-            },
+async def test_get_player_stats_returns_fpl_data():
+    _FPL = "https://fantasy.premierleague.com/api"
+    bootstrap = {
+        "elements": [
+            {
+                "id": 328,
+                "first_name": "Erling",
+                "second_name": "Haaland",
+                "web_name": "Haaland",
+                "team": 1,
+                "element_type": 4,
+            }
+        ],
+        "teams": [{"id": 1, "name": "Man City", "short_name": "MCI"}],
+        "events": [],
+    }
+    db_result = {
+        "rows": [
+            {
+                "web_name": "Haaland",
+                "team": "Man City",
+                "position": "FWD",
+                "price": 14.0,
+                "total_points": 180,
+                "minutes": 2340,
+                "goals_scored": 22,
+                "assists": 5,
+                "clean_sheets": 0,
+                "bonus": 28,
+                "xg": 18.5,
+                "xa": 3.2,
+            }
+        ],
+        "row_count": 1,
+    }
+
+    from unittest.mock import AsyncMock, patch
+
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
+    with respx.mock:
+        respx.get(f"{_FPL}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=bootstrap)
         )
-    )
-    result = await get_player_stats(player_id=276)
-    assert result["name"] == "Erling Haaland"
-    assert result["goals"] == 22
-    assert result["assists"] == 5
-    assert result["team"] == "Man City"
+        with patch("server.tools.db.execute", new=AsyncMock(return_value=db_result)):
+            result = await get_player_stats(player_name="Haaland")
+
+    assert "player_stats" in result
+    assert result["player_stats"]["goals_scored"] == 22
+    assert result["player_stats"]["team"] == "Man City"
+    assert result["player_stats"]["total_points"] == 180
 
 
 @respx.mock
@@ -425,6 +421,9 @@ _PICKS = {
 @respx.mock
 @pytest.mark.asyncio
 async def test_get_my_fpl_team_returns_squad():
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
     respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
         return_value=httpx.Response(200, json=_BOOTSTRAP)
     )
@@ -464,7 +463,6 @@ def test_tool_definitions_structure():
         "get_my_fpl_team",
         "get_chip_status",
         "get_gameweek_schedule",
-        "search_player",
         "search_team",
         "get_fixtures",
         "get_standings",
