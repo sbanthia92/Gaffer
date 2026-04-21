@@ -331,19 +331,65 @@ async def test_get_team_all_fixtures_returns_all_competitions():
     assert result["all_fixtures"][0]["away"] == "Real Madrid"
 
 
-@respx.mock
 @pytest.mark.asyncio
 async def test_get_player_vs_opponent_returns_per_game_stats():
-    respx.get(f"{_BASE}/fixtures/headtohead").mock(
-        return_value=httpx.Response(200, json={"response": [_FIXTURE_ITEM]})
-    )
-    respx.get(f"{_BASE}/fixtures/players").mock(
-        return_value=httpx.Response(200, json=_PLAYER_FIXTURE_STATS)
-    )
-    result = await get_player_vs_opponent(player_id=276, team1_id=50, team2_id=49, last_n=5)
-    assert "player_vs_opponent" in result
-    assert result["player_vs_opponent"][0]["goals"] == 1
-    assert result["player_vs_opponent"][0]["minutes"] == 90
+    _FPL = "https://fantasy.premierleague.com/api"
+    bootstrap = {
+        "elements": [
+            {
+                "id": 328,
+                "first_name": "Erling",
+                "second_name": "Haaland",
+                "web_name": "Haaland",
+                "team": 1,
+                "element_type": 4,
+            }
+        ],
+        "teams": [
+            {"id": 1, "name": "Man City", "short_name": "MCI"},
+            {"id": 7, "name": "Chelsea", "short_name": "CHE"},
+        ],
+        "events": [],
+    }
+    db_result = {
+        "rows": [
+            {
+                "gw_number": 28,
+                "home_away": "H",
+                "minutes": 90,
+                "goals_scored": 2,
+                "assists": 0,
+                "clean_sheets": 1,
+                "goals_conceded": 0,
+                "bonus": 3,
+                "total_points": 15,
+                "xg": 1.23,
+                "xa": 0.11,
+                "starts": 1,
+            }
+        ],
+        "row_count": 1,
+    }
+
+    from unittest.mock import AsyncMock, patch
+
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
+    with respx.mock:
+        respx.get(f"{_FPL}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=bootstrap)
+        )
+        with patch("server.tools.db.execute", new=AsyncMock(return_value=db_result)):
+            result = await get_player_vs_opponent(
+                player_name="Haaland", opponent_name="Chelsea", last_n=5
+            )
+
+    assert result["player"] == "Erling Haaland"
+    assert result["opponent"] == "Chelsea"
+    assert result["games"][0]["goals_scored"] == 2
+    assert result["games"][0]["total_points"] == 15
+    assert result["games"][0]["minutes"] == 90
 
 
 _FPL_BASE = "https://fantasy.premierleague.com/api"

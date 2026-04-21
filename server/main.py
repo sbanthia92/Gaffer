@@ -300,9 +300,8 @@ async def _fpl_tool_handler(
             next_n=i.get("next_n", 7),
         ),
         "get_player_vs_opponent": lambda i: fpl.get_player_vs_opponent(
-            player_id=i["player_id"],
-            team1_id=i["team1_id"],
-            team2_id=i["team2_id"],
+            player_name=i["player_name"],
+            opponent_name=i["opponent_name"],
             last_n=i.get("last_n", 5),
         ),
         "get_odds": lambda i: fpl.get_odds(fixture_id=i["fixture_id"]),

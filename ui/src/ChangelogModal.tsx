@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.24.0",
+    date: "21 Apr 2026",
+    changed: [
+      "Player vs opponent stats now use PostgreSQL — exact FPL points, CS, bonus, xG per fixture (was API-Sports raw stats, same hallucination risk as v0.23.0 fix)",
+    ],
+  },
+  {
     version: "0.23.0",
     date: "21 Apr 2026",
     changed: [

@@ -96,8 +96,11 @@ TOOL_DEFINITION = {
 }
 
 
-async def execute(sql: str) -> dict:
-    """Execute a read-only SQL query and return results as a list of dicts."""
+async def execute(sql: str, params: tuple = ()) -> dict:
+    """Execute a read-only SQL query and return results as a list of dicts.
+
+    Use $1, $2, ... placeholders and pass values in params to avoid SQL injection.
+    """
     sql = sql.strip()
 
     if _BANNED.search(sql):
@@ -113,7 +116,7 @@ async def execute(sql: str) -> dict:
         conn = await asyncpg.connect(settings.database_url)
         try:
             await conn.execute(f"SET statement_timeout = {_TIMEOUT_MS}")
-            rows = await conn.fetch(sql)
+            rows = await conn.fetch(sql, *params)
         finally:
             await conn.close()
     except asyncpg.PostgresError as e:
