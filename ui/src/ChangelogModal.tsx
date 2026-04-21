@@ -9,10 +9,17 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.22.0",
+    date: "21 Apr 2026",
+    changed: [
+      "CD now fires after auto-merged PRs — GitHub suppresses ALL triggers from GITHUB_TOKEN merges; fixed by using a PAT (GH_PAT secret) for the auto-merge call so the push is attributed to a real user",
+    ],
+  },
+  {
     version: "0.21.0",
     date: "21 Apr 2026",
     changed: [
-      "CD now fires after auto-merged PRs — switched trigger from push to pull_request:closed (GitHub suppresses push events from GITHUB_TOKEN merges)",
+      "CD trigger switched to pull_request:closed + workflow_dispatch (reverted in v0.22.0)",
     ],
   },
   {

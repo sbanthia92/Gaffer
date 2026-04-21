@@ -1,8 +1,7 @@
 name: CD
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -10,7 +9,6 @@ jobs:
   deploy:
     name: Deploy to EC2
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
 
     steps:
       - uses: actions/checkout@v4
