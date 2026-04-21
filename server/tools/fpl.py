@@ -400,50 +400,65 @@ async def get_team_all_fixtures(team_id: int, next_n: int = 7) -> dict:
 
 
 async def get_player_vs_opponent(
-    player_id: int, team1_id: int, team2_id: int, last_n: int = 5
+    player_name: str, opponent_name: str, last_n: int = 5
 ) -> dict:
     """
-    Fetch a player's individual stats in past h2h games between their team and the opponent.
-    Returns goals, assists, minutes and rating per match.
+    Fetch a player's FPL stats in past games against a specific opponent using
+    the PostgreSQL historical database. Returns exact FPL figures: points, bonus,
+    clean sheets, goals, assists, minutes per fixture.
     """
-    client = _get_api_sports_client()
-    # Step 1: get h2h fixture IDs
-    h2h_resp = await client.get(
-        "/fixtures/headtohead",
-        params={"h2h": f"{team1_id}-{team2_id}", "last": last_n},
-    )
-    h2h_resp.raise_for_status()
-    h2h_data = h2h_resp.json()
-    fixture_items = h2h_data.get("response", [])
-    fixture_ids = [item["fixture"]["id"] for item in fixture_items]
+    from server.tools.db import execute as _db_execute
 
-    # Step 2: fetch player stats for each fixture
-    games = []
-    for fid in fixture_ids:
-        pr = await client.get("/fixtures/players", params={"fixture": fid})
-        if pr.status_code != 200:
-            continue
-        for team in pr.json().get("response", []):
-            for player in team.get("players", []):
-                if player.get("player", {}).get("id") == player_id:
-                    s = player.get("statistics", [{}])[0]
-                    meta = next((f for f in fixture_items if f["fixture"]["id"] == fid), {})
-                    teams = meta.get("teams", {})
-                    goals_data = meta.get("goals", {})
-                    games.append(
-                        {
-                            "date": meta.get("fixture", {}).get("date", "")[:10],
-                            "home": teams.get("home", {}).get("name"),
-                            "away": teams.get("away", {}).get("name"),
-                            "result": (f"{goals_data.get('home')}-{goals_data.get('away')}"),
-                            "minutes": s.get("games", {}).get("minutes"),
-                            "goals": s.get("goals", {}).get("total") or 0,
-                            "assists": s.get("goals", {}).get("assists") or 0,
-                            "shots_on": s.get("shots", {}).get("on") or 0,
-                            "rating": s.get("games", {}).get("rating"),
-                        }
-                    )
-    return {"player_vs_opponent": games}
+    bootstrap = await _get_bootstrap()
+
+    name_lower = player_name.lower()
+    element = None
+    for p in bootstrap["elements"]:
+        full = f"{p['first_name']} {p['second_name']}".lower()
+        if name_lower in p["web_name"].lower() or name_lower in full:
+            element = p
+            break
+
+    if not element:
+        return {"error": f"Player '{player_name}' not found in FPL data"}
+
+    opp_lower = opponent_name.lower()
+    opp_team = None
+    for t in bootstrap["teams"]:
+        if opp_lower in t["name"].lower() or opp_lower in t["short_name"].lower():
+            opp_team = t
+            break
+
+    if not opp_team:
+        return {"error": f"Team '{opponent_name}' not found in FPL data"}
+
+    sql = f"""
+        SELECT
+            g.gw_number,
+            CASE WHEN g.was_home THEN 'H' ELSE 'A' END AS home_away,
+            g.minutes,
+            g.goals_scored,
+            g.assists,
+            g.clean_sheets,
+            g.goals_conceded,
+            g.bonus,
+            g.total_points,
+            ROUND(g.expected_goals::numeric, 2) AS xg,
+            ROUND(g.expected_assists::numeric, 2) AS xa,
+            g.starts
+        FROM gw_player_stats g
+        WHERE g.player_fpl_id = {element['id']}
+          AND g.opponent_team_fpl_id = {opp_team['id']}
+        ORDER BY g.gw_number DESC
+        LIMIT {last_n}
+    """
+    result = await _db_execute(sql)
+    return {
+        "player": f"{element['first_name']} {element['second_name']}",
+        "opponent": opp_team["name"],
+        "games": result.get("rows", []),
+        "row_count": result.get("row_count", 0),
+    }
 
 
 async def get_odds(fixture_id: int) -> dict:
@@ -1082,31 +1097,28 @@ TOOL_DEFINITIONS = [
     {
         "name": "get_player_vs_opponent",
         "description": (
-            "Get a player's individual stats (goals, assists, rating) in past games "
-            "against a specific opponent. Use this for h2h player performance analysis."
+            "Get a player's exact FPL stats (points, bonus, CS, goals, assists, xG, minutes) "
+            "in past games against a specific opponent, pulled from the historical database. "
+            "Use this for h2h player performance analysis and captaincy decisions."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "player_id": {
-                    "type": "integer",
-                    "description": "The API-Sports player ID.",
+                "player_name": {
+                    "type": "string",
+                    "description": "The player's name (web name or full name).",
                 },
-                "team1_id": {
-                    "type": "integer",
-                    "description": "The player's team ID.",
-                },
-                "team2_id": {
-                    "type": "integer",
-                    "description": "The opponent's team ID.",
+                "opponent_name": {
+                    "type": "string",
+                    "description": "The opponent team's name or short name.",
                 },
                 "last_n": {
                     "type": "integer",
-                    "description": "Number of past h2h games to look at. Defaults to 5.",
+                    "description": "Number of past games to return. Defaults to 5.",
                     "default": 5,
                 },
             },
-            "required": ["player_id", "team1_id", "team2_id"],
+            "required": ["player_name", "opponent_name"],
         },
     },
 ]

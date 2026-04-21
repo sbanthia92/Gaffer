@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.24.0] — 2026-04-21
+
+### Fixed
+- **`get_player_vs_opponent` using API-Sports with no FPL data** — same root cause as `get_player_recent_form` (v0.23.0): API-Sports `/fixtures/players` returns raw football stats only, forcing Claude to compute FPL points/CS/bonus itself and get them wrong. Rewrote the tool to query the PostgreSQL historical database directly, returning exact FPL figures (total_points, bonus, clean_sheets, xG, xA, minutes) per fixture. Player and opponent are now looked up by name via bootstrap — no API-Sports IDs needed.
+
 ## [0.23.0] — 2026-04-21
 
 ### Fixed
