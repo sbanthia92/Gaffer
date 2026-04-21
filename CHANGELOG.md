@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.21.0] — 2026-04-21
+
+### Fixed
+- **CD never fired after auto-merged PRs** — `cd.yml` triggered on `push: branches: [main]`, but GitHub suppresses push events caused by `GITHUB_TOKEN`-initiated merges (to prevent recursive loops). Since `pr_review.py` calls `gh pr merge --auto` with `GITHUB_TOKEN`, every auto-merged PR silently skipped CD. Fixed by switching the trigger to `pull_request: types: [closed]` — PR-close events are not suppressed by `GITHUB_TOKEN`. Also added `workflow_dispatch` as a manual escape hatch.
+
 ## [0.20.0] — 2026-04-21
 
 ### Fixed
