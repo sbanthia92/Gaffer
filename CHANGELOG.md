@@ -2,6 +2,12 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.25.0] — 2026-04-21
+
+### Fixed
+- **Bootstrap cache bypassed in `get_my_fpl_team` and `get_chip_status`** — both functions were calling `/bootstrap-static/` directly on every request instead of using `_get_bootstrap()` which has a 1-hour TTL. Fixed to use the shared cache, saving 2 redundant API calls per request.
+- **`get_player_stats` using API-Sports with no FPL data** — the tool was hitting API-Sports which returns raw football stats only, allowing Claude to fabricate FPL-specific values (points, bonus, CS). Migrated to PostgreSQL `players` table for accurate season aggregates. Removed the now-redundant `search_player` tool.
+
 ## [0.24.0] — 2026-04-21
 
 ### Fixed

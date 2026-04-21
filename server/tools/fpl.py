@@ -82,36 +82,6 @@ def _headers() -> dict[str, str]:
     return {"x-apisports-key": settings.api_sports_key}
 
 
-async def search_player(name: str) -> dict:
-    """Search for a player by name and return their ID and basic info."""
-    client = _get_api_sports_client()
-    response = await client.get(
-        "/players",
-        params={
-            "search": name,
-            "league": _PREMIER_LEAGUE_ID,
-            "season": _CURRENT_SEASON,
-        },
-    )
-    response.raise_for_status()
-    data = response.json()
-
-    players = []
-    for item in data.get("response", [])[:5]:
-        p = item.get("player", {})
-        stats = item.get("statistics", [{}])[0]
-        team = stats.get("team", {})
-        players.append(
-            {
-                "id": p.get("id"),
-                "name": p.get("name"),
-                "age": p.get("age"),
-                "team": team.get("name"),
-            }
-        )
-    return {"players": players}
-
-
 async def get_fixtures(next_n: int = 10) -> dict:
     """Fetch the next N Premier League fixtures."""
     client = _get_api_sports_client()
@@ -186,43 +156,51 @@ async def get_standings() -> dict:
         return result
 
 
-async def get_player_stats(player_id: int) -> dict:
-    """Fetch season stats for a player in the Premier League."""
-    client = _get_api_sports_client()
-    response = await client.get(
-        "/players",
-        params={
-            "id": player_id,
-            "league": _PREMIER_LEAGUE_ID,
-            "season": _CURRENT_SEASON,
-        },
-    )
-    response.raise_for_status()
-    data = response.json()
+async def get_player_stats(player_name: str) -> dict:
+    """Fetch current-season FPL stats for a player from the PostgreSQL database."""
+    from server.tools.db import execute as _db_execute
 
-    try:
-        item = data["response"][0]
-        p = item["player"]
-        s = item["statistics"][0]
-        return {
-            "name": p.get("name"),
-            "age": p.get("age"),
-            "nationality": p.get("nationality"),
-            "team": s.get("team", {}).get("name"),
-            "position": s.get("games", {}).get("position"),
-            "appearances": s.get("games", {}).get("appearences"),
-            "minutes": s.get("games", {}).get("minutes"),
-            "goals": s.get("goals", {}).get("total"),
-            "assists": s.get("goals", {}).get("assists"),
-            "yellow_cards": s.get("cards", {}).get("yellow"),
-            "red_cards": s.get("cards", {}).get("red"),
-            "shots_on_target": s.get("shots", {}).get("on"),
-            "key_passes": s.get("passes", {}).get("key"),
-            "dribbles_success": s.get("dribbles", {}).get("success"),
-            "rating": s.get("games", {}).get("rating"),
-        }
-    except (IndexError, KeyError):
-        return {"error": "Player stats not found"}
+    bootstrap = await _get_bootstrap()
+    element = _find_player(bootstrap["elements"], player_name)
+    if not element:
+        return {"error": f"Player '{player_name}' not found in FPL data"}
+
+    sql = """
+        SELECT
+            p.web_name,
+            t.name AS team,
+            p.position,
+            ROUND(p.now_cost / 10.0, 1) AS price,
+            p.total_points,
+            p.minutes,
+            p.goals_scored,
+            p.assists,
+            p.clean_sheets,
+            p.goals_conceded,
+            p.yellow_cards,
+            p.red_cards,
+            p.bonus,
+            p.form,
+            p.points_per_game,
+            p.selected_by_percent,
+            p.ict_index,
+            ROUND(p.expected_goals::numeric, 2) AS xg,
+            ROUND(p.expected_assists::numeric, 2) AS xa,
+            ROUND(p.expected_goal_involvements::numeric, 2) AS xgi,
+            p.status,
+            p.news
+        FROM players p
+        JOIN seasons s ON p.season_id = s.id
+        JOIN teams t ON p.team_fpl_id = t.fpl_id AND p.season_id = t.season_id
+        WHERE s.is_current = TRUE
+          AND p.fpl_id = $1
+        LIMIT 1
+    """
+    result = await _db_execute(sql, (element["id"],))
+    rows = result.get("rows", [])
+    if not rows:
+        return {"error": f"No stats found for '{player_name}' in current season"}
+    return {"player_stats": rows[0]}
 
 
 async def get_player_recent_form(player_name: str, last_n: int = 5) -> dict:
@@ -477,10 +455,7 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
         return {"error": "FPL_TEAM_ID is not set in config."}
 
     client = _get_fpl_client()
-    # Fetch bootstrap to get current gameweek and player name mapping
-    bootstrap = await client.get("/bootstrap-static/")
-    bootstrap.raise_for_status()
-    bootstrap_data = bootstrap.json()
+    bootstrap_data = await _get_bootstrap()
 
     # Find the current gameweek
     current_gw = next(
@@ -688,9 +663,7 @@ async def get_chip_status(team_id_override: int | None = None) -> dict:
         return {"error": "FPL_TEAM_ID is not set in config."}
 
     client = _get_fpl_client()
-    bootstrap = await client.get("/bootstrap-static/")
-    bootstrap.raise_for_status()
-    bootstrap_data = bootstrap.json()
+    bootstrap_data = await _get_bootstrap()
 
     history_resp = await client.get(f"/entry/{team_id}/history/")
     history_resp.raise_for_status()
@@ -840,23 +813,6 @@ TOOL_DEFINITIONS = [
         },
     },
     {
-        "name": "search_player",
-        "description": (
-            "Search for a Premier League player by name to get their player ID. "
-            "Always call this first when you need stats or recent fixtures for a specific player."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Player name to search for, e.g. 'Haaland' or 'Salah'.",
-                }
-            },
-            "required": ["name"],
-        },
-    },
-    {
         "name": "get_fixtures",
         "description": (
             "Get upcoming Premier League fixtures. "
@@ -890,18 +846,19 @@ TOOL_DEFINITIONS = [
     {
         "name": "get_player_stats",
         "description": (
-            "Get season statistics for a Premier League player — goals, assists, "
-            "minutes played, cards, and more. Use this for captain or transfer decisions."
+            "Get current-season FPL stats for a player: total points, goals, assists, "
+            "clean sheets, minutes, bonus, form, xG, xA, xGI, ICT index, price, "
+            "ownership, and injury status. Use for captain or transfer decisions."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "player_id": {
-                    "type": "integer",
-                    "description": "The API-Sports player ID.",
+                "player_name": {
+                    "type": "string",
+                    "description": "Player name (web name or full name), e.g. 'Salah' or 'Haaland'.",  # noqa: E501
                 }
             },
-            "required": ["player_id"],
+            "required": ["player_name"],
         },
     },
     {
