@@ -399,9 +399,7 @@ async def get_team_all_fixtures(team_id: int, next_n: int = 7) -> dict:
     return {"all_fixtures": fixtures}
 
 
-async def get_player_vs_opponent(
-    player_name: str, opponent_name: str, last_n: int = 5
-) -> dict:
+async def get_player_vs_opponent(player_name: str, opponent_name: str, last_n: int = 5) -> dict:
     """
     Fetch a player's FPL stats in past games against a specific opponent using
     the PostgreSQL historical database. Returns exact FPL figures: points, bonus,
@@ -447,8 +445,8 @@ async def get_player_vs_opponent(
             ROUND(g.expected_assists::numeric, 2) AS xa,
             g.starts
         FROM gw_player_stats g
-        WHERE g.player_fpl_id = {element['id']}
-          AND g.opponent_team_fpl_id = {opp_team['id']}
+        WHERE g.player_fpl_id = {element["id"]}
+          AND g.opponent_team_fpl_id = {opp_team["id"]}
         ORDER BY g.gw_number DESC
         LIMIT {last_n}
     """
