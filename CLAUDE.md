@@ -50,10 +50,11 @@ uvicorn server.main:app --reload --port 8000
 - **Delete branch after merge**: `git push origin --delete <branch>` once the PR is merged
 
 ## Every PR checklist
-Every PR — no matter how small — must include all three of these:
+Every PR — no matter how small — must include all four of these:
 1. **Bump the minor version** (`0.x.0 → 0.x+1.0`) in `CHANGELOG.md`
 2. **Add a `CHANGELOG.md` entry** under the new version with what changed and why
 3. **Update `CLAUDE.md`** if the change affects conventions, architecture, domain knowledge, or known gotchas
+4. **Update the UI changelog** — bump the version string in `ui/src/Landing.tsx` ("What's new in vX.Y.Z →") and add a new entry at the top of `RELEASES` in `ui/src/ChangelogModal.tsx`
 
 ## Commit conventions (conventional commits)
 - `feat:` — new user-facing behaviour

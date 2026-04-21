@@ -9,6 +9,16 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.20.0",
+    date: "21 Apr 2026",
+    changed: [
+      "V1 removed — V2 (PostgreSQL + live tools + press RAG) is the only version",
+      "Faster tool calls — shared HTTP connection pool reused across all concurrent tool calls",
+      "Free-Hit and Wildcard squads now always return exactly 2 GKP, 5 DEF, 5 MID, 3 FWD",
+      "ETL data freshness — GW stats now update hourly (was silently broken since launch)",
+    ],
+  },
+  {
     version: "0.9.0",
     date: "12 Apr 2026",
     added: [
@@ -19,7 +29,6 @@ const RELEASES: Release[] = [
       "Contact form — get in touch directly from the landing page",
     ],
     changed: [
-      "V1 removed — V2 (text-to-SQL) is the only version",
       "Landing page redesigned with langchain-style feature navigation",
     ],
   },
