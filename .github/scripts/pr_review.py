@@ -165,7 +165,7 @@ def review_file(
                     "Do NOT use the bullet format below for analysis — only for real issues.\n"
                     "List each real issue as:\n"
                     "- `filename:line` — what's wrong and why it breaks something\n\n"
-                    "If there are no real issues, respond with exactly 'No issues.' — no bullets.\n\n"
+                    "If there are no real issues, respond with exactly: No issues.\n\n"
                     f"File: `{filename}`{note}\n\n"
                     f"```diff\n{d}\n```"
                 ),
