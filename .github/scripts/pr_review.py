@@ -162,9 +162,10 @@ def review_file(
                     "2. Will it break something in production causing a bad customer"
                     " experience?\n\n"
                     "Only flag something if the answer to at least one question is yes.\n"
-                    "List each issue as:\n"
+                    "Do NOT use the bullet format below for analysis — only for real issues.\n"
+                    "List each real issue as:\n"
                     "- `filename:line` — what's wrong and why it breaks something\n\n"
-                    "If there are no issues, respond with exactly 'No issues.'\n\n"
+                    "If there are no real issues, respond with exactly: No issues.\n\n"
                     f"File: `{filename}`{note}\n\n"
                     f"```diff\n{d}\n```"
                 ),
@@ -179,6 +180,11 @@ def review_file(
 # Summary assembly
 # ---------------------------------------------------------------------------
 def has_issues(text: str) -> bool:
+    # The model is instructed to reply with exactly "No issues." when there are none.
+    # Trust that explicit conclusion over any intermediate analysis that happens to use
+    # the issue bullet format (e.g. referencing a line while explaining why it's fine).
+    if re.search(r"\bno issues\b", text, re.IGNORECASE):
+        return False
     # Match the specific issue format: `- \`filename:line\`` where filename:line contains a colon
     # followed by digits. Generic bullet points like `- \`function_name()\`` won't match.
     return bool(re.search(r"^- `[^`\n]+:\d+[^`\n]*`", text, re.MULTILINE))
@@ -367,11 +373,21 @@ def main() -> None:
         state, desc = "failure", "Issues found — must fix before merging"
     else:
         state, desc = "success", "No issues — good to merge"
-        result = subprocess.run(
-            ["gh", "pr", "merge", pr_number, "--auto", "--squash", "--repo", repo],
-        )
-        if result.returncode != 0:
-            print("Auto-merge not enabled — skipping (enable in repo Settings → General).")
+        # GH_PAT must be a PAT (not GITHUB_TOKEN) so the resulting push to main
+        # is attributed to a human user and triggers the CD push workflow.
+        # GITHUB_TOKEN-initiated merges are suppressed by GitHub's anti-loop
+        # policy and will not fire push: branches: [main] in other workflows.
+        merge_token = os.environ.get("GH_PAT") or os.environ.get("GITHUB_TOKEN", "")
+        if not merge_token:
+            print("No token available for auto-merge — skipping.")
+        else:
+            env = {**os.environ, "GH_TOKEN": merge_token}
+            result = subprocess.run(
+                ["gh", "pr", "merge", pr_number, "--auto", "--squash", "--repo", repo],
+                env=env,
+            )
+            if result.returncode != 0:
+                print("Auto-merge not enabled — skipping (enable in repo Settings → General).")
 
     set_commit_status(state, desc, pr_sha, repo, run_id)
     print("Review posted.", flush=True)

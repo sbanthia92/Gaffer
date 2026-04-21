@@ -1,8 +1,7 @@
 name: CD
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches: [main]
   workflow_dispatch:
 
@@ -10,7 +9,10 @@ jobs:
   deploy:
     name: Deploy to EC2
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    # Skip pushes made by the GitHub Actions bot (e.g. automated version bumps).
+    # Real PR merges via GH_PAT are attributed to a human actor and always run.
+    # workflow_dispatch always runs (no actor filter needed).
+    if: github.event_name == 'workflow_dispatch' || github.actor != 'github-actions[bot]'
 
     steps:
       - uses: actions/checkout@v4
