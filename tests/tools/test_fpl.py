@@ -193,16 +193,53 @@ async def test_get_player_stats_returns_trimmed_response():
 @respx.mock
 @pytest.mark.asyncio
 async def test_get_player_recent_form_returns_per_game_stats():
-    respx.get(f"{_BASE}/fixtures").mock(
-        return_value=httpx.Response(200, json={"response": [_FIXTURE_ITEM]})
+    _FPL = "https://fantasy.premierleague.com/api"
+    bootstrap = {
+        "elements": [
+            {
+                "id": 328,
+                "first_name": "Erling",
+                "second_name": "Haaland",
+                "web_name": "Haaland",
+                "team": 1,
+                "element_type": 4,
+            }
+        ],
+        "teams": [{"id": 1, "name": "Man City"}],
+        "events": [],
+    }
+    element_summary = {
+        "history": [
+            {
+                "round": 33,
+                "opponent_team": 7,
+                "was_home": True,
+                "minutes": 90,
+                "goals_scored": 2,
+                "assists": 0,
+                "clean_sheets": 0,
+                "goals_conceded": 1,
+                "yellow_cards": 0,
+                "red_cards": 0,
+                "bonus": 3,
+                "total_points": 14,
+            }
+        ]
+    }
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None  # force fresh fetch
+    respx.get(f"{_FPL}/bootstrap-static/").mock(return_value=httpx.Response(200, json=bootstrap))
+    respx.get(f"{_FPL}/element-summary/328/").mock(
+        return_value=httpx.Response(200, json=element_summary)
     )
-    respx.get(f"{_BASE}/fixtures/players").mock(
-        return_value=httpx.Response(200, json=_PLAYER_FIXTURE_STATS)
-    )
-    result = await get_player_recent_form(player_id=276, last_n=1)
+    result = await get_player_recent_form(player_name="Haaland", last_n=1)
     assert "recent_form" in result
-    assert result["recent_form"][0]["goals"] == 1
+    assert result["recent_form"][0]["goals"] == 2
     assert result["recent_form"][0]["minutes"] == 90
+    assert result["recent_form"][0]["total_points"] == 14
+    assert result["recent_form"][0]["bonus"] == 3
+    assert result["player"] == "Erling Haaland"
 
 
 @respx.mock

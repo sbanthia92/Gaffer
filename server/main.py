@@ -283,7 +283,7 @@ async def _fpl_tool_handler(
         "get_standings": lambda i: fpl.get_standings(),
         "get_player_stats": lambda i: fpl.get_player_stats(player_id=i["player_id"]),
         "get_player_recent_form": lambda i: fpl.get_player_recent_form(
-            player_id=i["player_id"],
+            player_name=i["player_name"],
             last_n=i.get("last_n", 5),
         ),
         "get_team_recent_fixtures": lambda i: fpl.get_team_recent_fixtures(

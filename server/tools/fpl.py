@@ -225,59 +225,55 @@ async def get_player_stats(player_id: int) -> dict:
         return {"error": "Player stats not found"}
 
 
-async def get_player_recent_form(player_id: int, last_n: int = 5) -> dict:
+async def get_player_recent_form(player_name: str, last_n: int = 5) -> dict:
     """
-    Fetch a player's recent form — goals, assists, minutes, and rating per game.
-    Uses /fixtures/players to get individual stats per match.
+    Fetch a player's recent FPL form — exact FPL points, minutes, goals, assists,
+    clean sheets, and bonus per gameweek. Uses the FPL element-summary endpoint so
+    all values are official FPL figures, not approximations.
     """
-    client = _get_api_sports_client()
-    # Step 1: get the last N fixture IDs the player appeared in
-    fix_resp = await client.get(
-        "/fixtures",
-        params={
-            "league": _PREMIER_LEAGUE_ID,
-            "season": _CURRENT_SEASON,
-            "last": last_n,
-            "player": player_id,
-        },
-    )
-    fix_resp.raise_for_status()
-    fixture_data = fix_resp.json()
+    bootstrap = await _get_bootstrap()
+    team_map = {t["id"]: t["name"] for t in bootstrap["teams"]}
 
-    fixture_ids = [item["fixture"]["id"] for item in fixture_data.get("response", [])]
+    name_lower = player_name.lower()
+    element = None
+    for p in bootstrap["elements"]:
+        full = f"{p['first_name']} {p['second_name']}".lower()
+        if name_lower in p["web_name"].lower() or name_lower in full:
+            element = p
+            break
 
-    # Step 2: for each fixture, fetch individual player stats
-    games = []
-    for fid in fixture_ids:
-        pr = await client.get("/fixtures/players", params={"fixture": fid})
-        if pr.status_code != 200:
-            continue
-        pr_data = pr.json()
-        for team in pr_data.get("response", []):
-            for player in team.get("players", []):
-                if player.get("player", {}).get("id") == player_id:
-                    s = player.get("statistics", [{}])[0]
-                    fix_meta = fixture_data["response"]
-                    meta = next((f for f in fix_meta if f["fixture"]["id"] == fid), {})
-                    teams = meta.get("teams", {})
-                    games.append(
-                        {
-                            "fixture_id": fid,
-                            "date": meta.get("fixture", {}).get("date", "")[:10],
-                            "home": teams.get("home", {}).get("name"),
-                            "away": teams.get("away", {}).get("name"),
-                            "result": (
-                                f"{meta.get('goals', {}).get('home')}-"
-                                f"{meta.get('goals', {}).get('away')}"
-                            ),
-                            "minutes": s.get("games", {}).get("minutes"),
-                            "goals": s.get("goals", {}).get("total") or 0,
-                            "assists": s.get("goals", {}).get("assists") or 0,
-                            "shots_on": s.get("shots", {}).get("on") or 0,
-                            "rating": s.get("games", {}).get("rating"),
-                        }
-                    )
-    return {"recent_form": games}
+    if not element:
+        return {"error": f"Player '{player_name}' not found in FPL data"}
+
+    client = _get_fpl_client()
+    resp = await client.get(f"/element-summary/{element['id']}/")
+    resp.raise_for_status()
+    history = resp.json().get("history", [])
+
+    recent = history[-last_n:] if len(history) >= last_n else history
+    games = [
+        {
+            "round": gw.get("round"),
+            "opponent": team_map.get(gw.get("opponent_team"), f"Team {gw.get('opponent_team')}"),
+            "home_away": "H" if gw.get("was_home") else "A",
+            "minutes": gw.get("minutes"),
+            "goals": gw.get("goals_scored"),
+            "assists": gw.get("assists"),
+            "clean_sheet": bool(gw.get("clean_sheets")),
+            "goals_conceded": gw.get("goals_conceded"),
+            "yellow_cards": gw.get("yellow_cards"),
+            "red_cards": gw.get("red_cards"),
+            "bonus": gw.get("bonus"),
+            "total_points": gw.get("total_points"),
+        }
+        for gw in recent
+    ]
+    return {
+        "player": f"{element['first_name']} {element['second_name']}",
+        "web_name": element["web_name"],
+        "team": team_map.get(element["team"], ""),
+        "recent_form": games,
+    }
 
 
 async def search_team(name: str) -> dict:
@@ -901,23 +897,24 @@ TOOL_DEFINITIONS = [
     {
         "name": "get_player_recent_form",
         "description": (
-            "Get a player's recent form — goals, assists, minutes, and rating per game. "
-            "Use this to assess whether a player is in form for captaincy or transfer decisions."
+            "Get a player's recent FPL form — exact FPL points, minutes, goals, assists, "
+            "clean sheets, and bonus per gameweek. All values are official FPL figures. "
+            "Use this to assess form for captaincy or transfer decisions."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "player_id": {
-                    "type": "integer",
-                    "description": "The API-Sports player ID.",
+                "player_name": {
+                    "type": "string",
+                    "description": "The player's name (web name or full name).",
                 },
                 "last_n": {
                     "type": "integer",
-                    "description": "Number of recent games to return. Defaults to 5.",
+                    "description": "Number of recent gameweeks to return. Defaults to 5.",
                     "default": 5,
                 },
             },
-            "required": ["player_id"],
+            "required": ["player_name"],
         },
     },
     {
