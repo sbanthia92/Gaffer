@@ -162,9 +162,10 @@ def review_file(
                     "2. Will it break something in production causing a bad customer"
                     " experience?\n\n"
                     "Only flag something if the answer to at least one question is yes.\n"
-                    "List each issue as:\n"
+                    "Do NOT use the issue format below for analysis or context — only use it for real issues.\n"
+                    "List each real issue as:\n"
                     "- `filename:line` — what's wrong and why it breaks something\n\n"
-                    "If there are no issues, respond with exactly 'No issues.'\n\n"
+                    "If there are no real issues, respond with exactly 'No issues.' with no bullet points.\n\n"
                     f"File: `{filename}`{note}\n\n"
                     f"```diff\n{d}\n```"
                 ),
@@ -179,6 +180,11 @@ def review_file(
 # Summary assembly
 # ---------------------------------------------------------------------------
 def has_issues(text: str) -> bool:
+    # The model is instructed to reply with exactly "No issues." when there are none.
+    # Trust that explicit conclusion over any intermediate analysis that happens to use
+    # the issue bullet format (e.g. referencing a line while explaining why it's fine).
+    if re.search(r"\bno issues\b", text, re.IGNORECASE):
+        return False
     # Match the specific issue format: `- \`filename:line\`` where filename:line contains a colon
     # followed by digits. Generic bullet points like `- \`function_name()\`` won't match.
     return bool(re.search(r"^- `[^`\n]+:\d+[^`\n]*`", text, re.MULTILINE))
