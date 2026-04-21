@@ -234,14 +234,7 @@ async def get_player_recent_form(player_name: str, last_n: int = 5) -> dict:
     bootstrap = await _get_bootstrap()
     team_map = {t["id"]: t["name"] for t in bootstrap["teams"]}
 
-    name_lower = player_name.lower()
-    element = None
-    for p in bootstrap["elements"]:
-        full = f"{p['first_name']} {p['second_name']}".lower()
-        if name_lower in p["web_name"].lower() or name_lower in full:
-            element = p
-            break
-
+    element = _find_player(bootstrap["elements"], player_name)
     if not element:
         return {"error": f"Player '{player_name}' not found in FPL data"}
 
@@ -409,14 +402,7 @@ async def get_player_vs_opponent(player_name: str, opponent_name: str, last_n: i
 
     bootstrap = await _get_bootstrap()
 
-    name_lower = player_name.lower()
-    element = None
-    for p in bootstrap["elements"]:
-        full = f"{p['first_name']} {p['second_name']}".lower()
-        if name_lower in p["web_name"].lower() or name_lower in full:
-            element = p
-            break
-
+    element = _find_player(bootstrap["elements"], player_name)
     if not element:
         return {"error": f"Player '{player_name}' not found in FPL data"}
 
@@ -430,7 +416,8 @@ async def get_player_vs_opponent(player_name: str, opponent_name: str, last_n: i
     if not opp_team:
         return {"error": f"Team '{opponent_name}' not found in FPL data"}
 
-    sql = f"""
+    last_n = max(1, min(int(last_n), 20))
+    sql = """
         SELECT
             g.gw_number,
             CASE WHEN g.was_home THEN 'H' ELSE 'A' END AS home_away,
@@ -445,12 +432,12 @@ async def get_player_vs_opponent(player_name: str, opponent_name: str, last_n: i
             ROUND(g.expected_assists::numeric, 2) AS xa,
             g.starts
         FROM gw_player_stats g
-        WHERE g.player_fpl_id = {element["id"]}
-          AND g.opponent_team_fpl_id = {opp_team["id"]}
+        WHERE g.player_fpl_id = $1
+          AND g.opponent_team_fpl_id = $2
         ORDER BY g.gw_number DESC
-        LIMIT {last_n}
+        LIMIT $3
     """
-    result = await _db_execute(sql)
+    result = await _db_execute(sql, (element["id"], opp_team["id"], last_n))
     return {
         "player": f"{element['first_name']} {element['second_name']}",
         "opponent": opp_team["name"],
@@ -591,6 +578,33 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
 
 _POSITION_MAP = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
 _POSITION_IDS = {"GKP": 1, "DEF": 2, "MID": 3, "FWD": 4}
+
+
+def _find_player(elements: list[dict], name: str) -> dict | None:
+    """Find a player in the bootstrap elements list by name.
+
+    Match priority (stops at first hit):
+      1. Exact web_name match (case-insensitive) — "Son" → Son Heung-min, not Johnson
+      2. Exact full-name match (case-insensitive)
+      3. web_name starts-with match
+      4. Substring match in web_name or full name (last resort)
+    """
+    q = name.strip().lower()
+    for p in elements:
+        if p["web_name"].lower() == q:
+            return p
+    full_name = lambda p: f"{p['first_name']} {p['second_name']}".lower()  # noqa: E731
+    for p in elements:
+        if full_name(p) == q:
+            return p
+    for p in elements:
+        if p["web_name"].lower().startswith(q):
+            return p
+    for p in elements:
+        if q in p["web_name"].lower() or q in full_name(p):
+            return p
+    return None
+
 
 # ── Bootstrap cache (prices/positions from live FPL API) ──────────────────────
 import time as _time  # noqa: E402
