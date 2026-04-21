@@ -229,9 +229,7 @@ async def test_get_player_recent_form_returns_per_game_stats():
     from server.tools import fpl as fpl_mod
 
     fpl_mod._bootstrap_cache = None  # force fresh fetch
-    respx.get(f"{_FPL}/bootstrap-static/").mock(
-        return_value=httpx.Response(200, json=bootstrap)
-    )
+    respx.get(f"{_FPL}/bootstrap-static/").mock(return_value=httpx.Response(200, json=bootstrap))
     respx.get(f"{_FPL}/element-summary/328/").mock(
         return_value=httpx.Response(200, json=element_summary)
     )
