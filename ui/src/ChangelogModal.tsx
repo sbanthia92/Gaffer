@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.21.0",
+    date: "21 Apr 2026",
+    changed: [
+      "CD now fires after auto-merged PRs — switched trigger from push to pull_request:closed (GitHub suppresses push events from GITHUB_TOKEN merges)",
+    ],
+  },
+  {
     version: "0.20.0",
     date: "21 Apr 2026",
     changed: [
