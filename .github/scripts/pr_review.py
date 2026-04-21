@@ -162,10 +162,10 @@ def review_file(
                     "2. Will it break something in production causing a bad customer"
                     " experience?\n\n"
                     "Only flag something if the answer to at least one question is yes.\n"
-                    "Do NOT use the issue format below for analysis or context — only use it for real issues.\n"
+                    "Do NOT use the bullet format below for analysis — only for real issues.\n"
                     "List each real issue as:\n"
                     "- `filename:line` — what's wrong and why it breaks something\n\n"
-                    "If there are no real issues, respond with exactly 'No issues.' with no bullet points.\n\n"
+                    "If there are no real issues, respond with exactly 'No issues.' — no bullets.\n\n"
                     f"File: `{filename}`{note}\n\n"
                     f"```diff\n{d}\n```"
                 ),
