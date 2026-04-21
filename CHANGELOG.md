@@ -2,6 +2,17 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.20.0] — 2026-04-21
+
+### Fixed
+- **ETL cron was silently failing** — `cronie` was never installed on EC2 so no scheduled jobs ran. Installed cronie + systemd-enabled crond. All four cron commands were also missing `ENVIRONMENT=production`, causing Secrets Manager to be skipped and `anthropic_api_key`/`api_sports_key` to be unset on every run. Added `ENVIRONMENT=production` to all cron entries in `setup_cron.sh`. Root cause of stale GW stats (e.g. Salah showing 0 minutes in GW31/32).
+- **Auto-merge permission error** — `claude-pr-review.yml` had `contents: read`; `gh pr merge --auto` uses the GraphQL `mergePullRequest` mutation which requires `contents: write`. Changed to `write`.
+
+### Changed
+- **V1 removed** — `_build_system_prompt` V1 wrapper deleted; `version` field removed from `AskRequest`, `claude_client.ask()`, and `api.ts`. V2 (PostgreSQL + live tools + press RAG) is the only code path.
+- **`fpl` Pinecone namespace removed** — `pipeline/ingest_fpl.py` and its tests deleted; daily `ingest_fpl` cron removed from `setup_cron.sh`. Pinecone now holds only the `press` namespace (injury news + match reports).
+- **`get_v2_tool_definitions` renamed to `get_tool_definitions`** — no version suffix needed now that V1 is gone.
+
 ## [0.19.0] — 2026-04-20
 
 ### Fixed
