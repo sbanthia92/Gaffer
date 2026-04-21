@@ -17,12 +17,12 @@ server/
   main.py              # FastAPI app — /fpl/ask is the main SSE endpoint
   claude_client.py     # Sport-agnostic Anthropic SDK wrapper; tool-use loop + streaming
   config.py            # All config via pydantic-settings `settings` object
-  rag.py               # Pinecone RAG — always takes namespace + recency_weight params
+  rag.py               # Pinecone RAG — queries the 'press' namespace only
   fpl_cache.py         # In-memory FPL bootstrap cache (player cards)
   logger.py            # Structured logging
   tools/
     fpl.py             # All 15 FPL tool implementations
-    db.py              # V2 query_database tool (text-to-SQL)
+    db.py              # query_database tool (text-to-SQL against PostgreSQL)
 ui/                    # React + Vite + TypeScript frontend
 tests/                 # pytest; asyncio_mode = auto
 pipeline/              # ETL pipeline for PostgreSQL historical data
@@ -50,10 +50,11 @@ uvicorn server.main:app --reload --port 8000
 - **Delete branch after merge**: `git push origin --delete <branch>` once the PR is merged
 
 ## Every PR checklist
-Every PR — no matter how small — must include all three of these:
+Every PR — no matter how small — must include all four of these:
 1. **Bump the minor version** (`0.x.0 → 0.x+1.0`) in `CHANGELOG.md`
 2. **Add a `CHANGELOG.md` entry** under the new version with what changed and why
 3. **Update `CLAUDE.md`** if the change affects conventions, architecture, domain knowledge, or known gotchas
+4. **Update the UI changelog** — bump the version string in `ui/src/Landing.tsx` ("What's new in vX.Y.Z →") and add a new entry at the top of `RELEASES` in `ui/src/ChangelogModal.tsx`
 
 ## Commit conventions (conventional commits)
 - `feat:` — new user-facing behaviour
@@ -83,6 +84,7 @@ Be accurate — don't use `feat:` for a bug fix just because it involves new cod
 - **Transfer rules**: position must be like-for-like (MID→MID only); always pass `position=` to `search_players_by_criteria` when finding replacements
 - **Fixture source of truth**: `get_team_all_fixtures` wins over `get_gameweek_schedule` when they conflict
 - **Player search**: `search_player` returns `team` so Claude can disambiguate players sharing a surname
+- **Squad composition**: A full FPL squad is exactly 15 players — 2 GKP, 5 DEF, 5 MID, 3 FWD. The starting XI must field at least 1 GKP, 3 DEF, 2 MID, 1 FWD. This is enforced in the system prompt so Free-Hit/Wildcard squads are always structurally valid.
 
 ## Streaming / X-Ray gotcha
 The FastAPI middleware ends the X-Ray segment as soon as `StreamingResponse` is returned — **before** the async generator starts yielding SSE events. Never put `xray_recorder.in_subsegment()` calls inside `_generate()` — they throw "Already ended segment" errors.
@@ -99,5 +101,6 @@ Required secret: `ANTHROPIC_API_KEY` (set via GitHub repo settings → Secrets).
 ## Deployment
 - **Production**: AWS EC2 (single instance), nginx reverse proxy (`proxy_read_timeout 300s`), systemd service
 - **CI/CD**: GitHub Actions — CI on every PR targeting main, auto-deploy to EC2 on merge to main
-- **Secrets**: `/etc/gaffer/.env` on EC2 — never commit secrets
-- **SSH to EC2**: `ssh -i ~/.ssh/gaffer.pem ec2-user@<ELASTIC_IP>`
+- **Secrets**: AWS Secrets Manager (`gaffer/production`) — fetched at startup when `ENVIRONMENT=production`. No `.env` file on EC2.
+- **SSH to EC2**: `ssh -i ~/.ssh/gaffer_ec2 ec2-user@the-gaffer.io`
+- **ETL crons**: managed by `cronie` (must be installed via `sudo dnf install -y cronie && sudo systemctl enable --now crond`). All cron commands require `ENVIRONMENT=production` prefix — cron doesn't inherit the shell environment so Secrets Manager is skipped without it. Reinstall with `bash scripts/setup_cron.sh`. Three jobs: hourly snapshot, Tuesday GW sync, twice-daily press ingestion.
