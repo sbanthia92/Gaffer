@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.23.0",
+    date: "21 Apr 2026",
+    changed: [
+      "Player form data now uses FPL API directly — exact GW points, CS, bonus, minutes, and opponents (was using API-Sports which has no FPL data, causing Claude to hallucinate the table values)",
+    ],
+  },
+  {
     version: "0.22.0",
     date: "21 Apr 2026",
     changed: [

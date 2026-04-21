@@ -158,6 +158,7 @@ def _build_system_prompt(rag_context: str, league: str, fpl_team_id: int | None 
         "TOOL SELECTION GUIDE:\n"
         "- Historical stats, past GW points, H2H vs opponent, season trends → query_database\n"
         "- Current price, ownership %, live form score → search_players_by_criteria (live)\n"
+        "- Recent GW points, CS, bonus, minutes per GW → get_player_recent_form (live FPL data)\n"
         "- Your FPL squad, chips, free transfers → get_my_fpl_team, get_chip_status (live)\n"
         "- Next fixtures, odds → get_fixtures, get_odds (live)\n"
         "- Anything needing both: call live tools first, then query_database for history\n\n"

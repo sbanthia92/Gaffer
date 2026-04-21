@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.23.0] — 2026-04-21
+
+### Fixed
+- **Wrong player form data (minutes, points, CS, bonus, opponents)** — `get_player_recent_form` was calling the API-Sports `/fixtures/players` endpoint which returns raw football stats only. Claude had to compute FPL points, clean sheets, and bonus itself and got them wrong. Rewrote the tool to call the FPL API's `/element-summary/{id}/` endpoint directly, which returns exact per-GW FPL figures (total_points, bonus, clean_sheets, minutes, goals_scored, assists, opponent_team). Player is now looked up by name via bootstrap data so no API-Sports player ID is needed.
+
 ## [0.22.0] — 2026-04-21
 
 ### Fixed
