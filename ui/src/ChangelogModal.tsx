@@ -9,6 +9,14 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.27.0",
+    date: "22 Apr 2026",
+    changed: [
+      "Gameweek schedule now includes fixture difficulty (1–5) for each match — Claude can assess fixture runs without an extra tool call",
+      "Fixed false blank gameweek flags for unscheduled future GWs — only genuine blanks are reported now",
+    ],
+  },
+  {
     version: "0.26.0",
     date: "21 Apr 2026",
     changed: [

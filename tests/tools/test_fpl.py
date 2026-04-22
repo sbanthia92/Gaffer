@@ -7,6 +7,7 @@ import respx
 from server.tools.fpl import (
     TOOL_DEFINITIONS,
     get_fixtures,
+    get_gameweek_schedule,
     get_head_to_head,
     get_my_fpl_team,
     get_odds,
@@ -614,6 +615,72 @@ async def test_search_players_by_criteria_form_sort():
     # PlayerB has lower total_points but higher form — should rank first
     assert result["players"][0]["name"] == "PlayerB"
     assert result["players"][1]["name"] == "PlayerA"
+
+
+@pytest.mark.asyncio
+async def test_get_gameweek_schedule_includes_difficulty_and_skips_unscheduled_blanks():
+    _FPL = "https://fantasy.premierleague.com/api"
+    bootstrap = {
+        "events": [
+            {
+                "id": 36,
+                "is_current": True,
+                "is_next": False,
+                "deadline_time": "2026-04-28T17:30:00Z",
+            },  # noqa: E501
+            {
+                "id": 37,
+                "is_current": False,
+                "is_next": True,
+                "deadline_time": "2026-05-05T17:30:00Z",
+            },  # noqa: E501
+        ],
+        "teams": [
+            {"id": 1, "short_name": "ARS"},
+            {"id": 2, "short_name": "CHE"},
+            {"id": 3, "short_name": "LIV"},
+        ],
+        "elements": [],
+    }
+    # GW36 has one fixture; GW37 has no fixtures assigned yet (unscheduled)
+    fixtures = [
+        {
+            "event": 36,
+            "team_h": 1,
+            "team_a": 2,
+            "team_h_difficulty": 3,
+            "team_a_difficulty": 4,
+        }
+    ]
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
+    fpl_mod._slow_cache.clear()
+    with respx.mock:
+        respx.get(f"{_FPL}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=bootstrap)
+        )
+        respx.get(f"{_FPL}/fixtures/").mock(return_value=httpx.Response(200, json=fixtures))
+        result = await get_gameweek_schedule(next_n=2)
+
+    schedule = result["gameweek_schedule"]
+    assert len(schedule) == 2
+
+    gw36 = schedule[0]
+    assert gw36["gameweek"] == 36
+    # Fixtures now include difficulty
+    assert gw36["fixtures"][0]["home"] == "ARS"
+    assert gw36["fixtures"][0]["away"] == "CHE"
+    assert gw36["fixtures"][0]["home_difficulty"] == 3
+    assert gw36["fixtures"][0]["away_difficulty"] == 4
+    # LIV has no fixture in GW36 → genuine blank
+    assert "LIV" in gw36["blank_gameweek_teams"]
+    assert gw36["is_blank_gw"] is True
+
+    gw37 = schedule[1]
+    # GW37 has no fixtures assigned → not a blank, just unscheduled
+    assert gw37["blank_gameweek_teams"] == []
+    assert gw37["is_blank_gw"] is False
 
 
 def test_tool_definitions_structure():

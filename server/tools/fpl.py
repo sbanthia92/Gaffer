@@ -772,12 +772,23 @@ async def get_gameweek_schedule(next_n: int = 8) -> dict:
                     team_fixture_count[h] = team_fixture_count.get(h, 0) + 1
                 if a:
                     team_fixture_count[a] = team_fixture_count.get(a, 0) + 1
-                gw_fixture_list.append(f"{team_map.get(h, '?')} vs {team_map.get(a, '?')}")
+                gw_fixture_list.append(
+                    {
+                        "home": team_map.get(h, "?"),
+                        "away": team_map.get(a, "?"),
+                        "home_difficulty": f.get("team_h_difficulty"),
+                        "away_difficulty": f.get("team_a_difficulty"),
+                    }
+                )
 
             double_gw_teams = [team_map[tid] for tid, cnt in team_fixture_count.items() if cnt >= 2]
-            blank_gw_teams = [
-                team_map[tid] for tid in all_team_ids if team_fixture_count.get(tid, 0) == 0
-            ]
+            # Only flag blanks when the GW has fixtures assigned — if no fixtures exist yet
+            # the GW is simply unscheduled, not a genuine blank gameweek.
+            blank_gw_teams = (
+                [team_map[tid] for tid in all_team_ids if team_fixture_count.get(tid, 0) == 0]
+                if gw_fixtures
+                else []
+            )
 
             schedule.append(
                 {
