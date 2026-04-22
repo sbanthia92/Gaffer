@@ -16,6 +16,7 @@ from server.tools.fpl import (
     get_standings,
     get_team_all_fixtures,
     get_team_recent_fixtures,
+    search_players_by_criteria,
     search_team,
 )
 
@@ -455,6 +456,164 @@ async def test_api_error_raises():
     respx.get(f"{_BASE}/fixtures").mock(return_value=httpx.Response(401))
     with pytest.raises(httpx.HTTPStatusError):
         await get_fixtures()
+
+
+@pytest.mark.asyncio
+async def test_search_players_by_criteria_sorts_by_form_and_includes_defensive_stats():
+    _FPL = "https://fantasy.premierleague.com/api"
+    bootstrap = {
+        "elements": [
+            {
+                "id": 1,
+                "web_name": "Salah",
+                "team": 10,
+                "element_type": 3,
+                "now_cost": 130,
+                "total_points": 200,
+                "event_points": 12,
+                "points_per_game": "8.5",
+                "form": "5.0",
+                "minutes": 2700,
+                "goals_scored": 18,
+                "assists": 10,
+                "clean_sheets": 3,
+                "bonus": 25,
+                "saves": 0,
+                "expected_goals": "15.2",
+                "expected_assists": "8.1",
+                "expected_goal_involvements": "23.3",
+                "ict_index": "310.5",
+                "selected_by_percent": "45.0",
+                "transfers_in_event": 50000,
+                "transfers_out_event": 10000,
+                "status": "a",
+                "news": "",
+                "chance_of_playing_this_round": None,
+            },
+            {
+                "id": 2,
+                "web_name": "Trent",
+                "team": 10,
+                "element_type": 2,
+                "now_cost": 75,
+                "total_points": 120,
+                "event_points": 6,
+                "points_per_game": "5.0",
+                "form": "8.0",
+                "minutes": 2000,
+                "goals_scored": 2,
+                "assists": 8,
+                "clean_sheets": 10,
+                "bonus": 12,
+                "saves": 0,
+                "expected_goals": "1.5",
+                "expected_assists": "6.0",
+                "expected_goal_involvements": "7.5",
+                "ict_index": "150.0",
+                "selected_by_percent": "30.0",
+                "transfers_in_event": 20000,
+                "transfers_out_event": 5000,
+                "status": "a",
+                "news": "",
+                "chance_of_playing_this_round": None,
+            },
+        ],
+        "teams": [{"id": 10, "short_name": "LIV"}],
+        "events": [],
+    }
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
+    with respx.mock:
+        respx.get(f"{_FPL}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=bootstrap)
+        )
+        result = await search_players_by_criteria(position="DEF", max_price=8.0)
+
+    assert "players" in result
+    assert len(result["players"]) == 1
+    p = result["players"][0]
+    assert p["name"] == "Trent"
+    assert p["clean_sheets"] == 10
+    assert p["bonus"] == 12
+    assert p["saves"] == 0
+
+
+@pytest.mark.asyncio
+async def test_search_players_by_criteria_form_sort():
+    _FPL = "https://fantasy.premierleague.com/api"
+    bootstrap = {
+        "elements": [
+            {
+                "id": 1,
+                "web_name": "PlayerA",
+                "team": 1,
+                "element_type": 4,
+                "now_cost": 80,
+                "total_points": 150,
+                "event_points": 6,
+                "points_per_game": "6.0",
+                "form": "4.0",
+                "minutes": 2500,
+                "goals_scored": 10,
+                "assists": 3,
+                "clean_sheets": 0,
+                "bonus": 8,
+                "saves": 0,
+                "expected_goals": "9.0",
+                "expected_assists": "2.5",
+                "expected_goal_involvements": "11.5",
+                "ict_index": "200.0",
+                "selected_by_percent": "20.0",
+                "transfers_in_event": 1000,
+                "transfers_out_event": 500,
+                "status": "a",
+                "news": "",
+                "chance_of_playing_this_round": None,
+            },
+            {
+                "id": 2,
+                "web_name": "PlayerB",
+                "team": 2,
+                "element_type": 4,
+                "now_cost": 70,
+                "total_points": 80,
+                "event_points": 14,
+                "points_per_game": "7.0",
+                "form": "9.5",
+                "minutes": 1800,
+                "goals_scored": 7,
+                "assists": 2,
+                "clean_sheets": 0,
+                "bonus": 15,
+                "saves": 0,
+                "expected_goals": "6.0",
+                "expected_assists": "1.5",
+                "expected_goal_involvements": "7.5",
+                "ict_index": "180.0",
+                "selected_by_percent": "10.0",
+                "transfers_in_event": 5000,
+                "transfers_out_event": 200,
+                "status": "a",
+                "news": "",
+                "chance_of_playing_this_round": None,
+            },
+        ],
+        "teams": [{"id": 1, "short_name": "MCY"}, {"id": 2, "short_name": "AVL"}],
+        "events": [],
+    }
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
+    with respx.mock:
+        respx.get(f"{_FPL}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=bootstrap)
+        )
+        result = await search_players_by_criteria(position="FWD")
+
+    # PlayerB has lower total_points but higher form — should rank first
+    assert result["players"][0]["name"] == "PlayerB"
+    assert result["players"][1]["name"] == "PlayerA"
 
 
 def test_tool_definitions_structure():
