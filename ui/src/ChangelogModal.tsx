@@ -9,6 +9,14 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.26.0",
+    date: "21 Apr 2026",
+    changed: [
+      "Transfer suggestions now rank by form — in-form players surface first instead of season-long accumulators",
+      "Defender/keeper search now includes clean sheets, bonus, and saves so Claude has full scoring context",
+    ],
+  },
+  {
     version: "0.25.0",
     date: "21 Apr 2026",
     changed: [

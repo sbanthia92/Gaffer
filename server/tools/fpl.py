@@ -635,6 +635,9 @@ async def search_players_by_criteria(
                 "minutes": p.get("minutes", 0),
                 "goals_scored": p.get("goals_scored", 0),
                 "assists": p.get("assists", 0),
+                "clean_sheets": p.get("clean_sheets", 0),
+                "bonus": p.get("bonus", 0),
+                "saves": p.get("saves", 0),
                 "expected_goals": p.get("expected_goals"),
                 "expected_assists": p.get("expected_assists"),
                 "expected_goal_involvements": p.get("expected_goal_involvements"),
@@ -648,8 +651,9 @@ async def search_players_by_criteria(
             }
         )
 
-    # Sort by total points descending, return top N
-    results.sort(key=lambda x: x["total_points"], reverse=True)
+    # Sort by form descending — transfer recommendations need in-form players first,
+    # not season-long accumulators who may have gone cold.
+    results.sort(key=lambda x: float(x["form"] or 0), reverse=True)
     return {"players": results[:top_n], "total_found": len(results)}
 
 

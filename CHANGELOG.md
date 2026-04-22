@@ -2,6 +2,12 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.26.0] — 2026-04-21
+
+### Fixed
+- **`search_players_by_criteria` sorted by total points instead of form** — transfer recommendations were ranking season-long accumulators above in-form players. Results are now sorted by FPL form (descending) so Claude surfaces players on current hot streaks.
+- **`search_players_by_criteria` missing defensive stats** — `clean_sheets`, `bonus`, and `saves` were absent from results. Defenders and keepers are now returned with full scoring context so Claude can make accurate position-specific transfer suggestions.
+
 ## [0.25.0] — 2026-04-21
 
 ### Fixed
