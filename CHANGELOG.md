@@ -2,6 +2,12 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.27.0] — 2026-04-22
+
+### Fixed
+- **`get_gameweek_schedule` flagged false blank gameweeks for unscheduled GWs** — when a future gameweek had no fixtures assigned yet, all 20 teams were incorrectly flagged as blank. Now `blank_gameweek_teams` is only populated when the GW has at least one fixture assigned.
+- **`get_gameweek_schedule` missing fixture difficulty** — fixtures were returned as plain `"ARS vs CHE"` strings with no difficulty rating. Each fixture now includes `home_difficulty` and `away_difficulty` (1–5 FPL scale) so Claude can assess fixture run quality directly from the pre-fetched schedule.
+
 ## [0.26.0] — 2026-04-21
 
 ### Fixed
