@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useNavigate } from "react-router-dom";
-import { askGaffer, fetchPlayerCard, submitFeedback } from "./api";
+import { askGaffer, fetchPlayerCard, submitFeedback, type PlayerCard as PlayerCardData } from "./api";
+import { PlayerChip } from "./PlayerCard";
 import {
   appendMessage,
   deleteSession,
@@ -189,7 +190,7 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
 const PLAYER_TAG = /\[\[([^\]]+)\]\]/g;
 const PLAYER_TOKEN = /(PLAYER_[A-Z0-9_]+)/g;
 
-type TooltipMap = Record<string, { display: string; tooltip: string }>;
+type TooltipMap = Record<string, { display: string; card: PlayerCardData | null }>;
 
 // Normalize a player name to a safe ASCII token key, e.g. "João Pedro" → "PLAYER_JOAO_PEDRO"
 function toTokenKey(name: string): string {
@@ -224,10 +225,7 @@ function GafferMarkdown({ content }: { content: string }) {
         let processed = content;
         for (const { name, card } of results) {
           const key = toTokenKey(name);
-          map[key] = {
-            display: card?.name ?? name,
-            tooltip: card ? `${card.team} · ${card.position} · £${card.price.toFixed(1)}m` : name,
-          };
+          map[key] = { display: card?.name ?? name, card };
           processed = processed.replaceAll(`[[${name}]]`, key);
         }
         setText(processed);
@@ -264,15 +262,15 @@ function renderWithTooltips(children: React.ReactNode, tooltips: TooltipMap): Re
     if (typeof child === "string") {
       const parts = child.split(PLAYER_TOKEN);
       if (parts.length === 1) return child;
-      return parts.map((part, i) =>
-        tooltips[part] ? (
-          <abbr key={i} title={tooltips[part].tooltip} className="player-abbr">
-            {tooltips[part].display}
-          </abbr>
+      return parts.map((part, i) => {
+        const entry = tooltips[part];
+        if (!entry) return part;
+        return entry.card ? (
+          <PlayerChip key={i} card={entry.card} fallback={entry.display} />
         ) : (
-          part
-        )
-      );
+          <span key={i}>{entry.display}</span>
+        );
+      });
     }
     // Recurse into React elements (e.g. <strong> wrapping a player token)
     if (React.isValidElement<{ children?: React.ReactNode }>(child) && child.props.children) {

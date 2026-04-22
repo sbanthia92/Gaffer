@@ -1,73 +1,38 @@
 """
-FPL bootstrap-static cache.
+FPL player card helper.
 
-The bootstrap-static endpoint is ~2MB and contains all player/team data.
-We cache it in memory with a 1-hour TTL — prices only change daily so
-this is more than fresh enough.
+Delegates bootstrap fetching to server.tools.fpl._get_bootstrap() so the
+entire server shares one bootstrap cache — no duplicate /bootstrap-static/
+calls between the tools layer and the player card endpoint.
 """
 
-import time
-
-import httpx
-
-_FPL_BASE = "https://fantasy.premierleague.com/api"
-_CACHE_TTL = 3600  # 1 hour
-
-_bootstrap: dict | None = None
-_bootstrap_ts: float = 0
+from server.tools.fpl import _find_player, _get_bootstrap
 
 _POSITION_MAP = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
 
 
-async def _fetch_bootstrap() -> dict:
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        r = await client.get(f"{_FPL_BASE}/bootstrap-static/")
-        r.raise_for_status()
-        return r.json()
-
-
-async def get_bootstrap() -> dict:
-    global _bootstrap, _bootstrap_ts
-    if _bootstrap is None or time.monotonic() - _bootstrap_ts > _CACHE_TTL:
-        _bootstrap = await _fetch_bootstrap()
-        _bootstrap_ts = time.monotonic()
-    return _bootstrap
-
-
 async def get_player_card(name: str) -> dict | None:
     """
-    Find a player by name (case-insensitive, partial match on web_name or full name)
-    and return card data: photo URL, price, form, points, position, selected_by_percent.
+    Find a player by name and return card data.
+    Uses the shared bootstrap cache — no extra API call if tools already warmed it.
     Returns None if no match found.
     """
-    data = await get_bootstrap()
+    data = await _get_bootstrap()
     elements = data.get("elements", [])
     teams = {t["id"]: t["short_name"] for t in data.get("teams", [])}
 
-    name_lower = name.lower()
-
-    # Try web_name first (e.g. "Salah"), then full name
-    match = None
-    for p in elements:
-        if p.get("web_name", "").lower() == name_lower:
-            match = p
-            break
-
-    if not match:
-        for p in elements:
-            full = f"{p.get('first_name', '')} {p.get('second_name', '')}".lower()
-            if name_lower in full or full in name_lower:
-                match = p
-                break
-
+    match = _find_player(elements, name)
     if not match:
         return None
 
-    photo = match.get("photo", "")
-    photo_id = photo.replace(".jpg", "")
+    photo_id = match.get("photo", "").replace(".jpg", "")
     photo_url = (
         f"https://resources.premierleague.com/premierleague/photos/players/110x140/p{photo_id}.png"
     )
+
+    status = match.get("status", "a")
+    news = match.get("news") or None
+    chance = match.get("chance_of_playing_this_round")
 
     return {
         "id": match["id"],
@@ -78,6 +43,11 @@ async def get_player_card(name: str) -> dict | None:
         "price": match["now_cost"] / 10,
         "form": match.get("form", "0.0"),
         "total_points": match.get("total_points", 0),
+        "event_points": match.get("event_points", 0),
+        "points_per_game": match.get("points_per_game", "0.0"),
         "selected_by_percent": match.get("selected_by_percent", "0.0"),
+        "status": status,
+        "news": news,
+        "chance_of_playing_this_round": chance,
         "photo_url": photo_url,
     }
