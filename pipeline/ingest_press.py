@@ -18,7 +18,7 @@ import asyncio
 import hashlib
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
 import httpx
@@ -58,7 +58,7 @@ def _days_ago(pub_date_str: str) -> float:
     """Return how many days ago the article was published. Returns 999 on parse failure."""
     try:
         dt = parsedate_to_datetime(pub_date_str)
-        delta = datetime.now(datetime.UTC) - dt
+        delta = datetime.now(timezone.utc) - dt  # noqa: UP017
         return delta.total_seconds() / 86400
     except Exception:
         return 999
@@ -177,11 +177,29 @@ def build_player_news_docs(
 # ---------------------------------------------------------------------------
 
 
+def _existing_ids(index, ids: list[str]) -> set[str]:
+    """Fetch which of the given IDs already exist in Pinecone (batches of 1000)."""
+    existing: set[str] = set()
+    for start in range(0, len(ids), 1000):
+        batch = ids[start : start + 1000]
+        result = index.fetch(ids=batch, namespace=_NAMESPACE)
+        existing.update(result.vectors.keys())
+    return existing
+
+
 def _upsert(pc: Pinecone, index, docs: list[tuple[str, str, dict]]) -> int:
-    """Embed and upsert docs in batches. Returns number of vectors upserted."""
+    """Embed and upsert only new docs (skips IDs already in Pinecone). Returns count upserted."""
+    all_ids = [doc_id for doc_id, _, _ in docs]
+    existing = _existing_ids(index, all_ids)
+    new_docs = [(doc_id, text, meta) for doc_id, text, meta in docs if doc_id not in existing]
+    print(f"  {len(existing)} already in Pinecone, {len(new_docs)} new to embed")
+
+    if not new_docs:
+        return 0
+
     total = 0
-    for start in range(0, len(docs), _UPSERT_BATCH):
-        batch = docs[start : start + _UPSERT_BATCH]
+    for start in range(0, len(new_docs), _UPSERT_BATCH):
+        batch = new_docs[start : start + _UPSERT_BATCH]
         texts = [text for _, text, _ in batch]
 
         embeddings = pc.inference.embed(
@@ -196,9 +214,9 @@ def _upsert(pc: Pinecone, index, docs: list[tuple[str, str, dict]]) -> int:
         ]
         index.upsert(vectors=vectors, namespace=_NAMESPACE)
         total += len(vectors)
-        print(f"  upserted {total}/{len(docs)}")
+        print(f"  upserted {total}/{len(new_docs)}")
 
-        if start + _UPSERT_BATCH < len(docs):
+        if start + _UPSERT_BATCH < len(new_docs):
             time.sleep(8)
 
     return total

@@ -9,6 +9,14 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.31.0",
+    date: "23 Apr 2026",
+    changed: [
+      "Press ingest fixed — RSS articles were silently filtered as 999 days old due to a Python datetime bug; injury news and manager quotes now flow correctly",
+      "Pinecone token usage cut — ingest now skips re-embedding player news that hasn't changed since last run",
+    ],
+  },
+  {
     version: "0.30.0",
     date: "23 Apr 2026",
     changed: [
