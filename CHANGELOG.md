@@ -2,6 +2,12 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.31.0] — 2026-04-23
+
+### Fixed
+- **Press ingest returning 0 RSS articles** — `_days_ago()` used `datetime.UTC` on the imported `datetime` class (not the module), which raises `AttributeError` at runtime; caught silently, returned 999 days, filtered every article as too old. Fixed to use `timezone.utc` instead.
+- **Pinecone monthly token limit exhausted** — press ingest re-embedded all 301 player news vectors on every run even when nothing changed. `_upsert()` now fetches existing vector IDs from Pinecone first and only embeds documents whose IDs are not already present.
+
 ## [0.30.0] — 2026-04-23
 
 ### Fixed
