@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.30.0] — 2026-04-23
+
+### Fixed
+- **Claude reporting teams as blank when they have a fixture** — the FPL API holds rearranged fixtures at `event=null` until officially confirmed, so they don't appear in the schedule fixture count and teams show as blank incorrectly. Fixed with two layers: (1) schedule now attaches a `blank_gw_warning` inline when blank teams are detected, requiring Claude to verify each one; (2) system prompt rule is now mandatory — Claude must call `get_team_all_fixtures` for every team in `blank_gameweek_teams` before reporting it as blank.
+
 ## [0.29.0] — 2026-04-23
 
 ### Fixed

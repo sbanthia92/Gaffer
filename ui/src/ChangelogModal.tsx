@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.30.0",
+    date: "23 Apr 2026",
+    changed: [
+      "Fixed false blank gameweek reports — Claude now must verify every team flagged as blank via get_team_all_fixtures before reporting it (FPL API holds rearranged fixtures at event=null)",
+    ],
+  },
+  {
     version: "0.29.0",
     date: "23 Apr 2026",
     changed: [
