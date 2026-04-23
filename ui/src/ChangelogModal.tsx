@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.29.0",
+    date: "23 Apr 2026",
+    changed: [
+      "Auto-merge now blocked when any CI check is failing — previously a failing UI build was silently ignored",
+    ],
+  },
+  {
     version: "0.28.0",
     date: "22 Apr 2026",
     changed: [
