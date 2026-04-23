@@ -253,8 +253,13 @@ def ci_is_failing(sha: str, repo: str) -> bool:
     """Return True if any non-claude-review check run is completed with a failure conclusion."""
     owner, repo_name = repo.split("/", 1)
     result = subprocess.run(
-        ["gh", "api", f"/repos/{owner}/{repo_name}/commits/{sha}/check-runs",
-         "--jq", ".check_runs[] | select(.name != \"claude-review\") | {name, status, conclusion}"],
+        [
+            "gh",
+            "api",
+            f"/repos/{owner}/{repo_name}/commits/{sha}/check-runs",
+            "--jq",
+            '.check_runs[] | select(.name != "claude-review") | {name, status, conclusion}',
+        ],
         capture_output=True,
         text=True,
     )
@@ -266,7 +271,10 @@ def ci_is_failing(sha: str, repo: str) -> bool:
         except json.JSONDecodeError:
             continue
         if run.get("status") == "completed" and run.get("conclusion") not in (
-            "success", "skipped", "neutral", None
+            "success",
+            "skipped",
+            "neutral",
+            None,
         ):
             print(f"CI check failing: {run['name']} → {run['conclusion']}", flush=True)
             return True
