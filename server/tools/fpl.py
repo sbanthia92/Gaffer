@@ -790,17 +790,26 @@ async def get_gameweek_schedule(next_n: int = 8) -> dict:
                 else []
             )
 
-            schedule.append(
-                {
-                    "gameweek": gw_id,
-                    "deadline": event.get("deadline_time", "")[:16],
-                    "fixtures": gw_fixture_list,
-                    "double_gameweek_teams": sorted(double_gw_teams),
-                    "blank_gameweek_teams": sorted(blank_gw_teams),
-                    "is_double_gw": len(double_gw_teams) > 0,
-                    "is_blank_gw": len(blank_gw_teams) > 0,
-                }
-            )
+            entry: dict = {
+                "gameweek": gw_id,
+                "deadline": event.get("deadline_time", "")[:16],
+                "fixtures": gw_fixture_list,
+                "double_gameweek_teams": sorted(double_gw_teams),
+                "blank_gameweek_teams": sorted(blank_gw_teams),
+                "is_double_gw": len(double_gw_teams) > 0,
+                "is_blank_gw": len(blank_gw_teams) > 0,
+            }
+            # Rearranged fixtures are held at event=null until officially confirmed,
+            # so blank_gw_teams can contain false positives. Attach a warning inline
+            # so Claude sees it adjacent to the data and knows to verify.
+            if blank_gw_teams:
+                entry["blank_gw_warning"] = (
+                    "UNVERIFIED — the FPL API holds rearranged fixtures at event=null, "
+                    "so these teams may have a fixture not counted here. "
+                    "You MUST call get_team_all_fixtures for every team listed in "
+                    "blank_gameweek_teams before reporting them as blank."
+                )
+            schedule.append(entry)
 
         result = {"gameweek_schedule": schedule}
         _cache_set(key, result)
