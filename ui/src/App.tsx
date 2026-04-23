@@ -266,7 +266,7 @@ function renderWithTooltips(children: React.ReactNode, tooltips: TooltipMap): Re
         const entry = tooltips[part];
         if (!entry) return part;
         return entry.card ? (
-          <PlayerChip key={i} card={entry.card} fallback={entry.display} />
+          <PlayerChip key={i} card={entry.card} />
         ) : (
           <span key={i}>{entry.display}</span>
         );

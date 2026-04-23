@@ -249,6 +249,30 @@ def post_comment(body: str, pr_number: str, repo: str) -> None:
     )
 
 
+def ci_is_failing(sha: str, repo: str) -> bool:
+    """Return True if any non-claude-review check run is completed with a failure conclusion."""
+    owner, repo_name = repo.split("/", 1)
+    result = subprocess.run(
+        ["gh", "api", f"/repos/{owner}/{repo_name}/commits/{sha}/check-runs",
+         "--jq", ".check_runs[] | select(.name != \"claude-review\") | {name, status, conclusion}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False  # can't determine — don't block
+    for line in result.stdout.strip().splitlines():
+        try:
+            run = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if run.get("status") == "completed" and run.get("conclusion") not in (
+            "success", "skipped", "neutral", None
+        ):
+            print(f"CI check failing: {run['name']} → {run['conclusion']}", flush=True)
+            return True
+    return False
+
+
 def set_commit_status(state: str, description: str, sha: str, repo: str, run_id: str) -> None:
     owner, repo_name = repo.split("/", 1)
     target_url = f"https://github.com/{owner}/{repo_name}/actions/runs/{run_id}"
@@ -373,21 +397,27 @@ def main() -> None:
         state, desc = "failure", "Issues found — must fix before merging"
     else:
         state, desc = "success", "No issues — good to merge"
-        # GH_PAT must be a PAT (not GITHUB_TOKEN) so the resulting push to main
-        # is attributed to a human user and triggers the CD push workflow.
-        # GITHUB_TOKEN-initiated merges are suppressed by GitHub's anti-loop
-        # policy and will not fire push: branches: [main] in other workflows.
-        merge_token = os.environ.get("GH_PAT") or os.environ.get("GITHUB_TOKEN", "")
-        if not merge_token:
-            print("No token available for auto-merge — skipping.")
+        # Block auto-merge if any CI job is already failing — --auto only waits
+        # for required status checks, so a failing ui-build/lint/test would be ignored
+        # unless they are also marked required in branch protection settings.
+        if ci_is_failing(pr_sha, repo):
+            print("CI check(s) are failing — skipping auto-merge.", flush=True)
         else:
-            env = {**os.environ, "GH_TOKEN": merge_token}
-            result = subprocess.run(
-                ["gh", "pr", "merge", pr_number, "--auto", "--squash", "--repo", repo],
-                env=env,
-            )
-            if result.returncode != 0:
-                print("Auto-merge not enabled — skipping (enable in repo Settings → General).")
+            # GH_PAT must be a PAT (not GITHUB_TOKEN) so the resulting push to main
+            # is attributed to a human user and triggers the CD push workflow.
+            # GITHUB_TOKEN-initiated merges are suppressed by GitHub's anti-loop
+            # policy and will not fire push: branches: [main] in other workflows.
+            merge_token = os.environ.get("GH_PAT") or os.environ.get("GITHUB_TOKEN", "")
+            if not merge_token:
+                print("No token available for auto-merge — skipping.")
+            else:
+                env = {**os.environ, "GH_TOKEN": merge_token}
+                result = subprocess.run(
+                    ["gh", "pr", "merge", pr_number, "--auto", "--squash", "--repo", repo],
+                    env=env,
+                )
+                if result.returncode != 0:
+                    print("Auto-merge not enabled — skipping (enable in repo Settings → General).")
 
     set_commit_status(state, desc, pr_sha, repo, run_id)
     print("Review posted.", flush=True)

@@ -2,6 +2,12 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.29.0] — 2026-04-23
+
+### Fixed
+- **Auto-merge fired despite failing UI build** — `gh pr merge --auto` only waits for required status checks; `ui-build`, `lint`, and `test` were not required so a failing build was ignored. `pr_review.py` now checks all non-claude-review check runs before calling auto-merge and skips it if any are already failing.
+- **TypeScript build error in PlayerCard** — unused `fallback` prop caused `tsc -b` to fail with TS6133.
+
 ## [0.28.0] — 2026-04-22
 
 ### Fixed

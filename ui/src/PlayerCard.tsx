@@ -15,7 +15,7 @@ function InjuryBadge({ status, chance }: { status: string; chance: number | null
 
 // Renders an inline player chip from pre-fetched card data.
 // Used by GafferMarkdown — no fetch happens here, data is passed in.
-export function PlayerChip({ card, fallback }: { card: PlayerCardData; fallback: string }) {
+export function PlayerChip({ card }: { card: PlayerCardData }) {
   return (
     <span className="player-card">
       <img
