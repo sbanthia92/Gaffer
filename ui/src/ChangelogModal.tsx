@@ -9,6 +9,15 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.28.0",
+    date: "22 Apr 2026",
+    changed: [
+      "Player chips now render inline — photo, team, position, price, form, points, ownership visible directly in the answer",
+      "Injury badges on player chips — shows Injured / 75% / Doubt / Susp when relevant",
+      "Player card stats now labelled — Form 5.0 · 199 pts · 45.8% owned instead of bare numbers",
+    ],
+  },
+  {
     version: "0.27.0",
     date: "22 Apr 2026",
     changed: [

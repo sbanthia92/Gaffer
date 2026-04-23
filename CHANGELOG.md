@@ -2,6 +2,14 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.28.0] — 2026-04-22
+
+### Fixed
+- **Player cards were never shown** — `[[Player]]` tokens rendered as plain `<abbr>` elements (question-mark cursor, text-only tooltip). The `PlayerCard` component was completely disconnected from the rendering pipeline. Fixed: player names now render as inline chips with photo, team, position, price, form, points, and ownership.
+- **Player card missing injury status, news, event points, ownership** — enriched backend response with `status`, `news`, `chance_of_playing_this_round`, `event_points`, `points_per_game`. Injury badge shows for injured/doubtful/suspended players; suppressed when chance is 100%.
+- **Duplicate bootstrap cache** — `fpl_cache.py` maintained its own separate `/bootstrap-static/` cache independent of the tools layer. Consolidated to use the shared `_get_bootstrap()` cache, eliminating a redundant API call.
+- **Unlabelled stat values on player card** — bare numbers like `5.0` and `45.8%` had no context. Stats now render as `Form 5.0 · 199 pts · 45.8% owned`.
+
 ## [0.27.0] — 2026-04-22
 
 ### Fixed

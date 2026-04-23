@@ -76,7 +76,12 @@ export interface PlayerCard {
   price: number;
   form: string;
   total_points: number;
+  event_points: number;
+  points_per_game: string;
   selected_by_percent: string;
+  status: string;
+  news: string | null;
+  chance_of_playing_this_round: number | null;
   photo_url: string;
 }
 
