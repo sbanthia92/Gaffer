@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.32.0] — 2026-04-23
+
+### Changed
+- **Database connection pooling** — `query_database` tool calls previously opened and closed a new asyncpg connection on every SQL query. Now uses a shared pool (min 2, max 10 connections) created at startup via FastAPI lifespan. Eliminates TCP handshake overhead on every tool call; `statement_timeout` set once at the pool level instead of per-query.
+
 ## [0.31.0] — 2026-04-23
 
 ### Fixed

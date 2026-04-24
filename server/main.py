@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time
+from contextlib import asynccontextmanager
 
 import httpx
 import resend
@@ -14,10 +15,18 @@ from slowapi.errors import RateLimitExceeded
 from server import claude_client, fpl_cache, rag
 from server.config import settings
 from server.logger import log
+from server.tools import db as db_tool
 from server.tools import fpl
 
 xray_recorder.configure(service="gaffer-api", daemon_address="127.0.0.1:2000")
 patch_all()  # auto-patches httpx, boto3
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    await db_tool.init_pool()
+    yield
+    await db_tool.close_pool()
 
 
 def _real_ip(request: Request) -> str:
@@ -34,7 +43,7 @@ def _on_rate_limit_exceeded(request: Request, exc: RateLimitExceeded) -> JSONRes
 
 
 limiter = Limiter(key_func=_real_ip)
-app = FastAPI(title="The Gaffer", version="0.1.0")
+app = FastAPI(title="The Gaffer", version="0.1.0", lifespan=_lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _on_rate_limit_exceeded)
 
@@ -177,8 +186,6 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
 
             async def _v2_handler(name: str, inp: dict) -> dict:
                 if name == "query_database":
-                    from server.tools import db as db_tool
-
                     tools_called.append(name)
                     return await db_tool.execute(sql=inp["sql"])
                 return await _tracking_handler(name, inp)
