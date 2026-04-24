@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.33.0",
+    date: "23 Apr 2026",
+    added: [
+      "Mini-league standings — ask 'show me my mini-league' and The Gaffer fetches your standings automatically",
+    ],
+  },
+  {
     version: "0.32.0",
     date: "23 Apr 2026",
     changed: [

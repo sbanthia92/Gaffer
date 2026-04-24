@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.33.0] — 2026-04-23
+
+### Added
+- **Mini-league standings** — new `get_mini_league_standings` tool fetches standings for any classic FPL league by ID. `get_my_fpl_team` now also returns `my_leagues` (the user's private leagues with IDs and current ranks) so Claude can look up standings without asking for an ID.
+
 ## [0.32.0] — 2026-04-23
 
 ### Changed

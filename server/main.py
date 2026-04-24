@@ -317,6 +317,10 @@ async def _fpl_tool_handler(
             min_price=i.get("min_price"),
             top_n=i.get("top_n", 10),
         ),
+        "get_mini_league_standings": lambda i: fpl.get_mini_league_standings(
+            league_id=i["league_id"],
+            top_n=i.get("top_n", 20),
+        ),
     }
     handler = handlers.get(tool_name)
     if handler is None:

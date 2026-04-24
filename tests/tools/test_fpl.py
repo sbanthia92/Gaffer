@@ -9,6 +9,7 @@ from server.tools.fpl import (
     get_fixtures,
     get_gameweek_schedule,
     get_head_to_head,
+    get_mini_league_standings,
     get_my_fpl_team,
     get_odds,
     get_player_recent_form,
@@ -420,6 +421,28 @@ _PICKS = {
 }
 
 
+_ENTRY = {
+    "leagues": {
+        "classic": [
+            {
+                "id": 999,
+                "name": "Office League",
+                "league_type": "c",
+                "entry_rank": 3,
+                "entry_last_rank": 4,
+            },  # noqa: E501
+            {
+                "id": 314,
+                "name": "Overall",
+                "league_type": "x",
+                "entry_rank": 500000,
+                "entry_last_rank": 501000,
+            },  # noqa: E501
+        ]
+    }
+}
+
+
 @respx.mock
 @pytest.mark.asyncio
 async def test_get_my_fpl_team_returns_squad():
@@ -432,6 +455,7 @@ async def test_get_my_fpl_team_returns_squad():
     respx.get(f"{_FPL_BASE}/entry/123/event/36/picks/").mock(
         return_value=httpx.Response(200, json=_PICKS)
     )
+    respx.get(f"{_FPL_BASE}/entry/123/").mock(return_value=httpx.Response(200, json=_ENTRY))
     with patch("server.tools.fpl.settings") as mock_settings:
         mock_settings.fpl_team_id = 123
         mock_settings.api_sports_key = "test-key"
@@ -440,6 +464,9 @@ async def test_get_my_fpl_team_returns_squad():
     assert result["squad"][0]["name"] == "Erling Haaland"
     assert result["squad"][0]["is_captain"] is True
     assert result["squad"][0]["selling_price"] == 14.0
+    assert result["my_leagues"] == [
+        {"id": 999, "name": "Office League", "entry_rank": 3, "entry_last_rank": 4}
+    ]
 
 
 @respx.mock
@@ -683,6 +710,50 @@ async def test_get_gameweek_schedule_includes_difficulty_and_skips_unscheduled_b
     assert gw37["is_blank_gw"] is False
 
 
+@respx.mock
+@pytest.mark.asyncio
+async def test_get_mini_league_standings_returns_standings():
+    respx.get(f"{_FPL_BASE}/leagues-classic/12345/standings/").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "league": {"id": 12345, "name": "Office League"},
+                "standings": {
+                    "has_next": False,
+                    "results": [
+                        {
+                            "rank": 1,
+                            "last_rank": 2,
+                            "player_name": "Alice Smith",
+                            "entry_name": "Alice FC",
+                            "total": 1850,
+                            "event_total": 72,
+                        },
+                        {
+                            "rank": 2,
+                            "last_rank": 1,
+                            "player_name": "Bob Jones",
+                            "entry_name": "Bob United",
+                            "total": 1820,
+                            "event_total": 55,
+                        },
+                    ],
+                },
+            },
+        )
+    )
+    result = await get_mini_league_standings(league_id=12345)
+    assert result["league_name"] == "Office League"
+    assert result["league_id"] == 12345
+    assert len(result["standings"]) == 2
+    assert result["standings"][0]["rank"] == 1
+    assert result["standings"][0]["manager"] == "Alice Smith"
+    assert result["standings"][0]["team_name"] == "Alice FC"
+    assert result["standings"][0]["total_points"] == 1850
+    assert result["standings"][0]["gw_points"] == 72
+    assert result["has_more"] is False
+
+
 def test_tool_definitions_structure():
     names = {t["name"] for t in TOOL_DEFINITIONS}
     assert names == {
@@ -700,6 +771,7 @@ def test_tool_definitions_structure():
         "get_player_vs_opponent",
         "get_odds",
         "search_players_by_criteria",
+        "get_mini_league_standings",
     }
     for tool in TOOL_DEFINITIONS:
         assert "name" in tool
