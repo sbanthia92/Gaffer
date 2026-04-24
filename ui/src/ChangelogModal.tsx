@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.32.0",
+    date: "23 Apr 2026",
+    changed: [
+      "Faster SQL queries — database now uses a persistent connection pool instead of opening a new connection on every tool call",
+    ],
+  },
+  {
     version: "0.31.0",
     date: "23 Apr 2026",
     changed: [

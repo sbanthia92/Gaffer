@@ -4,7 +4,7 @@ V2 database query tool — Claude generates SQL, we execute it read-only.
 Safety layers:
   1. Keyword blocklist rejects obviously destructive SQL before hitting the DB
   2. The gaffer_readonly DB user has SELECT-only grants — writes fail at connection level
-  3. statement_timeout prevents runaway queries
+  3. statement_timeout prevents runaway queries (set at pool connection level)
 """
 
 import re
@@ -14,6 +14,28 @@ from decimal import Decimal
 import asyncpg
 
 from server.config import settings
+
+_pool: asyncpg.Pool | None = None
+
+
+async def init_pool() -> None:
+    global _pool
+    if not settings.database_url:
+        return
+    _pool = await asyncpg.create_pool(
+        settings.database_url,
+        min_size=2,
+        max_size=10,
+        server_settings={"statement_timeout": str(_TIMEOUT_MS)},
+    )
+
+
+async def close_pool() -> None:
+    global _pool
+    if _pool:
+        await _pool.close()
+        _pool = None
+
 
 _BANNED = re.compile(
     r"\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|GRANT|REVOKE"
@@ -113,12 +135,16 @@ async def execute(sql: str, params: tuple = ()) -> dict:
         return {"error": True, "message": "Database not configured (DATABASE_URL missing)."}
 
     try:
-        conn = await asyncpg.connect(settings.database_url)
-        try:
-            await conn.execute(f"SET statement_timeout = {_TIMEOUT_MS}")
-            rows = await conn.fetch(sql, *params)
-        finally:
-            await conn.close()
+        if _pool:
+            async with _pool.acquire() as conn:
+                rows = await conn.fetch(sql, *params)
+        else:
+            conn = await asyncpg.connect(settings.database_url)
+            try:
+                await conn.execute(f"SET statement_timeout = {_TIMEOUT_MS}")
+                rows = await conn.fetch(sql, *params)
+            finally:
+                await conn.close()
     except asyncpg.PostgresError as e:
         return {"error": True, "message": f"Database error: {e}"}
     except Exception as e:
