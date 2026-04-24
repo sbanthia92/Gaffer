@@ -48,6 +48,7 @@ _TOOL_LABELS: dict[str, str] = {
     "get_odds": "Fetching match odds…",
     "search_players_by_criteria": "Searching for players…",
     "get_mini_league_standings": "Fetching mini-league standings…",
+    "get_captain_options": "Comparing captain candidates…",
 }
 
 
@@ -118,6 +119,11 @@ _SHARED_RULES = (
     "You MUST call get_team_all_fixtures for EVERY team listed in blank_gameweek_teams "
     "before reporting them as blank. Never tell a user a team has a blank gameweek based "
     "solely on get_gameweek_schedule — always verify first.\n\n"
+    "CAPTAINCY QUESTIONS: When the user asks who to captain, use get_captain_options with the "
+    "realistic captain candidates from the pre-loaded squad (typically premium attackers and "
+    "midfielders). Do NOT call get_player_recent_form per player — get_captain_options fetches "
+    "all candidates concurrently and includes fixture difficulty. After get_captain_options, "
+    "call get_odds for the top candidate's fixture if match odds would strengthen the verdict.\n\n"
     "NEVER ASK FOR CLARIFICATION ON FIXTURE LOOKUPS: If the user asks about odds, a match "
     "preview, or anything fixture-related for a team (e.g. 'Liverpool this weekend', "
     "'Arsenal's next game'), always call get_fixtures or get_team_all_fixtures immediately "

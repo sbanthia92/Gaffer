@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.34.0] — 2026-04-23
+
+### Added
+- **Captain suggester shortcut** — new `get_captain_options(player_names[])` tool fetches form, fixture difficulty, and ownership for all captain candidates in a single concurrent call. Previously Claude made 4–6 serial `get_player_recent_form` calls; now one call covers all candidates. System prompt updated to direct Claude to use this tool for captaincy questions.
+
 ## [0.33.0] — 2026-04-23
 
 ### Added

@@ -321,6 +321,9 @@ async def _fpl_tool_handler(
             league_id=i["league_id"],
             top_n=i.get("top_n", 20),
         ),
+        "get_captain_options": lambda i: fpl.get_captain_options(
+            player_names=i["player_names"],
+        ),
     }
     handler = handlers.get(tool_name)
     if handler is None:

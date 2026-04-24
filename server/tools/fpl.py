@@ -864,6 +864,86 @@ async def get_mini_league_standings(league_id: int, top_n: int = 20) -> dict:
     }
 
 
+async def get_captain_options(player_names: list[str]) -> dict:
+    """
+    Batch-fetch captaincy analysis for up to 8 players concurrently.
+    Returns last-5-GW points, form, ownership, next fixture + difficulty for each.
+    Use this instead of calling get_player_recent_form repeatedly per candidate.
+    """
+    bootstrap = await _get_bootstrap()
+    team_short = {t["id"]: t["short_name"] for t in bootstrap["teams"]}
+
+    events = bootstrap.get("events", [])
+    next_gw = next((e["id"] for e in events if e["is_next"]), None)
+    current_gw = next((e["id"] for e in events if e["is_current"]), None)
+    target_gw = next_gw or ((current_gw + 1) if current_gw else 1)
+
+    client = _get_fpl_client()
+
+    # Fetch next-GW fixtures once to build team → fixture lookup
+    fix_resp = await client.get("/fixtures/", params={"event": target_gw})
+    fix_resp.raise_for_status()
+    team_fixture: dict[int, dict] = {}
+    for f in fix_resp.json():
+        h, a = f.get("team_h"), f.get("team_a")
+        if h:
+            team_fixture[h] = {
+                "opponent": team_short.get(a, ""),
+                "difficulty": f.get("team_h_difficulty"),
+                "home_away": "H",
+            }
+        if a:
+            team_fixture[a] = {
+                "opponent": team_short.get(h, ""),
+                "difficulty": f.get("team_a_difficulty"),
+                "home_away": "A",
+            }
+
+    candidates = [
+        el for name in player_names[:8] if (el := _find_player(bootstrap["elements"], name))
+    ]
+    not_found = [n for n in player_names[:8] if not _find_player(bootstrap["elements"], n)]
+
+    async def _fetch(el: dict) -> tuple[dict, list[int]]:
+        resp = await client.get(f"/element-summary/{el['id']}/")
+        resp.raise_for_status()
+        history = resp.json().get("history", [])
+        pts = [gw["total_points"] for gw in history[-5:]]
+        return el, pts
+
+    summaries = await asyncio.gather(*(_fetch(el) for el in candidates), return_exceptions=True)
+
+    results = []
+    for item in summaries:
+        if isinstance(item, Exception):
+            continue
+        el, pts = item
+        fix = team_fixture.get(el["team"], {})
+        results.append(
+            {
+                "name": el["web_name"],
+                "team": team_short.get(el["team"], ""),
+                "form": el.get("form"),
+                "ownership": el.get("selected_by_percent"),
+                "price": el.get("now_cost", 0) / 10,
+                "status": el.get("status"),
+                "chance_of_playing_this_round": el.get("chance_of_playing_this_round"),
+                "last_5_gw_points": pts,
+                "last_5_total": sum(pts),
+                "next_fixture_opponent": fix.get("opponent"),
+                "next_fixture_difficulty": fix.get("difficulty"),
+                "next_fixture_home_away": fix.get("home_away"),
+            }
+        )
+
+    results.sort(key=lambda x: x["last_5_total"], reverse=True)
+    return {
+        "gameweek": target_gw,
+        "captain_options": results,
+        "not_found": not_found,
+    }
+
+
 # Claude receives these and decides which to call based on the question.
 TOOL_DEFINITIONS = [
     {
@@ -1161,6 +1241,31 @@ TOOL_DEFINITIONS = [
                 },
             },
             "required": ["player_name", "opponent_name"],
+        },
+    },
+    {
+        "name": "get_captain_options",
+        "description": (
+            "Batch-fetch captaincy data for up to 8 players in a single call. "
+            "Returns last-5-GW points breakdown, form score, ownership %, price, "
+            "next fixture opponent + difficulty (1=easy 5=hard), and injury status for each. "
+            "Use this instead of calling get_player_recent_form repeatedly — "
+            "it fetches all candidates concurrently and returns them ranked by recent total points. "  # noqa: E501
+            "Always call this for captaincy questions with the realistic candidates from the squad."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "player_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "List of player web names to compare (max 8). "
+                        "Use the web_name field from get_my_fpl_team."
+                    ),
+                }
+            },
+            "required": ["player_names"],
         },
     },
     {
