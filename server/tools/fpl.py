@@ -499,10 +499,27 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
         for p in bootstrap_data["elements"]
     }
 
-    # Fetch the team's picks for the current gameweek
-    picks_resp = await client.get(f"/entry/{team_id}/event/{current_gw}/picks/")
+    # Fetch picks and entry info concurrently
+    picks_resp, entry_resp = await asyncio.gather(
+        client.get(f"/entry/{team_id}/event/{current_gw}/picks/"),
+        client.get(f"/entry/{team_id}/"),
+    )
     picks_resp.raise_for_status()
+    entry_resp.raise_for_status()
     picks_data = picks_resp.json()
+    entry_data = entry_resp.json()
+
+    # User's private classic leagues (exclude global/public system leagues)
+    my_leagues = [
+        {
+            "id": lg["id"],
+            "name": lg["name"],
+            "entry_rank": lg.get("entry_rank"),
+            "entry_last_rank": lg.get("entry_last_rank"),
+        }
+        for lg in entry_data.get("leagues", {}).get("classic", [])
+        if lg.get("league_type") == "c"
+    ]
 
     entry_history = picks_data.get("entry_history", {})
 
@@ -548,6 +565,7 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
         "transfers_made_this_gw": entry_history.get("event_transfers", 0),
         "transfers_cost_this_gw": entry_history.get("event_transfers_cost", 0),
         "squad": squad,
+        "my_leagues": my_leagues,
     }
 
 
@@ -817,6 +835,35 @@ async def get_gameweek_schedule(next_n: int = 8) -> dict:
 
 
 # Tool definitions in Anthropic tool-use format.
+async def get_mini_league_standings(league_id: int, top_n: int = 20) -> dict:
+    """Fetch standings for a classic FPL mini-league by ID."""
+    client = _get_fpl_client()
+    resp = await client.get(f"/leagues-classic/{league_id}/standings/")
+    resp.raise_for_status()
+    data = resp.json()
+
+    league_info = data.get("league", {})
+    results = []
+    for entry in data.get("standings", {}).get("results", [])[:top_n]:
+        results.append(
+            {
+                "rank": entry.get("rank"),
+                "last_rank": entry.get("last_rank"),
+                "manager": entry.get("player_name"),
+                "team_name": entry.get("entry_name"),
+                "total_points": entry.get("total"),
+                "gw_points": entry.get("event_total"),
+            }
+        )
+
+    return {
+        "league_name": league_info.get("name"),
+        "league_id": league_info.get("id"),
+        "standings": results,
+        "has_more": data.get("standings", {}).get("has_next", False),
+    }
+
+
 # Claude receives these and decides which to call based on the question.
 TOOL_DEFINITIONS = [
     {
@@ -828,7 +875,9 @@ TOOL_DEFINITIONS = [
             "injury status/news, chance_of_playing, GW transfer trends, "
             "plus squad-level data: ITB (in the bank), squad value, "
             "transfers made and cost this GW. "
-            "Always call this first for any squad, transfer, captaincy, or chip question."
+            "Also returns my_leagues — the user's private classic mini-leagues with IDs "
+            "needed to call get_mini_league_standings. "
+            "Always call this first for any squad, transfer, captaincy, chip, or league question."
         ),
         "input_schema": {
             "type": "object",
@@ -1112,6 +1161,30 @@ TOOL_DEFINITIONS = [
                 },
             },
             "required": ["player_name", "opponent_name"],
+        },
+    },
+    {
+        "name": "get_mini_league_standings",
+        "description": (
+            "Get standings for a user's FPL classic mini-league. "
+            "Use the league IDs from my_leagues in get_my_fpl_team to find the right ID. "
+            "Returns rank, last week's rank, manager name, team name, total points, and GW points "
+            "for each entry in the league."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "league_id": {
+                    "type": "integer",
+                    "description": "The FPL league ID from my_leagues in get_my_fpl_team.",
+                },
+                "top_n": {
+                    "type": "integer",
+                    "description": "Number of entries to return. Defaults to 20.",
+                    "default": 20,
+                },
+            },
+            "required": ["league_id"],
         },
     },
 ]

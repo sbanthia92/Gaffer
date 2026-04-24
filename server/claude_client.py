@@ -47,6 +47,7 @@ _TOOL_LABELS: dict[str, str] = {
     "get_player_vs_opponent": "Analysing player vs opponent…",
     "get_odds": "Fetching match odds…",
     "search_players_by_criteria": "Searching for players…",
+    "get_mini_league_standings": "Fetching mini-league standings…",
 }
 
 
