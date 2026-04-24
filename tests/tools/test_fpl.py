@@ -6,6 +6,7 @@ import respx
 
 from server.tools.fpl import (
     TOOL_DEFINITIONS,
+    get_captain_options,
     get_fixtures,
     get_gameweek_schedule,
     get_head_to_head,
@@ -754,6 +755,81 @@ async def test_get_mini_league_standings_returns_standings():
     assert result["has_more"] is False
 
 
+@pytest.mark.asyncio
+async def test_get_captain_options_returns_ranked_candidates():
+    _FPL = "https://fantasy.premierleague.com/api"
+    bootstrap = {
+        "events": [
+            {"id": 36, "is_current": True, "is_next": False},
+            {"id": 37, "is_current": False, "is_next": True},
+        ],
+        "teams": [
+            {"id": 1, "name": "Liverpool", "short_name": "LIV"},
+            {"id": 2, "name": "Man City", "short_name": "MCI"},
+            {"id": 3, "name": "Arsenal", "short_name": "ARS"},
+        ],
+        "elements": [
+            {
+                "id": 10,
+                "first_name": "Mohamed",
+                "second_name": "Salah",
+                "web_name": "Salah",
+                "team": 1,
+                "element_type": 3,
+                "now_cost": 130,
+                "form": "9.2",
+                "selected_by_percent": "45.0",
+                "status": "a",
+                "chance_of_playing_this_round": None,
+            },
+            {
+                "id": 20,
+                "first_name": "Erling",
+                "second_name": "Haaland",
+                "web_name": "Haaland",
+                "team": 2,
+                "element_type": 4,
+                "now_cost": 150,
+                "form": "7.0",
+                "selected_by_percent": "60.0",
+                "status": "a",
+                "chance_of_playing_this_round": None,
+            },
+        ],
+    }
+    fixtures_gw37 = [
+        {"team_h": 1, "team_a": 3, "team_h_difficulty": 2, "team_a_difficulty": 4},
+        {"team_h": 2, "team_a": 3, "team_h_difficulty": 3, "team_a_difficulty": 4},
+    ]
+    salah_summary = {"history": [{"total_points": p} for p in [8, 12, 6, 15, 10]]}
+    haaland_summary = {"history": [{"total_points": p} for p in [2, 8, 9, 6, 7]]}
+
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
+    with respx.mock:
+        respx.get(f"{_FPL}/bootstrap-static/").mock(  # noqa: E501
+            return_value=httpx.Response(200, json=bootstrap)
+        )
+        respx.get(f"{_FPL}/fixtures/").mock(return_value=httpx.Response(200, json=fixtures_gw37))
+        respx.get(f"{_FPL}/element-summary/10/").mock(
+            return_value=httpx.Response(200, json=salah_summary)
+        )
+        respx.get(f"{_FPL}/element-summary/20/").mock(
+            return_value=httpx.Response(200, json=haaland_summary)
+        )
+        result = await get_captain_options(["Salah", "Haaland"])
+
+    assert result["gameweek"] == 37
+    # Salah last-5 total = 51, Haaland = 32 → Salah ranked first
+    assert result["captain_options"][0]["name"] == "Salah"
+    assert result["captain_options"][0]["last_5_total"] == 51
+    assert result["captain_options"][0]["next_fixture_opponent"] == "ARS"
+    assert result["captain_options"][0]["next_fixture_difficulty"] == 2
+    assert result["captain_options"][1]["name"] == "Haaland"
+    assert result["not_found"] == []
+
+
 def test_tool_definitions_structure():
     names = {t["name"] for t in TOOL_DEFINITIONS}
     assert names == {
@@ -772,6 +848,7 @@ def test_tool_definitions_structure():
         "get_odds",
         "search_players_by_criteria",
         "get_mini_league_standings",
+        "get_captain_options",
     }
     for tool in TOOL_DEFINITIONS:
         assert "name" in tool

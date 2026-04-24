@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.34.0",
+    date: "23 Apr 2026",
+    added: [
+      "Captain suggester — 'Who should I captain?' now fetches all candidates in one shot instead of querying each player separately",
+    ],
+  },
+  {
     version: "0.33.0",
     date: "23 Apr 2026",
     added: [

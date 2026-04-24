@@ -23,7 +23,21 @@
       "Bash(python3 -m ruff check server/claude_client.py)",
       "Bash(python3 -c \"import sys, json; lines = sys.stdin.read\\(\\).strip\\(\\).split\\('\\\\n'\\); [print\\(json.dumps\\(json.loads\\(l\\), indent=2\\)[:500]\\) for l in lines[-10:]]\")",
       "Bash(pytest tests/ -q)",
-      "Bash(pytest tests/test_ingest_fpl.py)"
+      "Bash(pytest tests/test_ingest_fpl.py)",
+      "Bash(npm run *)",
+      "Bash(python3 -c \"import sys,json; [print\\(r['createdAt'], r['conclusion'], r['displayTitle'][:60]\\) for r in json.load\\(sys.stdin\\)]\")",
+      "Bash(gh workflow *)",
+      "Bash(ssh -i ~/.ssh/gaffer_ec2 ec2-user@the-gaffer.io \"cat /etc/nginx/conf.d/gaffer.conf 2>/dev/null || cat /etc/nginx/nginx.conf 2>/dev/null | grep -A5 'location\\\\|cache\\\\|expires'\")",
+      "Bash(pytest tests/ -v -k \"not test_ingest\")",
+      "Bash(pytest tests/ -v -k \"recent_form\")",
+      "Bash(ssh -i '~/.ssh/gaffer_ec2' ec2-user@the-gaffer.io 'cd /home/ec2-user/gaffer && .venv/bin/python -c \" *)",
+      "Bash(pytest tests/ -v -k \"vs_opponent\")",
+      "Bash(uvicorn server.main:app --reload --port 8000)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(curl -s \"http://localhost:8000/fpl/player-card?name=Salah\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(npx tsc *)",
+      "Bash(pytest tests/ -v -q)"
     ]
   }
 }
