@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.37.0",
+    date: "25 Apr 2026",
+    changed: [
+      "Player photo fallback — players without a photo now show their initial in a gold avatar instead of a broken/missing image",
+    ],
+  },
+  {
     version: "0.36.0",
     date: "25 Apr 2026",
     added: [

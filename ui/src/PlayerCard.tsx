@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { PlayerCard as PlayerCardData } from "./api";
 import "./PlayerCard.css";
 
@@ -16,16 +17,21 @@ function InjuryBadge({ status, chance }: { status: string; chance: number | null
 // Renders an inline player chip from pre-fetched card data.
 // Used by GafferMarkdown — no fetch happens here, data is passed in.
 export function PlayerChip({ card }: { card: PlayerCardData }) {
+  const [imgFailed, setImgFailed] = useState(false);
   return (
     <span className="player-card">
-      <img
-        className="player-card__photo"
-        src={card.photo_url}
-        alt={card.name}
-        onError={(e) => {
-          (e.target as HTMLImageElement).style.display = "none";
-        }}
-      />
+      {imgFailed ? (
+        <span className="player-card__photo-fallback" aria-hidden>
+          {card.name[0].toUpperCase()}
+        </span>
+      ) : (
+        <img
+          className="player-card__photo"
+          src={card.photo_url}
+          alt={card.name}
+          onError={() => setImgFailed(true)}
+        />
+      )}
       <span className="player-card__info">
         <span className="player-card__name-row">
           <span className="player-card__name">{card.name}</span>

@@ -21,6 +21,20 @@
   flex-shrink: 0;
 }
 
+.player-card__photo-fallback {
+  width: 28px;
+  height: 35px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .player-card__info {
   display: inline-flex;
   flex-direction: column;

@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.37.0] — 2026-04-25
+
+### Fixed
+- **Missing player photos** — some players (new signings, mid-season transfers) have no photo in the FPL bootstrap, producing a broken image URL. Previously the `<img>` was hidden on error, collapsing the chip layout. Now shows a fallback avatar (player's initial in a gold circle) so the chip always renders correctly.
+
 ## [0.36.0] — 2026-04-25
 
 ### Added
