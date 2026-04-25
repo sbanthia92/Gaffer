@@ -24,9 +24,11 @@ from typing import Any
 import anthropic
 
 from server.config import settings
+from server.logger import log
 
 _MODEL = "claude-sonnet-4-6"
 _MAX_TOKENS = 4096
+_MAX_TURNS = 5
 
 # Type alias for an async tool handler function
 ToolHandler = Callable[[str, dict], Coroutine[Any, Any, dict]]
@@ -283,8 +285,11 @@ async def ask(
         # ── Tool-use loop (non-streaming) ──────────────────────────────────
         # Yield a thinking status before every Claude API call so the SSE
         # connection stays alive through nginx's proxy_read_timeout.
+        in_tok = out_tok = cache_read = cache_write = 0
+        turns = 0
+
         yield "status", "Thinking…"
-        while True:
+        while turns < _MAX_TURNS:
             response = await client.messages.create(
                 model=_MODEL,
                 max_tokens=_MAX_TOKENS,
@@ -293,10 +298,16 @@ async def ask(
                 messages=messages,
                 extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
             )
+            u = response.usage
+            in_tok += u.input_tokens
+            out_tok += u.output_tokens
+            cache_read += getattr(u, "cache_read_input_tokens", 0) or 0
+            cache_write += getattr(u, "cache_creation_input_tokens", 0) or 0
 
             if response.stop_reason != "tool_use":
                 break
 
+            turns += 1
             tool_blocks = [b for b in response.content if b.type == "tool_use"]
             yield "status", _tool_status(tool_blocks)
 
@@ -304,6 +315,8 @@ async def ask(
             tool_results = await _run_tool_round(response, tool_handler)
             messages.append({"role": "user", "content": tool_results})
             yield "status", "Analysing…"
+        else:
+            log.warning("claude.turn_limit_reached", turns=turns, model=_MODEL)
 
         # ── Stream the final answer ────────────────────────────────────────
         async with client.messages.stream(
@@ -317,7 +330,22 @@ async def ask(
         ) as stream:
             async for chunk in stream.text_stream:
                 yield "chunk", chunk
+            final = await stream.get_final_message()
+            fu = final.usage
+            in_tok += fu.input_tokens
+            out_tok += fu.output_tokens
+            cache_read += getattr(fu, "cache_read_input_tokens", 0) or 0
+            cache_write += getattr(fu, "cache_creation_input_tokens", 0) or 0
 
+        log.info(
+            "claude.tokens",
+            model=_MODEL,
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+            cache_read_tokens=cache_read,
+            cache_write_tokens=cache_write,
+            tool_turns=turns,
+        )
         yield "done", ""
 
     return _generate()

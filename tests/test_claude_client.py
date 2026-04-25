@@ -7,6 +7,15 @@ import pytest
 from server.claude_client import ask
 
 
+def _make_usage() -> MagicMock:
+    u = MagicMock()
+    u.input_tokens = 100
+    u.output_tokens = 50
+    u.cache_read_input_tokens = 0
+    u.cache_creation_input_tokens = 0
+    return u
+
+
 def _make_tool_use_response(tool_name: str, tool_input: dict, tool_use_id: str) -> MagicMock:
     block = MagicMock()
     block.type = "tool_use"
@@ -16,6 +25,7 @@ def _make_tool_use_response(tool_name: str, tool_input: dict, tool_use_id: str) 
     response = MagicMock(spec=anthropic.types.Message)
     response.stop_reason = "tool_use"
     response.content = [block]
+    response.usage = _make_usage()
     return response
 
 
@@ -24,6 +34,7 @@ def _make_end_turn_response() -> MagicMock:
     response = MagicMock(spec=anthropic.types.Message)
     response.stop_reason = "end_turn"
     response.content = []
+    response.usage = _make_usage()
     return response
 
 
@@ -36,8 +47,12 @@ def _make_stream_context(chunks: list[str]):
             for c in chunks:
                 yield c
 
+        final = MagicMock(spec=anthropic.types.Message)
+        final.usage = _make_usage()
+
         mock_stream = MagicMock()
         mock_stream.text_stream = _text_stream()
+        mock_stream.get_final_message = AsyncMock(return_value=final)
         yield mock_stream
 
     return _ctx()

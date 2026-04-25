@@ -9,6 +9,14 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.35.0",
+    date: "25 Apr 2026",
+    changed: [
+      "Token usage logging — every request now logs input/output tokens and cache hits to CloudWatch so API costs are visible per request",
+      "Tool-loop turn limit — Claude is now capped at 5 tool-use rounds per request; prevents unbounded API calls if the model gets stuck",
+    ],
+  },
+  {
     version: "0.34.0",
     date: "23 Apr 2026",
     added: [
