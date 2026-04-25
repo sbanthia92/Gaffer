@@ -2,6 +2,12 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.35.0] — 2026-04-25
+
+### Changed
+- **Token usage logging** — every request now logs `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, and `tool_turns` to CloudWatch via the `claude.tokens` event. Previously there was no per-request cost visibility.
+- **Tool-loop turn limit** — the Claude tool-use loop is now capped at 5 turns (`_MAX_TURNS`). If the model gets stuck calling tools repeatedly, the loop exits and a `claude.turn_limit_reached` warning is logged instead of making unbounded API calls.
+
 ## [0.34.0] — 2026-04-23
 
 ### Added
