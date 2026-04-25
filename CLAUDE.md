@@ -86,6 +86,11 @@ Be accurate — don't use `feat:` for a bug fix just because it involves new cod
 - **Player search**: `search_player` returns `team` so Claude can disambiguate players sharing a surname
 - **Squad composition**: A full FPL squad is exactly 15 players — 2 GKP, 5 DEF, 5 MID, 3 FWD. The starting XI must field at least 1 GKP, 3 DEF, 2 MID, 1 FWD. This is enforced in the system prompt so Free-Hit/Wildcard squads are always structurally valid.
 
+## Observability
+- **Token usage**: every request emits a `claude.tokens` log event with `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, and `tool_turns`. Use this to track API cost per request in CloudWatch.
+- **Tool-loop safety**: `_MAX_TURNS = 5` in `claude_client.py` caps the tool-use while-loop. If hit, a `claude.turn_limit_reached` warning is logged and the loop exits gracefully rather than making unbounded API calls.
+- **Bad-answer feedback**: `POST /fpl/thumbsdown` logs `feedback.thumbsdown` to CloudWatch and emails via Resend. Triggered by the 👎 button on each assistant message in the UI.
+
 ## Streaming / X-Ray gotcha
 The FastAPI middleware ends the X-Ray segment as soon as `StreamingResponse` is returned — **before** the async generator starts yielding SSE events. Never put `xray_recorder.in_subsegment()` calls inside `_generate()` — they throw "Already ended segment" errors.
 
