@@ -124,3 +124,21 @@ export async function submitFeedback(
     throw new Error(`Server error ${res.status}: ${text}`);
   }
 }
+
+export async function submitThumbsDown(
+  question: string,
+  answer: string,
+  comment: string,
+  fplTeamId: number | null
+): Promise<void> {
+  const res = await fetch(`${BASE_URL}/api/fpl/thumbsdown`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, answer, comment, fpl_team_id: fplTeamId }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "Unknown error");
+    throw new Error(`Server error ${res.status}: ${text}`);
+  }
+}

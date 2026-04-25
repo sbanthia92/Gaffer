@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.36.0",
+    date: "25 Apr 2026",
+    added: [
+      "Thumbs-down button on every answer — click 👎 to flag a wrong or unhelpful response, describe what went wrong, and submit directly from the chat",
+    ],
+  },
+  {
     version: "0.35.0",
     date: "25 Apr 2026",
     changed: [
