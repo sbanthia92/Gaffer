@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { PlayerCard as PlayerCardData } from "./api";
+import { logClientEvent, type PlayerCard as PlayerCardData } from "./api";
 import "./PlayerCard.css";
 
 function InjuryBadge({ status, chance }: { status: string; chance: number | null }) {
@@ -29,7 +29,10 @@ export function PlayerChip({ card }: { card: PlayerCardData }) {
           className="player-card__photo"
           src={card.photo_url}
           alt={card.name}
-          onError={() => setImgFailed(true)}
+          onError={() => {
+            setImgFailed(true);
+            logClientEvent("player.photo_missing", { player: card.name });
+          }}
         />
       )}
       <span className="player-card__info">

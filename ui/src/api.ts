@@ -125,6 +125,21 @@ export async function submitFeedback(
   }
 }
 
+export async function logClientEvent(
+  event: string,
+  data: Record<string, unknown> = {}
+): Promise<void> {
+  try {
+    await fetch(`${BASE_URL}/api/fpl/client-event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event, data }),
+    });
+  } catch {
+    // best-effort — never throw on a logging call
+  }
+}
+
 export async function submitThumbsDown(
   question: string,
   answer: string,

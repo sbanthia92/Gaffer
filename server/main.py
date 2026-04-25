@@ -102,6 +102,11 @@ class ThumbsDownRequest(BaseModel):
     fpl_team_id: int | None = None
 
 
+class ClientEventRequest(BaseModel):
+    event: str
+    data: dict = {}
+
+
 class AskResponse(BaseModel):
     answer: str
     league: str
@@ -198,6 +203,15 @@ async def thumbsdown(request: ThumbsDownRequest) -> dict[str, str]:
         }
     )
     return {"status": "sent"}
+
+
+@app.post("/fpl/client-event")
+async def client_event(request: ClientEventRequest) -> dict[str, str]:
+    _ALLOWED = {"player.photo_missing"}
+    if request.event not in _ALLOWED:
+        raise HTTPException(status_code=400, detail=f"Unknown event: {request.event}")
+    log.warning(request.event, **request.data)
+    return {"status": "logged"}
 
 
 @app.post("/fpl/ask")
