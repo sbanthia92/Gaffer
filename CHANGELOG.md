@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.36.0] — 2026-04-25
+
+### Added
+- **Thumbs-down feedback** — every assistant message now has a 👎 button. Clicking it opens a dialog pre-filled with the question that triggered the answer; user can describe what went wrong and submit. Sends an email via Resend (same pipeline as bug reports) and logs a `feedback.thumbsdown` event to CloudWatch.
+
 ## [0.35.0] — 2026-04-25
 
 ### Changed

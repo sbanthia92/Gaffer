@@ -95,6 +95,13 @@ class ContactRequest(BaseModel):
     message: str
 
 
+class ThumbsDownRequest(BaseModel):
+    question: str
+    answer: str
+    comment: str = ""
+    fpl_team_id: int | None = None
+
+
 class AskResponse(BaseModel):
     answer: str
     league: str
@@ -157,6 +164,37 @@ async def contact(request: ContactRequest) -> dict[str, str]:
             "to": settings.feedback_email,
             "subject": f"[gaffer.io] Contact from {request.name}",
             "text": body,
+        }
+    )
+    return {"status": "sent"}
+
+
+@app.post("/fpl/thumbsdown")
+async def thumbsdown(request: ThumbsDownRequest) -> dict[str, str]:
+    log.info(
+        "feedback.thumbsdown",
+        question=request.question,
+        fpl_team_id=request.fpl_team_id,
+    )
+    if not settings.resend_api_key or not settings.feedback_email:
+        return {"status": "logged"}
+
+    body_parts = [
+        f"Question:\n{request.question}",
+        f"\nAnswer:\n{request.answer}",
+    ]
+    if request.comment.strip():
+        body_parts.append(f"\nWhat went wrong:\n{request.comment}")
+    if request.fpl_team_id:
+        body_parts.append(f"\nFPL Team ID: {request.fpl_team_id}")
+
+    resend.api_key = settings.resend_api_key
+    resend.Emails.send(
+        {
+            "from": "onboarding@resend.dev",
+            "to": settings.feedback_email,
+            "subject": "[gaffer.io] 👎 Bad answer",
+            "text": "\n".join(body_parts),
         }
     )
     return {"status": "sent"}

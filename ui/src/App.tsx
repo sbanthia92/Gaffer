@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useNavigate } from "react-router-dom";
-import { askGaffer, fetchPlayerCard, submitFeedback, type PlayerCard as PlayerCardData } from "./api";
+import { askGaffer, fetchPlayerCard, submitFeedback, submitThumbsDown, type PlayerCard as PlayerCardData } from "./api";
 import { PlayerChip } from "./PlayerCard";
 import {
   appendMessage,
@@ -185,6 +185,85 @@ function FeedbackModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── Thumbs-down feedback modal ────────────────────────────────────────────────
+
+function ThumbsDownModal({
+  question,
+  answer,
+  fplTeamId,
+  onClose,
+}: {
+  question: string;
+  answer: string;
+  fplTeamId: number | null;
+  onClose: () => void;
+}) {
+  const [comment, setComment] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function handleSubmit() {
+    setSending(true);
+    setErr("");
+    try {
+      await submitThumbsDown(question, answer, comment.trim(), fplTeamId);
+      setSent(true);
+    } catch {
+      setErr("Failed to send — please try again.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        {sent ? (
+          <>
+            <h2>Thanks for the feedback!</h2>
+            <p className="modal-subtitle">We'll use this to improve The Gaffer.</p>
+            <button className="modal-btn" onClick={onClose}>
+              Close
+            </button>
+          </>
+        ) : (
+          <>
+            <h2>What went wrong?</h2>
+            <p className="modal-subtitle">
+              Describe the issue and we'll look into it.
+            </p>
+            <div className="modal-context">
+              <span className="modal-context-label">You asked:</span>
+              <p className="modal-context-text">{question}</p>
+            </div>
+            <textarea
+              className="modal-textarea"
+              placeholder="What was wrong with the answer? (optional)"
+              value={comment}
+              onChange={(e) => {
+                setComment(e.target.value);
+                setErr("");
+              }}
+              rows={4}
+              autoFocus
+            />
+            {err && <p className="modal-error">{err}</p>}
+            <div className="modal-actions">
+              <button className="modal-btn-secondary" onClick={onClose}>
+                Cancel
+              </button>
+              <button className="modal-btn" onClick={handleSubmit} disabled={sending}>
+                {sending ? "Sending…" : "Send feedback"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Player-badge aware markdown renderer ─────────────────────────────────────
 
 const PLAYER_TAG = /\[\[([^\]]+)\]\]/g;
@@ -299,6 +378,7 @@ export default function App() {
   );
   const [showFplModal, setShowFplModal] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [thumbsDownTarget, setThumbsDownTarget] = useState<{ question: string; answer: string } | null>(null);
   const [statusText, setStatusText] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -489,6 +569,15 @@ export default function App() {
         <FeedbackModal onClose={() => setShowFeedback(false)} />
       )}
 
+      {thumbsDownTarget && (
+        <ThumbsDownModal
+          question={thumbsDownTarget.question}
+          answer={thumbsDownTarget.answer}
+          fplTeamId={fplTeamId}
+          onClose={() => setThumbsDownTarget(null)}
+        />
+      )}
+
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />
@@ -579,7 +668,7 @@ export default function App() {
           </div>
         ) : (
           <div className="messages">
-            {activeSession.messages.map((msg) => {
+            {activeSession.messages.map((msg, idx) => {
               const isLoadingPlaceholder =
                 loading && msg.role === "assistant" && msg.content === "";
               return (
@@ -600,6 +689,24 @@ export default function App() {
                         <>
                           <div className="bubble-label">The Gaffer · FPL</div>
                           <GafferMarkdown content={msg.content} />
+                          <div className="bubble-actions">
+                            <button
+                              className="thumbsdown-btn"
+                              title="This answer was wrong or unhelpful"
+                              onClick={() => {
+                                const prevUser = activeSession.messages
+                                  .slice(0, idx)
+                                  .reverse()
+                                  .find((m) => m.role === "user");
+                                setThumbsDownTarget({
+                                  question: prevUser?.content ?? "",
+                                  answer: msg.content,
+                                });
+                              }}
+                            >
+                              👎
+                            </button>
+                          </div>
                         </>
                       )}
                     </div>
