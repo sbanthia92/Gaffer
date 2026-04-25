@@ -86,6 +86,10 @@ Be accurate — don't use `feat:` for a bug fix just because it involves new cod
 - **Player search**: `search_player` returns `team` so Claude can disambiguate players sharing a surname
 - **Squad composition**: A full FPL squad is exactly 15 players — 2 GKP, 5 DEF, 5 MID, 3 FWD. The starting XI must field at least 1 GKP, 3 DEF, 2 MID, 1 FWD. This is enforced in the system prompt so Free-Hit/Wildcard squads are always structurally valid.
 
+## User feedback endpoints
+- **Bug report**: `POST /feedback` — free-text message + optional email; emails via Resend; subject `[gaffer.io] Bug report`
+- **Bad answer**: `POST /fpl/thumbsdown` — triggered by 👎 button on each assistant message; sends question + answer + optional comment via Resend (subject `[gaffer.io] 👎 Bad answer`) and logs `feedback.thumbsdown` to CloudWatch
+
 ## Streaming / X-Ray gotcha
 The FastAPI middleware ends the X-Ray segment as soon as `StreamingResponse` is returned — **before** the async generator starts yielding SSE events. Never put `xray_recorder.in_subsegment()` calls inside `_generate()` — they throw "Already ended segment" errors.
 
