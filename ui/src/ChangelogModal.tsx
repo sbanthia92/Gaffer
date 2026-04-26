@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.38.0",
+    date: "23 Apr 2026",
+    added: [
+      "Admin dashboard at /admin — password-protected metrics page showing requests, errors, latency, token usage, cache hit rate, thumbs-down count, and missing photos over 1h/24h/7d windows",
+    ],
+  },
+  {
     version: "0.37.0",
     date: "25 Apr 2026",
     changed: [

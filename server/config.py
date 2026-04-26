@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     # V2
     database_url: str = ""  # postgres://gaffer_readonly:...@localhost:5432/gaffer (read-only)
     database_etl_url: str = ""  # postgres://gaffer_etl:...@localhost:5432/gaffer (read/write)
+    admin_password: str = ""  # set in Secrets Manager as ADMIN_PASSWORD
 
     model_config = {"env_file": str(_ENV_FILE)}
 

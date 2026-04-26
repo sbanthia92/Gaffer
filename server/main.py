@@ -1,13 +1,16 @@
 import asyncio
 import json
+import secrets
 import time
 from contextlib import asynccontextmanager
 
+import boto3
 import httpx
 import resend
 from aws_xray_sdk.core import patch_all, xray_recorder
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
@@ -112,6 +115,61 @@ def _sse(event: str, data: str) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
+# ── Admin dashboard ────────────────────────────────────────────────────────────
+
+_LOG_GROUP = "/gaffer/production/api"
+_CW_REGION = "us-east-1"
+_INSIGHTS_TIMEOUT = 30  # max seconds to wait for a query
+
+_http_basic = HTTPBasic(auto_error=False)
+
+
+def _admin_auth(credentials: HTTPBasicCredentials | None = Depends(_http_basic)) -> None:
+    if not settings.admin_password:
+        raise HTTPException(status_code=503, detail="Admin dashboard not configured.")
+    pw = credentials.password if credentials else ""
+    if not secrets.compare_digest(pw.encode(), settings.admin_password.encode()):
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect password.",
+            headers={"WWW-Authenticate": 'Basic realm="Gaffer Admin"'},
+        )
+
+
+async def _run_insights_query(client, query_string: str, hours: int) -> list[dict]:
+    end_time = int(time.time())
+    start_time = end_time - hours * 3600
+    try:
+        resp = await asyncio.to_thread(
+            client.start_query,
+            logGroupName=_LOG_GROUP,
+            startTime=start_time,
+            endTime=end_time,
+            queryString=query_string,
+        )
+        query_id = resp["queryId"]
+        for _ in range(_INSIGHTS_TIMEOUT):
+            await asyncio.sleep(1)
+            result = await asyncio.to_thread(client.get_query_results, queryId=query_id)
+            if result["status"] == "Complete":
+                return result["results"][0] if result["results"] else []
+            if result["status"] in ("Failed", "Cancelled"):
+                return []
+    except Exception as exc:
+        log.warning("admin.insights_error", error=str(exc))
+    return []
+
+
+def _field(row: list[dict], name: str, default: float = 0.0) -> float:
+    for f in row:
+        if f["field"] == name:
+            try:
+                return float(f["value"])
+            except (ValueError, TypeError):
+                return default
+    return default
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.environment}
@@ -198,6 +256,49 @@ async def thumbsdown(request: ThumbsDownRequest) -> dict[str, str]:
         }
     )
     return {"status": "sent"}
+
+
+@app.get("/admin/dashboard")
+async def admin_dashboard(
+    hours: int = 24,
+    _: None = Depends(_admin_auth),
+) -> dict:
+    client = boto3.client("logs", region_name=_CW_REGION)
+
+    queries = [
+        "filter event = 'ask.start' | stats count() as v",
+        "filter event = 'ask.error' | stats count() as v",
+        "filter event = 'ask.complete' | stats avg(latency_ms) as avg_ms, pct(latency_ms, 95) as p95_ms",  # noqa: E501
+        "filter event = 'claude.tokens' | stats sum(input_tokens) as input_tok, sum(output_tokens) as output_tok, sum(cache_read_tokens) as cache_tok",  # noqa: E501
+        "filter event = 'feedback.thumbsdown' | stats count() as v",
+        "filter event = 'player.photo_missing' | stats count() as v",
+    ]
+
+    rows = await asyncio.gather(*[_run_insights_query(client, q, hours) for q in queries])
+    req, err, lat, tok, td, pm = rows
+
+    total_requests = int(_field(req, "v"))
+    error_count = int(_field(err, "v"))
+    avg_ms = _field(lat, "avg_ms") or None
+    p95_ms = _field(lat, "p95_ms") or None
+    input_tok = int(_field(tok, "input_tok"))
+    output_tok = int(_field(tok, "output_tok"))
+    cache_tok = int(_field(tok, "cache_tok"))
+
+    return {
+        "period_hours": hours,
+        "total_requests": total_requests,
+        "error_count": error_count,
+        "error_rate_pct": round(error_count / total_requests * 100, 1) if total_requests else 0,
+        "avg_latency_ms": round(avg_ms) if avg_ms else None,
+        "p95_latency_ms": round(p95_ms) if p95_ms else None,
+        "input_tokens": input_tok,
+        "output_tokens": output_tok,
+        "cache_hit_pct": round(cache_tok / input_tok * 100) if input_tok else 0,
+        "thumbsdown_count": int(_field(td, "v")),
+        "photo_missing_count": int(_field(pm, "v")),
+        "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
 
 
 @app.post("/fpl/ask")
