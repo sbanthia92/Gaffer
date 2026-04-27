@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import json
 import secrets
 import time
@@ -118,7 +119,14 @@ def _sse(event: str, data: str) -> str:
 # ── Admin dashboard ────────────────────────────────────────────────────────────
 
 _INSIGHTS_TIMEOUT = 30  # max seconds to wait for a query
-_cw_client = boto3.client("logs", region_name=settings.cloudwatch_region)
+
+
+@functools.cache
+def _get_cw_client():
+    """Lazily create the CloudWatch Logs client so a missing AWS config only
+    breaks the admin endpoint, not the entire server at startup."""
+    return boto3.client("logs", region_name=settings.cloudwatch_region)
+
 
 _http_basic = HTTPBasic(auto_error=False)
 
@@ -140,8 +148,9 @@ async def _run_insights_query(query_string: str, hours: int) -> list[dict] | Non
     """Returns the first result row, [] if no data, or None on error."""
     end_time = int(time.time())
     start_time = end_time - hours * 3600
+    cw = _get_cw_client()
     resp = await asyncio.to_thread(
-        _cw_client.start_query,
+        cw.start_query,
         logGroupName=settings.cloudwatch_log_group,
         startTime=start_time,
         endTime=end_time,
@@ -150,7 +159,7 @@ async def _run_insights_query(query_string: str, hours: int) -> list[dict] | Non
     query_id = resp["queryId"]
     for _ in range(_INSIGHTS_TIMEOUT):
         await asyncio.sleep(1)
-        result = await asyncio.to_thread(_cw_client.get_query_results, queryId=query_id)
+        result = await asyncio.to_thread(cw.get_query_results, queryId=query_id)
         if result["status"] == "Complete":
             return result["results"][0] if result["results"] else []
         if result["status"] in ("Failed", "Cancelled"):
