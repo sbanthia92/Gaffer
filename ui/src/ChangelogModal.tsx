@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.39.0",
+    date: "27 Apr 2026",
+    changed: [
+      "Free Hit transfer advice — when Free Hit is active, The Gaffer now fetches your original squad (from the previous gameweek) so transfer suggestions are against the squad that comes back, not the temporary Free Hit one",
+    ],
+  },
+  {
     version: "0.38.0",
     date: "23 Apr 2026",
     added: [

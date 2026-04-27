@@ -557,7 +557,8 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
         )
 
     active_chip = picks_data.get("active_chip")
-    return {
+
+    result: dict = {
         "gameweek": current_gw,
         "active_chip": active_chip,
         "itb": entry_history.get("bank", 0) / 10,
@@ -567,6 +568,52 @@ async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
         "squad": squad,
         "my_leagues": my_leagues,
     }
+
+    # Free Hit is active: the current squad is temporary. Fetch GW-1 picks so
+    # Claude can advise on transfers against the squad that will be restored.
+    if active_chip == "freehit" and current_gw > 1:
+        try:
+            orig_resp = await client.get(f"/entry/{team_id}/event/{current_gw - 1}/picks/")
+            orig_resp.raise_for_status()
+            orig_data = orig_resp.json()
+            orig_squad = []
+            for pick in orig_data.get("picks", []):
+                pid = pick["element"]
+                info = player_map.get(pid, {})
+                orig_squad.append(
+                    {
+                        "name": info.get("name"),
+                        "web_name": info.get("web_name"),
+                        "team": info.get("team"),
+                        "position": info.get("position"),
+                        "selling_price": pick.get("selling_price", 0) / 10,
+                        "now_cost": info.get("now_cost"),
+                        "multiplier": pick.get("multiplier"),
+                        "is_captain": pick.get("is_captain"),
+                        "is_vice_captain": pick.get("is_vice_captain"),
+                        "total_points": info.get("total_points"),
+                        "form": info.get("form"),
+                        "status": info.get("status"),
+                        "news": info.get("news"),
+                        "expected_goal_involvements": info.get("expected_goal_involvements"),
+                        "ict_index": info.get("ict_index"),
+                    }
+                )
+            orig_history = orig_data.get("entry_history", {})
+            result["free_hit_note"] = (
+                f"Free Hit is active in GW{current_gw}. The squad above is the temporary "
+                f"Free Hit squad. Your original squad (restored after GW{current_gw}) is "
+                f"in original_squad. Use original_squad for transfer planning."
+            )
+            result["original_squad"] = orig_squad
+            result["original_itb"] = orig_history.get("bank", 0) / 10
+        except Exception:
+            result["free_hit_note"] = (
+                f"Free Hit is active in GW{current_gw}. Could not fetch original squad "
+                f"from GW{current_gw - 1} — ask the user to list their original players."
+            )
+
+    return result
 
 
 _POSITION_MAP = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
