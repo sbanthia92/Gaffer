@@ -14,6 +14,10 @@ interface DashboardData {
   input_tokens: number;
   output_tokens: number;
   cache_hit_pct: number;
+  estimated_cost_usd: number;
+  unique_users: number;
+  avg_tool_turns: number;
+  turn_limit_hits: number;
   thumbsdown_count: number;
   photo_missing_count: number;
   fetched_at: string;
@@ -23,6 +27,12 @@ function fmtNum(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+}
+
+function fmtCost(usd: number): string {
+  if (usd === 0) return "$0.00";
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  return `$${usd.toFixed(2)}`;
 }
 
 function fmtMs(ms: number | null): string {
@@ -229,6 +239,26 @@ export default function Admin() {
             label="Missing Photos"
             value={String(data.photo_missing_count)}
             sub="player.photo_missing events"
+          />
+          <MetricCard
+            label="Estimated Cost"
+            value={fmtCost(data.estimated_cost_usd)}
+            sub="Claude Sonnet 4.6 API spend"
+          />
+          <MetricCard
+            label="Unique Users"
+            value={fmtNum(data.unique_users)}
+            sub="distinct FPL team IDs"
+          />
+          <MetricCard
+            label="Avg Tool Turns"
+            value={String(data.avg_tool_turns)}
+            sub="Claude tool-use rounds per request"
+          />
+          <MetricCard
+            label="Turn Limit Hits"
+            value={String(data.turn_limit_hits)}
+            sub="requests capped at 5 turns"
           />
         </div>
       )}
