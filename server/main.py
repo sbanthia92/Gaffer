@@ -22,7 +22,11 @@ from server.logger import log
 from server.tools import db as db_tool
 from server.tools import fpl
 
-xray_recorder.configure(service="gaffer-api", daemon_address="127.0.0.1:2000")
+xray_recorder.configure(
+    service="gaffer-api",
+    daemon_address="127.0.0.1:2000",
+    context_missing="LOG_ERROR",  # boto3 in asyncio.to_thread() has no X-Ray context
+)
 patch_all()  # auto-patches httpx, boto3
 
 
