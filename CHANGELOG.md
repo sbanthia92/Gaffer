@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.38.0] — 2026-04-25
+
+### Added
+- **Admin dashboard** — password-protected `GET /admin/dashboard` endpoint queries CloudWatch Logs Insights and returns 9 metrics for the last 1h/24h/7d: total requests, errors + error rate, avg + p95 latency, input/output tokens, cache hit %, thumbs-down count, and missing photo count. React `/admin` page with time-range selector, live countdown, and auto-refresh every 60s. Password set via `ADMIN_PASSWORD` in Secrets Manager.
+
 ## [0.37.0] — 2026-04-25
 
 ### Fixed

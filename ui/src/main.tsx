@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import App from "./App.tsx";
 import Landing from "./Landing.tsx";
+import Admin from "./Admin.tsx";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(
@@ -11,6 +12,7 @@ createRoot(document.getElementById("root")!).render(
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/chat" element={<App />} />
+        <Route path="/admin" element={<Admin />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

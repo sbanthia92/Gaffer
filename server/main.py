@@ -1,13 +1,17 @@
 import asyncio
+import functools
 import json
+import secrets
 import time
 from contextlib import asynccontextmanager
 
+import boto3
 import httpx
 import resend
 from aws_xray_sdk.core import patch_all, xray_recorder
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
@@ -112,6 +116,69 @@ def _sse(event: str, data: str) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
+# ── Admin dashboard ────────────────────────────────────────────────────────────
+
+_INSIGHTS_TIMEOUT = 30  # max seconds to wait for a query
+
+
+@functools.cache
+def _get_cw_client():
+    """Lazily create the CloudWatch Logs client so a missing AWS config only
+    breaks the admin endpoint, not the entire server at startup."""
+    return boto3.client("logs", region_name=settings.cloudwatch_region)
+
+
+_http_basic = HTTPBasic(auto_error=False)
+
+
+def _admin_auth(credentials: HTTPBasicCredentials | None = Depends(_http_basic)) -> None:
+    # No password configured → open access (dev / local mode)
+    if not settings.admin_password:
+        return
+    pw = credentials.password if credentials else ""
+    if not secrets.compare_digest(pw.encode(), settings.admin_password.encode()):
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect password.",
+            headers={"WWW-Authenticate": 'Basic realm="Gaffer Admin"'},
+        )
+
+
+async def _run_insights_query(query_string: str, hours: int) -> list[dict] | None:
+    """Returns the first result row, [] if no data, or None on error."""
+    end_time = int(time.time())
+    start_time = end_time - hours * 3600
+    cw = _get_cw_client()
+    resp = await asyncio.to_thread(
+        cw.start_query,
+        logGroupName=settings.cloudwatch_log_group,
+        startTime=start_time,
+        endTime=end_time,
+        queryString=query_string,
+    )
+    query_id = resp["queryId"]
+    for _ in range(_INSIGHTS_TIMEOUT):
+        await asyncio.sleep(1)
+        result = await asyncio.to_thread(cw.get_query_results, queryId=query_id)
+        if result["status"] == "Complete":
+            return result["results"][0] if result["results"] else []
+        if result["status"] in ("Failed", "Cancelled"):
+            log.warning("admin.insights_failed", query=query_string, status=result["status"])
+            return None
+    log.warning("admin.insights_timeout", query=query_string)
+    return None
+
+
+def _field(row: list[dict], name: str, default: float = 0.0) -> float:
+    for f in row:
+        if f["field"] == name:
+            try:
+                return float(f["value"])
+            except (ValueError, TypeError):
+                return default
+    return default
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.environment}
@@ -198,6 +265,76 @@ async def thumbsdown(request: ThumbsDownRequest) -> dict[str, str]:
         }
     )
     return {"status": "sent"}
+
+
+@app.get("/admin/dashboard")
+async def admin_dashboard(
+    hours: int = 24,
+    _: None = Depends(_admin_auth),
+) -> dict:
+    # Claude Sonnet 4.6 pricing (USD per 1M tokens)
+    _PRICE = {"input": 3.0, "output": 15.0, "cache_read": 0.30, "cache_write": 3.75}
+
+    queries = [
+        "filter event = 'ask.start' | stats count() as v",
+        "filter event = 'ask.error' | stats count() as v",
+        "filter event = 'ask.complete' | stats avg(latency_ms) as avg_ms, pct(latency_ms, 95) as p95_ms",  # noqa: E501
+        "filter event = 'claude.tokens' | stats sum(input_tokens) as input_tok, sum(output_tokens) as output_tok, sum(cache_read_tokens) as cache_read_tok, sum(cache_write_tokens) as cache_write_tok",  # noqa: E501
+        "filter event = 'feedback.thumbsdown' | stats count() as v",
+        "filter event = 'player.photo_missing' | stats count() as v",
+        "filter event = 'ask.start' | stats count_distinct(fpl_team_id) as v",
+        "filter event = 'claude.tokens' | stats avg(tool_turns) as v",
+        "filter event = 'claude.turn_limit_reached' | stats count() as v",
+    ]
+
+    try:
+        rows = await asyncio.gather(*[_run_insights_query(q, hours) for q in queries])
+    except Exception as exc:
+        log.warning("admin.dashboard_error", error=str(exc))
+        raise HTTPException(status_code=503, detail=f"CloudWatch Insights unavailable: {exc}")
+
+    if any(r is None for r in rows):
+        raise HTTPException(
+            status_code=503,
+            detail="One or more CloudWatch Insights queries failed — check region, log group, and IAM permissions.",  # noqa: E501
+        )
+
+    req, err, lat, tok, td, pm, uniq, turns, tlimit = rows
+
+    total_requests = int(_field(req, "v"))
+    error_count = int(_field(err, "v"))
+    avg_ms = _field(lat, "avg_ms") or None
+    p95_ms = _field(lat, "p95_ms") or None
+    input_tok = int(_field(tok, "input_tok"))
+    output_tok = int(_field(tok, "output_tok"))
+    cache_read_tok = int(_field(tok, "cache_read_tok"))
+    cache_write_tok = int(_field(tok, "cache_write_tok"))
+
+    estimated_cost = (
+        input_tok * _PRICE["input"]
+        + output_tok * _PRICE["output"]
+        + cache_read_tok * _PRICE["cache_read"]
+        + cache_write_tok * _PRICE["cache_write"]
+    ) / 1_000_000
+
+    return {
+        "period_hours": hours,
+        "total_requests": total_requests,
+        "error_count": error_count,
+        "error_rate_pct": round(error_count / total_requests * 100, 1) if total_requests else 0,
+        "avg_latency_ms": round(avg_ms) if avg_ms else None,
+        "p95_latency_ms": round(p95_ms) if p95_ms else None,
+        "input_tokens": input_tok,
+        "output_tokens": output_tok,
+        "cache_hit_pct": round(cache_read_tok / input_tok * 100) if input_tok else 0,
+        "estimated_cost_usd": round(estimated_cost, 4),
+        "unique_users": int(_field(uniq, "v")),
+        "avg_tool_turns": round(_field(turns, "v", 0.0), 1),
+        "turn_limit_hits": int(_field(tlimit, "v")),
+        "thumbsdown_count": int(_field(td, "v")),
+        "photo_missing_count": int(_field(pm, "v")),
+        "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
 
 
 @app.post("/fpl/ask")
