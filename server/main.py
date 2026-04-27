@@ -118,6 +118,7 @@ def _sse(event: str, data: str) -> str:
 # ── Admin dashboard ────────────────────────────────────────────────────────────
 
 _INSIGHTS_TIMEOUT = 30  # max seconds to wait for a query
+_cw_client = boto3.client("logs", region_name=settings.cloudwatch_region)
 
 _http_basic = HTTPBasic(auto_error=False)
 
@@ -135,12 +136,12 @@ def _admin_auth(credentials: HTTPBasicCredentials | None = Depends(_http_basic))
         )
 
 
-async def _run_insights_query(client, query_string: str, hours: int) -> list[dict] | None:
+async def _run_insights_query(query_string: str, hours: int) -> list[dict] | None:
     """Returns the first result row, [] if no data, or None on error."""
     end_time = int(time.time())
     start_time = end_time - hours * 3600
     resp = await asyncio.to_thread(
-        client.start_query,
+        _cw_client.start_query,
         logGroupName=settings.cloudwatch_log_group,
         startTime=start_time,
         endTime=end_time,
@@ -149,7 +150,7 @@ async def _run_insights_query(client, query_string: str, hours: int) -> list[dic
     query_id = resp["queryId"]
     for _ in range(_INSIGHTS_TIMEOUT):
         await asyncio.sleep(1)
-        result = await asyncio.to_thread(client.get_query_results, queryId=query_id)
+        result = await asyncio.to_thread(_cw_client.get_query_results, queryId=query_id)
         if result["status"] == "Complete":
             return result["results"][0] if result["results"] else []
         if result["status"] in ("Failed", "Cancelled"):
@@ -262,8 +263,6 @@ async def admin_dashboard(
     hours: int = 24,
     _: None = Depends(_admin_auth),
 ) -> dict:
-    client = boto3.client("logs", region_name=settings.cloudwatch_region)
-
     # Claude Sonnet 4.6 pricing (USD per 1M tokens)
     _PRICE = {"input": 3.0, "output": 15.0, "cache_read": 0.30, "cache_write": 3.75}
 
@@ -280,7 +279,7 @@ async def admin_dashboard(
     ]
 
     try:
-        rows = await asyncio.gather(*[_run_insights_query(client, q, hours) for q in queries])
+        rows = await asyncio.gather(*[_run_insights_query(q, hours) for q in queries])
     except Exception as exc:
         log.warning("admin.dashboard_error", error=str(exc))
         raise HTTPException(status_code=503, detail=f"CloudWatch Insights unavailable: {exc}")
