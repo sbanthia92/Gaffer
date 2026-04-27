@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.39.0] — 2026-04-27
+
+### Fixed
+- **Free Hit squad in transfer advice** — when a Free Hit chip is active, `get_my_fpl_team` now also fetches the previous gameweek's picks and returns them as `original_squad`. Claude uses this to give transfer advice against the squad that will be restored after the Free Hit, not the temporary one.
+
 ## [0.38.0] — 2026-04-25
 
 ### Added
