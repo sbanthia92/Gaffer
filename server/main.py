@@ -318,7 +318,7 @@ async def admin_dashboard(
         "p95_latency_ms": round(p95_ms) if p95_ms else None,
         "input_tokens": input_tok,
         "output_tokens": output_tok,
-        "cache_hit_pct": round(cache_read_tok / input_tok * 100) if input_tok else 0,
+        "cache_hit_pct": round(cache_read_tok / (input_tok + cache_read_tok + cache_write_tok) * 100) if (input_tok + cache_read_tok + cache_write_tok) else 0,  # noqa: E501
         "estimated_cost_usd": round(estimated_cost, 4),
         "unique_users": int(_field(uniq, "v")),
         "avg_tool_turns": round(_field(turns, "v", 0.0), 1),
