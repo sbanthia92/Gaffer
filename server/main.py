@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 import boto3
 import httpx
 import resend
-from aws_xray_sdk.core import patch_all, xray_recorder
+from aws_xray_sdk.core import xray_recorder
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -22,8 +22,11 @@ from server.logger import log
 from server.tools import db as db_tool
 from server.tools import fpl
 
-xray_recorder.configure(service="gaffer-api", daemon_address="127.0.0.1:2000")
-patch_all()  # auto-patches httpx, boto3
+xray_recorder.configure(
+    service="gaffer-api",
+    daemon_address="127.0.0.1:2000",
+    context_missing="LOG_ERROR",  # boto3 in asyncio.to_thread() has no X-Ray context
+)
 
 
 @asynccontextmanager

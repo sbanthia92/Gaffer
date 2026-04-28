@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.40.0",
+    date: "28 Apr 2026",
+    changed: [
+      "Cleaner server logs — removed X-Ray HTTP patching that was flooding logs with noise, making the admin dashboard metrics unreliable",
+    ],
+  },
+  {
     version: "0.39.0",
     date: "27 Apr 2026",
     changed: [
