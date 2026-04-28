@@ -6,6 +6,7 @@ All notable changes to The Gaffer are documented here.
 
 ### Fixed
 - **X-Ray noise in logs** — removed `patch_all()` which was patching httpx and boto3 and flooding `/var/log/gaffer/app.log` with "No segment found" errors for every async HTTP call. Request-level X-Ray tracing via the middleware is preserved; per-call subsegments were not working in async context anyway.
+- **Truncated responses silently treated as complete** — if the SSE stream drops before the `done` event arrives, the client now appends "_The response was cut short — please try again._" instead of displaying partial content as a finished answer.
 
 ## [0.39.0] — 2026-04-27
 

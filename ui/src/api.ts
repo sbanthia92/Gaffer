@@ -34,6 +34,7 @@ export async function askGaffer(
   const decoder = new TextDecoder();
   let buffer = "";
   let fullAnswer = "";
+  let receivedDone = false;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -59,9 +60,16 @@ export async function askGaffer(
         onStatus(data);
       } else if (eventLine === "error") {
         throw new Error(data);
+      } else if (eventLine === "done") {
+        receivedDone = true;
       }
-      // "done" event — nothing to do, loop exits naturally
     }
+  }
+
+  if (!receivedDone && fullAnswer) {
+    const notice = "\n\n_The response was cut short — please try again._";
+    onChunk(notice);
+    fullAnswer += notice;
   }
 
   return fullAnswer;

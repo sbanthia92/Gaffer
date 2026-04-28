@@ -13,6 +13,7 @@ const RELEASES: Release[] = [
     date: "28 Apr 2026",
     changed: [
       "Cleaner server logs — removed X-Ray HTTP patching that was flooding logs with noise, making the admin dashboard metrics unreliable",
+      "Truncated responses now show a retry notice — if the answer stream drops mid-way, you'll see a clear message instead of a silent cut-off",
     ],
   },
   {
