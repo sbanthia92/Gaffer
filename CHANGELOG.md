@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.43.0] — 2026-04-28
+
+### Fixed
+- **Cache hit % over 100%** — was dividing cache_read_tokens by non-cached input_tokens only; denominator is now total tokens (input + cache_read + cache_write) so the percentage is always 0–100%.
+
 ## [0.42.0] — 2026-04-28
 
 ### Fixed

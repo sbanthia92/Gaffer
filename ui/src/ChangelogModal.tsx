@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.43.0",
+    date: "28 Apr 2026",
+    changed: [
+      "Cache hit % fixed — was showing over 100% because the denominator excluded cached tokens; now correctly shows the proportion of total tokens served from cache",
+    ],
+  },
+  {
     version: "0.42.0",
     date: "28 Apr 2026",
     changed: [
