@@ -2,6 +2,12 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.42.0] — 2026-04-28
+
+### Fixed
+- **Fixture hallucination in transfer reasoning** — Claude was citing opponents from memory instead of tool results (e.g. stating the wrong fixture for a player). Now explicitly required to only mention a fixture if it came from a `get_team_all_fixtures` or `get_fixtures` call in the current conversation.
+- **Defender double-up on same club** — transfer suggestions could recommend a DEF/GKP from the same club as one already in the squad. Now forbidden for mid/lower-table teams unless they have a DGW; Claude must flag the risk explicitly if the user insists.
+
 ## [0.41.0] — 2026-04-28
 
 ### Fixed

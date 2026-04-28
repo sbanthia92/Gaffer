@@ -9,6 +9,14 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.42.0",
+    date: "28 Apr 2026",
+    changed: [
+      "Fixture hallucinations fixed — Claude must now only cite opponents and home/away status from live tool data, never from memory",
+      "Defender double-up guard — transfer suggestions no longer recommend a defender or keeper from the same mid/lower-table club you already have covered",
+    ],
+  },
+  {
     version: "0.41.0",
     date: "28 Apr 2026",
     changed: [
