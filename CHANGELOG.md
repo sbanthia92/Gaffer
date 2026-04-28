@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.40.0] — 2026-04-28
+
+### Fixed
+- **X-Ray noise in logs** — removed `patch_all()` which was patching httpx and boto3 and flooding `/var/log/gaffer/app.log` with "No segment found" errors for every async HTTP call. Request-level X-Ray tracing via the middleware is preserved; per-call subsegments were not working in async context anyway.
+
 ## [0.39.0] — 2026-04-27
 
 ### Fixed
