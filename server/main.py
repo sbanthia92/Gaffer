@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager
 import boto3
 import httpx
 import resend
-from aws_xray_sdk.core import xray_recorder
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -21,12 +20,6 @@ from server.config import settings
 from server.logger import log
 from server.tools import db as db_tool
 from server.tools import fpl
-
-xray_recorder.configure(
-    service="gaffer-api",
-    daemon_address="127.0.0.1:2000",
-    context_missing="LOG_ERROR",  # boto3 in asyncio.to_thread() has no X-Ray context
-)
 
 
 @asynccontextmanager
@@ -58,16 +51,12 @@ app.add_exception_handler(RateLimitExceeded, _on_rate_limit_exceeded)
 @app.middleware("http")
 async def _request_logger(request: Request, call_next):
     start = time.monotonic()
-    segment_name = f"{request.method} {request.url.path}"
-    xray_recorder.begin_segment(segment_name)
     try:
         response = await call_next(request)
-    except Exception as e:
-        xray_recorder.current_segment().add_exception(e, [])
+    except Exception:
         raise
     finally:
         latency_ms = round((time.monotonic() - start) * 1000)
-        xray_recorder.end_segment()
 
     if request.url.path != "/health":
         log.info(

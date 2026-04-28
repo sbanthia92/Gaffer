@@ -9,6 +9,14 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.41.0",
+    date: "28 Apr 2026",
+    changed: [
+      "Removed X-Ray tracing — it had no daemon running and was flooding logs with noise; CloudWatch structured logging covers everything it did",
+      "Fewer tool calls on transfer and chip queries — Claude no longer looks up team names it already knows, and batches form checks for all candidates in one go",
+    ],
+  },
+  {
     version: "0.40.0",
     date: "28 Apr 2026",
     changed: [

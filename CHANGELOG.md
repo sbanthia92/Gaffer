@@ -2,6 +2,14 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.41.0] — 2026-04-28
+
+### Fixed
+- **X-Ray removed entirely** — X-Ray SDK had no daemon running and was generating "No segment found" / "No segment to end" noise on every request. Removed all X-Ray imports and middleware calls; structured JSON logging to CloudWatch already covers all observability needs.
+- **Redundant `search_team` calls before `get_team_all_fixtures`** — Claude was calling `search_team` to look up every team name before calling `get_team_all_fixtures`, doubling the tool calls on blank GW checks and chip queries. System prompt now explicitly forbids this — pass team names directly.
+- **`get_player_recent_form` called one player at a time** — transfer queries were spending a full turn per candidate. Now instructed to batch all form checks into a single turn.
+- **`get_gameweek_schedule` re-called despite pre-fetch** — system prompt rule reinforced: squad, chips, and schedule are pre-loaded; never call them again.
+
 ## [0.40.0] — 2026-04-28
 
 ### Fixed
