@@ -849,6 +849,7 @@ def test_tool_definitions_structure():
         "search_players_by_criteria",
         "get_mini_league_standings",
         "get_captain_options",
+        "get_player_xpts",
     }
     for tool in TOOL_DEFINITIONS:
         assert "name" in tool

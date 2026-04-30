@@ -51,6 +51,7 @@ _TOOL_LABELS: dict[str, str] = {
     "search_players_by_criteria": "Searching for players…",
     "get_mini_league_standings": "Fetching mini-league standings…",
     "get_captain_options": "Comparing captain candidates…",
+    "get_player_xpts": "Calculating expected points…",
 }
 
 
@@ -143,6 +144,11 @@ _SHARED_RULES = (
     "preview, or anything fixture-related for a team (e.g. 'Liverpool this weekend', "
     "'Arsenal's next game'), always call get_fixtures or get_team_all_fixtures immediately "
     "to find the fixture yourself. Do not ask the user who they are playing — look it up.\n\n"
+    "EXPECTED POINTS (xPts): Use get_player_xpts when the user asks about projected output, "
+    "best transfer targets, who to start/bench, or captaincy ranked by expected score. "
+    "xpts accounts for fixture difficulty (FDR-based CS probability) and DGW bonus. "
+    "Always show the breakdown (goals/assists/CS/bonus) so the user sees what drives the number. "
+    "Do NOT use query_database to compute xPts — get_player_xpts is pre-computed.\n\n"  # noqa: E501
     "NEVER PAUSE MID-ANSWER: Do not end your response with a question or 'shall I continue?' "
     "or 'let me also check X'. Make ALL tool calls you need upfront in the tool-use loop, "
     "then deliver the complete answer in a single response.\n\n"
@@ -184,6 +190,7 @@ def _build_system_prompt(rag_context: str, league: str, fpl_team_id: int | None 
         "- Recent GW points, CS, bonus, minutes per GW → get_player_recent_form (live FPL data)\n"
         "- Your FPL squad, chips, free transfers → get_my_fpl_team, get_chip_status (live)\n"
         "- Next fixtures, odds → get_fixtures, get_odds (live)\n"
+        "- Expected points for next GW, transfer ranking, start/bench decisions → get_player_xpts\n"
         "- Anything needing both: call live tools first, then query_database for history\n\n"
         "Be specific and cite the data you used. If data is missing or unclear, say so.\n\n"
         + _SHARED_RULES

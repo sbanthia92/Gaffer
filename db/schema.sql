@@ -317,3 +317,177 @@ CREATE INDEX IF NOT EXISTS idx_gws_player_gw_desc ON gw_player_stats (season_id,
 -- ---------------------------------------------------------------------------
 -- Enables trigram fuzzy search on player web_name (used by idx_players_web_name_trgm)
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+
+-- ---------------------------------------------------------------------------
+-- player_xpts — expected FPL points per player for the next gameweek
+-- ---------------------------------------------------------------------------
+-- Refreshed hourly by the snapshot ETL (REFRESH MATERIALIZED VIEW CONCURRENTLY).
+-- Formula per fixture:
+--   minutes_xpts  — 2.0 if avg ≥60 min, 1.0 if ≥30, 0.5 otherwise
+--   goal_xpts     — (avg_xG / avg_min × min) × position_goal_pts (6/6/5/4)
+--   assist_xpts   — (avg_xA / avg_min × min) × 3
+--   cs_xpts       — FDR-derived CS probability × position_cs_pts (6/6/1/0)
+--   saves_xpts    — avg_saves / 3.0 (GKP only; 3 saves = 1 FPL point)
+--   bonus_xpts    — avg_bonus from last 5 started GWs
+-- DGW: fixtures summed so DGW players get double credit automatically.
+-- ---------------------------------------------------------------------------
+CREATE MATERIALIZED VIEW IF NOT EXISTS player_xpts AS
+WITH
+  curr_season AS (
+    SELECT id FROM seasons WHERE is_current = TRUE LIMIT 1
+  ),
+  next_gw_num AS (
+    SELECT gw_number
+    FROM gameweeks
+    WHERE season_id = (SELECT id FROM curr_season)
+      AND (is_next = TRUE OR is_current = TRUE)
+    ORDER BY is_next DESC, gw_number ASC
+    LIMIT 1
+  ),
+  last5_gws AS (
+    SELECT gw_number
+    FROM gameweeks
+    WHERE season_id = (SELECT id FROM curr_season) AND is_finished = TRUE
+    ORDER BY gw_number DESC
+    LIMIT 5
+  ),
+  -- Rolling averages from last 5 started GWs per player
+  recent AS (
+    SELECT
+      g.player_fpl_id,
+      AVG(g.minutes)                        AS avg_minutes,
+      AVG(COALESCE(g.expected_goals, 0))    AS avg_xg,
+      AVG(COALESCE(g.expected_assists, 0))  AS avg_xa,
+      AVG(COALESCE(g.bonus, 0))             AS avg_bonus,
+      AVG(COALESCE(g.saves, 0))             AS avg_saves,
+      COUNT(*)                              AS sample_gws
+    FROM gw_player_stats g
+    WHERE g.season_id = (SELECT id FROM curr_season)
+      AND g.gw_number IN (SELECT gw_number FROM last5_gws)
+      AND g.starts = 1
+    GROUP BY g.player_fpl_id
+  ),
+  -- Next fixture(s) per team — UNION ALL so DGW teams get two rows
+  next_fixtures AS (
+    SELECT
+      f.season_id,
+      f.home_team_fpl_id                AS team_fpl_id,
+      t_away.name                       AS opponent_name,
+      f.home_team_difficulty            AS fdr,
+      TRUE                              AS is_home
+    FROM fixtures f
+    JOIN teams t_away
+      ON t_away.fpl_id = f.away_team_fpl_id AND t_away.season_id = f.season_id
+    WHERE f.season_id = (SELECT id FROM curr_season)
+      AND f.gw_number = (SELECT gw_number FROM next_gw_num)
+    UNION ALL
+    SELECT
+      f.season_id,
+      f.away_team_fpl_id                AS team_fpl_id,
+      t_home.name                       AS opponent_name,
+      f.away_team_difficulty            AS fdr,
+      FALSE                             AS is_home
+    FROM fixtures f
+    JOIN teams t_home
+      ON t_home.fpl_id = f.home_team_fpl_id AND t_home.season_id = f.season_id
+    WHERE f.season_id = (SELECT id FROM curr_season)
+      AND f.gw_number = (SELECT gw_number FROM next_gw_num)
+  ),
+  -- Per-player per-fixture xPts components
+  xpts_per_fixture AS (
+    SELECT
+      p.fpl_id                          AS player_fpl_id,
+      p.web_name,
+      p.position,
+      t.name                            AS team_name,
+      p.now_cost,
+      p.status,
+      p.chance_of_playing_next_round,
+      nf.opponent_name,
+      nf.fdr,
+      nf.is_home,
+      r.avg_minutes,
+      r.avg_xg,
+      r.avg_xa,
+      r.avg_bonus,
+      r.avg_saves,
+      r.sample_gws,
+      (SELECT gw_number FROM next_gw_num) AS gw_number,
+      -- Appearance points
+      CASE
+        WHEN r.avg_minutes >= 60 THEN 2.0
+        WHEN r.avg_minutes >= 30 THEN 1.0
+        ELSE 0.5
+      END AS minutes_xpts,
+      -- Goal points (xG rate × expected minutes × pts per goal by position)
+      (r.avg_xg / NULLIF(r.avg_minutes, 0) * LEAST(r.avg_minutes, 90)) *
+        CASE p.position
+          WHEN 'GKP' THEN 6 WHEN 'DEF' THEN 6
+          WHEN 'MID' THEN 5 WHEN 'FWD' THEN 4 ELSE 4
+        END AS goal_xpts,
+      -- Assist points
+      (r.avg_xa / NULLIF(r.avg_minutes, 0) * LEAST(r.avg_minutes, 90)) * 3 AS assist_xpts,
+      -- Clean sheet (FDR-based probability × CS pts by position)
+      CASE nf.fdr
+        WHEN 1 THEN 0.45 WHEN 2 THEN 0.32 WHEN 3 THEN 0.20
+        WHEN 4 THEN 0.10 ELSE 0.05
+      END *
+        CASE p.position
+          WHEN 'GKP' THEN 6 WHEN 'DEF' THEN 6
+          WHEN 'MID' THEN 1 WHEN 'FWD' THEN 0 ELSE 0
+        END AS cs_xpts,
+      -- Saves (GKP only: 3 saves = 1 pt)
+      CASE WHEN p.position = 'GKP' THEN r.avg_saves / 3.0 ELSE 0 END AS saves_xpts,
+      -- Bonus
+      r.avg_bonus AS bonus_xpts
+    FROM players p
+    JOIN curr_season cs ON p.season_id = cs.id
+    JOIN teams t ON t.fpl_id = p.team_fpl_id AND t.season_id = p.season_id
+    JOIN next_fixtures nf ON nf.team_fpl_id = p.team_fpl_id AND nf.season_id = p.season_id
+    JOIN recent r ON r.player_fpl_id = p.fpl_id
+    WHERE p.status != 'u'
+  )
+-- Sum across fixtures (DGW players automatically get double credit)
+SELECT
+  player_fpl_id,
+  web_name,
+  position,
+  team_name,
+  now_cost,
+  status,
+  chance_of_playing_next_round,
+  gw_number,
+  sample_gws,
+  avg_minutes,
+  avg_xg,
+  avg_xa,
+  avg_bonus,
+  avg_saves,
+  ARRAY_AGG(opponent_name ORDER BY is_home DESC) AS opponents,
+  ARRAY_AGG(fdr ORDER BY is_home DESC)           AS fdrs,
+  ARRAY_AGG(is_home ORDER BY is_home DESC)       AS home_flags,
+  ROUND(SUM(minutes_xpts + goal_xpts + assist_xpts + cs_xpts + saves_xpts + bonus_xpts)::NUMERIC, 2) AS xpts,  -- noqa: E501
+  ROUND(SUM(minutes_xpts)::NUMERIC, 2)  AS xpts_minutes,
+  ROUND(SUM(goal_xpts)::NUMERIC, 2)    AS xpts_goals,
+  ROUND(SUM(assist_xpts)::NUMERIC, 2)  AS xpts_assists,
+  ROUND(SUM(cs_xpts)::NUMERIC, 2)      AS xpts_cs,
+  ROUND(SUM(saves_xpts)::NUMERIC, 2)   AS xpts_saves,
+  ROUND(SUM(bonus_xpts)::NUMERIC, 2)   AS xpts_bonus
+FROM xpts_per_fixture
+GROUP BY
+  player_fpl_id, web_name, position, team_name,
+  now_cost, status, chance_of_playing_next_round,
+  gw_number, sample_gws, avg_minutes, avg_xg, avg_xa, avg_bonus, avg_saves;
+
+-- Unique index required for REFRESH MATERIALIZED VIEW CONCURRENTLY
+CREATE UNIQUE INDEX IF NOT EXISTS idx_player_xpts_player
+  ON player_xpts (player_fpl_id);
+
+CREATE INDEX IF NOT EXISTS idx_player_xpts_position
+  ON player_xpts (position, xpts DESC);
+
+COMMENT ON MATERIALIZED VIEW player_xpts IS
+  'Pre-computed expected FPL points per player for the next gameweek. '
+  'Refreshed hourly. xpts sums across fixtures so DGW players score double. '
+  'Use get_player_xpts tool — do not query this view directly via query_database.';
