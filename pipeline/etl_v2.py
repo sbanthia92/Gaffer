@@ -727,6 +727,11 @@ async def run_snapshot(conn: asyncpg.Connection) -> None:
     await upsert_gameweeks(conn, season_id, bootstrap)
     await upsert_players(conn, season_id, bootstrap)
     await upsert_fixtures_fpl(conn, season_id, all_fixtures)
+    try:
+        await conn.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY player_xpts")
+        log.info("player_xpts refreshed")
+    except Exception as exc:
+        log.warning("player_xpts refresh failed (run schema.sql to create it): %s", exc)
     log.info("=== SNAPSHOT complete ===")
     _heartbeat("snapshot")
 

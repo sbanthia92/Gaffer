@@ -991,6 +991,98 @@ async def get_captain_options(player_names: list[str]) -> dict:
     }
 
 
+async def get_player_xpts(
+    player_names: list[str] | None = None,
+    position: str | None = None,
+    top_n: int = 10,
+) -> dict:
+    """Return expected FPL points for the next GW from the player_xpts materialized view."""
+    from server.tools import db as db_tool
+
+    where_parts: list[str] = []
+    params: list = []
+
+    if player_names:
+        ilike_clauses = []
+        for name in player_names:
+            params.append(f"%{name}%")
+            ilike_clauses.append(f"web_name ILIKE ${len(params)}")
+        where_parts.append(f"({' OR '.join(ilike_clauses)})")
+
+    if position:
+        params.append(position.upper())
+        where_parts.append(f"position = ${len(params)}")
+
+    params.append(top_n)
+    limit_ph = f"${len(params)}"
+    where_sql = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+
+    sql = f"""
+        SELECT
+            web_name, position, team_name,
+            ROUND(now_cost / 10.0, 1)    AS price,
+            xpts,
+            xpts_goals, xpts_assists, xpts_cs, xpts_saves, xpts_bonus, xpts_minutes,
+            status, chance_of_playing_next_round,
+            opponents, fdrs, home_flags,
+            gw_number, sample_gws,
+            ROUND(avg_xg::NUMERIC, 3)    AS avg_xg_per_start,
+            ROUND(avg_xa::NUMERIC, 3)    AS avg_xa_per_start,
+            ROUND(avg_minutes::NUMERIC)  AS avg_minutes_per_start
+        FROM player_xpts
+        {where_sql}
+        ORDER BY xpts DESC
+        LIMIT {limit_ph}
+    """
+
+    result = await db_tool.execute(sql, tuple(params))
+    if result.get("error"):
+        return result
+
+    players = []
+    for row in result.get("rows", []):
+        opponents = row.get("opponents") or []
+        fdrs = row.get("fdrs") or []
+        home_flags = row.get("home_flags") or []
+        fixtures = [
+            {"opponent": opp, "fdr": fdr, "is_home": home}
+            for opp, fdr, home in zip(opponents, fdrs, home_flags)
+        ]
+        players.append(
+            {
+                "name": row["web_name"],
+                "position": row["position"],
+                "team": row["team_name"],
+                "price": row["price"],
+                "xpts": row["xpts"],
+                "breakdown": {
+                    "goals": row["xpts_goals"],
+                    "assists": row["xpts_assists"],
+                    "clean_sheet": row["xpts_cs"],
+                    "saves": row["xpts_saves"],
+                    "bonus": row["xpts_bonus"],
+                    "minutes": row["xpts_minutes"],
+                },
+                "fixtures": fixtures,
+                "status": row["status"],
+                "chance_of_playing": row["chance_of_playing_next_round"],
+                "sample_gws": row["sample_gws"],
+                "avg_xg_per_start": row["avg_xg_per_start"],
+                "avg_xa_per_start": row["avg_xa_per_start"],
+                "avg_minutes_per_start": row["avg_minutes_per_start"],
+            }
+        )
+
+    return {
+        "gameweek": result["rows"][0]["gw_number"] if result["rows"] else None,
+        "players": players,
+        "note": (
+            "xpts = expected FPL points based on last-5-GW xG/xA rates + FDR-derived CS "
+            "probability + avg bonus. DGW players reflect both fixtures."
+        ),
+    }
+
+
 # Claude receives these and decides which to call based on the question.
 TOOL_DEFINITIONS = [
     {
@@ -1337,6 +1429,42 @@ TOOL_DEFINITIONS = [
                 },
             },
             "required": ["league_id"],
+        },
+    },
+    {
+        "name": "get_player_xpts",
+        "description": (
+            "Return expected FPL points (xPts) for the next gameweek, computed from each "
+            "player's last-5-GW xG/xA rates, FDR-based clean sheet probability, and avg bonus. "
+            "DGW players automatically score double (both fixtures summed). "
+            "Use this for: transfer target ranking, captain comparison by projected output, "
+            "lineup decisions (who to start/bench), and differential spotting. "
+            "Pass player_names to compare specific players, or omit it to get the top N "
+            "by position or overall. Do NOT use query_database for xPts — use this tool."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "player_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "List of player web names to fetch xPts for (e.g. ['Salah', 'Palmer']). "
+                        "Omit to return top_n players overall or filtered by position."
+                    ),
+                },
+                "position": {
+                    "type": "string",
+                    "enum": ["GKP", "DEF", "MID", "FWD"],
+                    "description": "Filter by position. Omit for all positions.",
+                },
+                "top_n": {
+                    "type": "integer",
+                    "description": "Max players to return. Defaults to 10.",
+                    "default": 10,
+                },
+            },
+            "required": [],
         },
     },
 ]

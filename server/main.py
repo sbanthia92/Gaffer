@@ -495,6 +495,11 @@ async def _fpl_tool_handler(
         "get_captain_options": lambda i: fpl.get_captain_options(
             player_names=i["player_names"],
         ),
+        "get_player_xpts": lambda i: fpl.get_player_xpts(
+            player_names=i.get("player_names"),
+            position=i.get("position"),
+            top_n=i.get("top_n", 10),
+        ),
     }
     handler = handlers.get(tool_name)
     if handler is None:

@@ -457,7 +457,7 @@ export default function Landing() {
               {isReturning ? "Continue →" : "Start for free →"}
             </button>
             <button className="landing-changelog-btn" onClick={() => setShowChangelog(true)}>
-              What's new in v0.43.0 →
+              What's new in v0.44.0 →
             </button>
           </footer>
         </main>

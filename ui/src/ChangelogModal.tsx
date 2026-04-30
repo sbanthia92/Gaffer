@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.44.0",
+    date: "29 Apr 2026",
+    added: [
+      "Expected Points (xPts) — transfer targets, captain picks, and start/bench decisions now show projected FPL points with a full breakdown: goals, assists, clean sheet probability, bonus, and saves. DGW players automatically score both fixtures.",
+    ],
+  },
+  {
     version: "0.43.0",
     date: "28 Apr 2026",
     changed: [

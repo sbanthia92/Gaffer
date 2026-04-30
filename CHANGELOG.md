@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.44.0] — 2026-04-29
+
+### Added
+- **Expected Points (xPts) per player** — new `get_player_xpts` tool backed by a PostgreSQL materialized view (`player_xpts`). Pre-computed hourly from each player's last-5-GW xG/xA rates, FDR-based clean sheet probability, avg bonus, and saves. DGW players automatically get both fixtures summed. Returns full breakdown (goals/assists/CS/bonus/minutes) per player so advice is quantified, not qualitative. Used by Claude for transfer ranking, captain comparison, and start/bench decisions.
+
 ## [0.43.0] — 2026-04-28
 
 ### Fixed
