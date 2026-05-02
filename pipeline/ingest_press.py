@@ -176,9 +176,10 @@ def build_player_news_docs(
             "chance_of_playing": chance,
             "recency_score": 1.0,  # Always treat as fresh — FPL updates this live
         }
-        # Stable ID (no date suffix) so each run overwrites the same vector rather
-        # than accumulating a new one each time FPL updates the player's status.
-        docs.append((_doc_id(f"player_news_{p['id']}"), text, meta))
+        # ID includes a hash of the news text so re-embedding only happens when
+        # the actual content changes, not just when news_added date ticks.
+        news_hash = hashlib.md5(news.encode()).hexdigest()[:8]
+        docs.append((_doc_id(f"player_news_{p['id']}_{news_hash}"), text, meta))
 
     return docs
 
@@ -294,8 +295,8 @@ async def run() -> None:
         total += _upsert(pc, index, press_docs, always_upsert=False)
 
     if player_news_docs:
-        print(f"\nUpserting {len(player_news_docs)} player news docs (always overwrite)...")
-        total += _upsert(pc, index, player_news_docs, always_upsert=True)
+        print(f"\nUpserting {len(player_news_docs)} player news docs (skip unchanged)...")
+        total += _upsert(pc, index, player_news_docs, always_upsert=False)
 
     # Clean up press articles older than 14 days to stay within Pinecone quota.
     print("\nCleaning up stale press articles...")
