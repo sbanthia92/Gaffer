@@ -39,6 +39,29 @@ If the answer to both is "no" — even if the code is ugly, theoretical, or styl
 
 ---
 
+## External API semantics — do not assert without verification
+
+Do not flag code based on claimed external API behaviour unless you can verify it from the codebase, `CLAUDE.md`, or this file. If you are uncertain about how an external API works, flag the uncertainty rather than asserting incorrect facts.
+
+### Anthropic token counting (verified facts)
+
+The Anthropic API response includes **three separate, additive token buckets** — they do not overlap:
+
+- `usage.input_tokens` — tokens **not** read from cache and **not** used to create a cache entry (non-cached tokens only)
+- `usage.cache_read_input_tokens` — tokens served from an existing prompt cache
+- `usage.cache_creation_input_tokens` — tokens written into a new prompt cache entry
+
+**Total tokens = `input_tokens` + `cache_read_input_tokens` + `cache_creation_input_tokens`**
+
+Correct cache-hit percentage formula:
+```python
+cache_read / (input_tok + cache_read_tok + cache_write_tok) * 100
+```
+
+A formula that uses only `input_tokens` in the denominator is **wrong** — it produces values over 100% when cache reads outnumber non-cached tokens. Do not flag the correct formula as incorrect.
+
+---
+
 ## Files to skip entirely
 
 - `tests/fixtures/` — test data
