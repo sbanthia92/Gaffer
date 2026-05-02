@@ -70,6 +70,14 @@ def _recency_score(pub_date_str: str) -> float:
     return max(0.1, 1.0 - (days / 14) * 0.9)
 
 
+def _pub_timestamp(pub_date_str: str) -> float:
+    """Unix timestamp of the article's pub date, or 0.0 on parse failure."""
+    try:
+        return parsedate_to_datetime(pub_date_str).timestamp()
+    except Exception:
+        return 0.0
+
+
 async def _fetch_rss(client: httpx.AsyncClient, url: str) -> ET.Element | None:
     try:
         r = await client.get(url, timeout=15.0, follow_redirects=True)
@@ -118,6 +126,7 @@ def build_rss_docs(
             "type": "press_article",
             "source": source,
             "date": pub_date,
+            "pub_timestamp": _pub_timestamp(pub_date),
             "url": link,
             "recency_score": _recency_score(pub_date),
         }
@@ -167,7 +176,9 @@ def build_player_news_docs(
             "chance_of_playing": chance,
             "recency_score": 1.0,  # Always treat as fresh — FPL updates this live
         }
-        docs.append((_doc_id(f"player_news_{p['id']}_{news_date}"), text, meta))
+        # Stable ID (no date suffix) so each run overwrites the same vector rather
+        # than accumulating a new one each time FPL updates the player's status.
+        docs.append((_doc_id(f"player_news_{p['id']}"), text, meta))
 
     return docs
 
@@ -187,12 +198,31 @@ def _existing_ids(index, ids: list[str]) -> set[str]:
     return existing
 
 
-def _upsert(pc: Pinecone, index, docs: list[tuple[str, str, dict]]) -> int:
-    """Embed and upsert only new docs (skips IDs already in Pinecone). Returns count upserted."""
-    all_ids = [doc_id for doc_id, _, _ in docs]
-    existing = _existing_ids(index, all_ids)
-    new_docs = [(doc_id, text, meta) for doc_id, text, meta in docs if doc_id not in existing]
-    print(f"  {len(existing)} already in Pinecone, {len(new_docs)} new to embed")
+def _cleanup_stale_press(index, max_age_days: int = 14) -> None:
+    """Delete press articles older than max_age_days using metadata filter."""
+    cutoff = time.time() - max_age_days * 86400
+    try:
+        index.delete(
+            filter={"type": {"$eq": "press_article"}, "pub_timestamp": {"$lt": cutoff}},
+            namespace=_NAMESPACE,
+        )
+        print(f"  Deleted press articles older than {max_age_days} days (cutoff: {cutoff:.0f})")
+    except Exception as e:
+        print(f"  Warning: stale press cleanup skipped: {e}")
+
+
+def _upsert(
+    pc: Pinecone, index, docs: list[tuple[str, str, dict]], always_upsert: bool = False
+) -> int:
+    """Embed and upsert docs. Skips existing IDs unless always_upsert=True."""
+    if always_upsert:
+        new_docs = docs
+        print(f"  {len(new_docs)} to upsert (overwrite mode)")
+    else:
+        all_ids = [doc_id for doc_id, _, _ in docs]
+        existing = _existing_ids(index, all_ids)
+        new_docs = [(doc_id, text, meta) for doc_id, text, meta in docs if doc_id not in existing]
+        print(f"  {len(existing)} already in Pinecone, {len(new_docs)} new to embed")
 
     if not new_docs:
         return 0
@@ -231,7 +261,8 @@ async def run() -> None:
     pc = Pinecone(api_key=settings.pinecone_api_key)
     index = pc.Index(settings.pinecone_index_name)
 
-    all_docs: list[tuple[str, str, dict]] = []
+    press_docs: list[tuple[str, str, dict]] = []
+    player_news_docs: list[tuple[str, str, dict]] = []
 
     # 1 — RSS feeds
     print("Fetching RSS feeds...")
@@ -242,7 +273,7 @@ async def run() -> None:
             if root is not None:
                 docs = build_rss_docs(root, feed["source"], max_age_days=7)
                 print(f"    {len(docs)} recent articles")
-                all_docs.extend(docs)
+                press_docs.extend(docs)
 
     # 2 — FPL player news
     print("Fetching FPL player news...")
@@ -251,20 +282,25 @@ async def run() -> None:
             r = await client.get(f"{_FPL_BASE}/bootstrap-static/")
             r.raise_for_status()
             bootstrap = r.json()
-            news_docs = build_player_news_docs(bootstrap)
-            print(f"  {len(news_docs)} players with news")
-            all_docs.extend(news_docs)
+            player_news_docs = build_player_news_docs(bootstrap)
+            print(f"  {len(player_news_docs)} players with news")
         except Exception as e:
             print(f"  Warning: failed to fetch FPL bootstrap: {e}")
 
-    print(f"\nBuilt {len(all_docs)} total docs.")
+    total = 0
 
-    if not all_docs:
-        print("No docs to upsert. Exiting.")
-        return
+    if press_docs:
+        print(f"\nUpserting {len(press_docs)} press articles (skip existing)...")
+        total += _upsert(pc, index, press_docs, always_upsert=False)
 
-    print(f"Upserting to Pinecone (namespace: {_NAMESPACE})...")
-    total = _upsert(pc, index, all_docs)
+    if player_news_docs:
+        print(f"\nUpserting {len(player_news_docs)} player news docs (always overwrite)...")
+        total += _upsert(pc, index, player_news_docs, always_upsert=True)
+
+    # Clean up press articles older than 14 days to stay within Pinecone quota.
+    print("\nCleaning up stale press articles...")
+    _cleanup_stale_press(index, max_age_days=14)
+
     print(f"\nDone. {total} documents upserted to namespace '{_NAMESPACE}'.")
 
 

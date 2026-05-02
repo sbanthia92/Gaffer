@@ -9,6 +9,14 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.45.0",
+    date: "1 May 2026",
+    changed: [
+      "Pinecone quota fix — player news vectors now use a stable per-player ID so each ingest run overwrites in place instead of accumulating a new vector per status update",
+      "Stale press article cleanup — articles older than 14 days are deleted from Pinecone after each ingest run, preventing unbounded storage growth",
+    ],
+  },
+  {
     version: "0.44.0",
     date: "29 Apr 2026",
     added: [

@@ -2,6 +2,12 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.45.0] — 2026-05-01
+
+### Fixed
+- **Pinecone monthly quota exhaustion** — player news vectors were accumulating on every ingest run because the document ID included `news_added` date; each status change created a new vector and old ones were never removed. Fixed by using a stable per-player ID so each run overwrites the existing vector in place.
+- **Stale press articles never deleted** — RSS articles older than 14 days were sitting in Pinecone indefinitely, consuming storage and competing with fresh content. Ingest now deletes press articles older than 14 days via a metadata filter on `pub_timestamp` after each run.
+
 ## [0.44.0] — 2026-04-29
 
 ### Added
