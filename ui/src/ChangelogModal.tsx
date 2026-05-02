@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.46.0",
+    date: "2 May 2026",
+    changed: [
+      "Sky Sports RSS replaced with The Guardian PL feed — Sky Sports articles had empty descriptions (paywall), so 0 articles were being ingested. The Guardian provides full PL match reports, injury news, and press conference summaries.",
+    ],
+  },
+  {
     version: "0.45.0",
     date: "1 May 2026",
     changed: [

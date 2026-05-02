@@ -104,3 +104,4 @@ Required secret: `ANTHROPIC_API_KEY` (set via GitHub repo settings → Secrets).
 - **Secrets**: AWS Secrets Manager (`gaffer/production`) — fetched at startup when `ENVIRONMENT=production`. No `.env` file on EC2.
 - **SSH to EC2**: `ssh -i ~/.ssh/gaffer_ec2 ec2-user@the-gaffer.io`
 - **ETL crons**: managed by `cronie` (must be installed via `sudo dnf install -y cronie && sudo systemctl enable --now crond`). All cron commands require `ENVIRONMENT=production` prefix — cron doesn't inherit the shell environment so Secrets Manager is skipped without it. Reinstall with `bash scripts/setup_cron.sh`. Three jobs: hourly snapshot, Tuesday GW sync, twice-daily press ingestion.
+- **Press RAG sources**: BBC Sport PL RSS + The Guardian PL RSS (Sky Sports replaced — empty descriptions due to paywall). Player news from FPL bootstrap. Stale press articles (>14 days) deleted on each ingest run. Player news uses content-hash IDs so unchanged injury status is never re-embedded.

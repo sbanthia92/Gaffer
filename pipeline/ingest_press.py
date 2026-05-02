@@ -39,8 +39,8 @@ _RSS_FEEDS = [
         "source": "BBC Sport",
     },
     {
-        "url": "https://www.skysports.com/rss/12040",  # Sky Sports PL
-        "source": "Sky Sports",
+        "url": "https://www.theguardian.com/football/premierleague/rss",
+        "source": "The Guardian",
     },
 ]
 

@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.46.0] — 2026-05-02
+
+### Fixed
+- **Sky Sports RSS replaced with The Guardian** — Sky Sports feed was returning 0 PL articles (empty description fields due to paywall). Replaced with The Guardian Premier League RSS feed which provides full article text.
+
 ## [0.45.0] — 2026-05-01
 
 ### Fixed
