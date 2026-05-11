@@ -1471,6 +1471,4 @@ TOOL_DEFINITIONS = [
 
 
 def get_tool_definitions() -> list[dict]:
-    from server.tools.db import TOOL_DEFINITION as DB_TOOL
-
-    return TOOL_DEFINITIONS + [DB_TOOL]
+    return TOOL_DEFINITIONS
