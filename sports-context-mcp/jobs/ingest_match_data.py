@@ -29,7 +29,7 @@ Cron: see .github/workflows/ingest_match_data.yml for schedule.
 import logging
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor, wait
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import psycopg2
@@ -200,7 +200,7 @@ def _current_season_start_year() -> int:
     Returns:
         Integer start year (e.g. 2025 for the 2025/26 season).
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return now.year if now.month >= 8 else now.year - 1
 
 
@@ -346,9 +346,14 @@ def _upsert_teams(cur, season_id: int, bootstrap: dict) -> None:
                 strength_defence_away = EXCLUDED.strength_defence_away
             """,
             (
-                season_id, t["id"], t["name"], t.get("short_name"),
-                t.get("strength"), t.get("strength_attack_home"),
-                t.get("strength_attack_away"), t.get("strength_defence_home"),
+                season_id,
+                t["id"],
+                t["name"],
+                t.get("short_name"),
+                t.get("strength"),
+                t.get("strength_attack_home"),
+                t.get("strength_attack_away"),
+                t.get("strength_defence_home"),
                 t.get("strength_defence_away"),
             ),
         )
@@ -419,16 +424,38 @@ def _upsert_players(cur, season_id: int, bootstrap: dict) -> None:
                 updated_at = NOW()
             """,
             (
-                season_id, p["id"], p["team"],
-                p["first_name"], p["second_name"], p["web_name"],
-                position, p.get("now_cost"), p.get("total_points"), p.get("minutes"),
-                p.get("goals_scored"), p.get("assists"), p.get("clean_sheets"),
-                p.get("goals_conceded"), p.get("yellow_cards"), p.get("red_cards"),
-                p.get("bonus"), _f("form"), _f("points_per_game"), _f("selected_by_percent"),
-                p.get("transfers_in_event"), p.get("transfers_out_event"), p.get("status"),
-                p.get("chance_of_playing_next_round"), p.get("news"),
-                _f("creativity"), _f("influence"), _f("threat"), _f("ict_index"),
-                _f("expected_goals"), _f("expected_assists"), _f("expected_goal_involvements"),
+                season_id,
+                p["id"],
+                p["team"],
+                p["first_name"],
+                p["second_name"],
+                p["web_name"],
+                position,
+                p.get("now_cost"),
+                p.get("total_points"),
+                p.get("minutes"),
+                p.get("goals_scored"),
+                p.get("assists"),
+                p.get("clean_sheets"),
+                p.get("goals_conceded"),
+                p.get("yellow_cards"),
+                p.get("red_cards"),
+                p.get("bonus"),
+                _f("form"),
+                _f("points_per_game"),
+                _f("selected_by_percent"),
+                p.get("transfers_in_event"),
+                p.get("transfers_out_event"),
+                p.get("status"),
+                p.get("chance_of_playing_next_round"),
+                p.get("news"),
+                _f("creativity"),
+                _f("influence"),
+                _f("threat"),
+                _f("ict_index"),
+                _f("expected_goals"),
+                _f("expected_assists"),
+                _f("expected_goal_involvements"),
             ),
         )
     log.info("[Thread-Write] upserted %d players.", len(players))
@@ -492,12 +519,19 @@ def _upsert_new_fixtures(
                 away_team_difficulty = EXCLUDED.away_team_difficulty
             """,
             (
-                season_id, f["id"], f.get("event"), kickoff_dt,
-                f["team_h"], f["team_a"],
-                f.get("team_h_score"), f.get("team_a_score"),
-                f.get("finished") or False, f.get("started") or False,
+                season_id,
+                f["id"],
+                f.get("event"),
+                kickoff_dt,
+                f["team_h"],
+                f["team_a"],
+                f.get("team_h_score"),
+                f.get("team_a_score"),
+                f.get("finished") or False,
+                f.get("started") or False,
                 # Swap: team_a_difficulty is the difficulty FOR the home team
-                f.get("team_a_difficulty"), f.get("team_h_difficulty"),
+                f.get("team_a_difficulty"),
+                f.get("team_h_difficulty"),
             ),
         )
         new_fixtures.append(f)
@@ -615,22 +649,39 @@ def _fetch_and_upsert_player_stats(
                                 expected_goals_conceded = EXCLUDED.expected_goals_conceded
                             """,
                             (
-                                season_id, player_fpl_id, g["round"], fixture_id,
-                                g["opponent_team"], g["was_home"],
-                                g.get("team_h_score"), g.get("team_a_score"),
-                                g.get("minutes", 0), g.get("goals_scored", 0),
-                                g.get("assists", 0), g.get("clean_sheets", 0),
-                                g.get("goals_conceded", 0), g.get("own_goals", 0),
-                                g.get("penalties_saved", 0), g.get("penalties_missed", 0),
-                                g.get("yellow_cards", 0), g.get("red_cards", 0),
-                                g.get("saves", 0), g.get("bonus", 0),
-                                g.get("bps", 0), g.get("total_points", 0),
-                                g.get("value"), g.get("selected"),
-                                g.get("transfers_in"), g.get("transfers_out"),
+                                season_id,
+                                player_fpl_id,
+                                g["round"],
+                                fixture_id,
+                                g["opponent_team"],
+                                g["was_home"],
+                                g.get("team_h_score"),
+                                g.get("team_a_score"),
+                                g.get("minutes", 0),
+                                g.get("goals_scored", 0),
+                                g.get("assists", 0),
+                                g.get("clean_sheets", 0),
+                                g.get("goals_conceded", 0),
+                                g.get("own_goals", 0),
+                                g.get("penalties_saved", 0),
+                                g.get("penalties_missed", 0),
+                                g.get("yellow_cards", 0),
+                                g.get("red_cards", 0),
+                                g.get("saves", 0),
+                                g.get("bonus", 0),
+                                g.get("bps", 0),
+                                g.get("total_points", 0),
+                                g.get("value"),
+                                g.get("selected"),
+                                g.get("transfers_in"),
+                                g.get("transfers_out"),
                                 g.get("transfers_balance"),
-                                _gf("influence"), _gf("creativity"),
-                                _gf("threat"), _gf("ict_index"),
-                                _gf("expected_goals"), _gf("expected_assists"),
+                                _gf("influence"),
+                                _gf("creativity"),
+                                _gf("threat"),
+                                _gf("ict_index"),
+                                _gf("expected_goals"),
+                                _gf("expected_assists"),
                                 _gf("expected_goal_involvements"),
                                 _gf("expected_goals_conceded"),
                                 g.get("starts"),
@@ -723,9 +774,7 @@ def delta_write(fpl_result: dict | None, sports_result: dict | None) -> None:
         if sports_result:
             standings = sports_result.get("standings", [])
             if standings:
-                top3 = ", ".join(
-                    f"{s['rank']}. {s['team']['name']}" for s in standings[:3]
-                )
+                top3 = ", ".join(f"{s['rank']}. {s['team']['name']}" for s in standings[:3])
                 log.info("[Thread-Write] API-Sports top 3: %s", top3)
 
         # Step 7: commit atomically — all-or-nothing.
@@ -778,19 +827,17 @@ def run() -> None:
         # Collect results, logging full tracebacks for failures.
         fpl_result: dict | None = None
         if f1.exception():
-            log.error(
-                "Thread-FPL raised an exception:\n%s",
-                "".join(traceback.format_exception(type(f1.exception()), f1.exception(), f1.exception().__traceback__)),
-            )
+            exc1 = f1.exception()
+            tb1 = "".join(traceback.format_exception(type(exc1), exc1, exc1.__traceback__))
+            log.error("Thread-FPL raised an exception:\n%s", tb1)
         else:
             fpl_result = f1.result()
 
         sports_result: dict | None = None
         if f2.exception():
-            log.error(
-                "Thread-Sports raised an exception:\n%s",
-                "".join(traceback.format_exception(type(f2.exception()), f2.exception(), f2.exception().__traceback__)),
-            )
+            exc2 = f2.exception()
+            tb2 = "".join(traceback.format_exception(type(exc2), exc2, exc2.__traceback__))
+            log.error("Thread-Sports raised an exception:\n%s", tb2)
         else:
             sports_result = f2.result()
 

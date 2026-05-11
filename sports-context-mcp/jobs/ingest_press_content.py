@@ -38,7 +38,7 @@ import time
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from typing import Protocol, runtime_checkable
 
@@ -105,7 +105,7 @@ def _days_ago(pub_date_str: str) -> float:
             dt = datetime.fromisoformat(pub_date_str.replace("Z", "+00:00"))
         except Exception:
             return 999
-    delta = datetime.now(timezone.utc) - dt
+    delta = datetime.now(UTC) - dt
     return delta.total_seconds() / 86400
 
 
@@ -348,9 +348,7 @@ class GuardianAPIFetcher(_BaseFetcher):
 
         from datetime import timedelta
 
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=_MAX_ARTICLE_AGE_DAYS)).strftime(
-            "%Y-%m-%d"
-        )
+        cutoff = (datetime.now(UTC) - timedelta(days=_MAX_ARTICLE_AGE_DAYS)).strftime("%Y-%m-%d")
 
         params = {
             "q": "premier league",
@@ -378,7 +376,9 @@ class GuardianAPIFetcher(_BaseFetcher):
         try:
             data = resp.json()
         except ValueError as exc:
-            log.error("[%s] invalid JSON from Guardian API: %s", self.source_name, exc, exc_info=True)
+            log.error(
+                "[%s] invalid JSON from Guardian API: %s", self.source_name, exc, exc_info=True
+            )
             return []
 
         results = data.get("response", {}).get("results", [])
@@ -527,7 +527,11 @@ def _cleanup_stale_press(index) -> None:
             },
             namespace=_NAMESPACE,
         )
-        log.info("Deleted press articles older than %d days (cutoff: %.0f).", _MAX_PRESS_AGE_DAYS, cutoff)
+        log.info(
+            "Deleted press articles older than %d days (cutoff: %.0f).",
+            _MAX_PRESS_AGE_DAYS,
+            cutoff,
+        )
     except Exception as exc:
         # Non-fatal: stale cleanup is best-effort.
         log.warning("Stale press cleanup skipped: %s", exc)
@@ -672,7 +676,11 @@ def run() -> None:
     log.info("Cleaning up stale press articles (>%d days old)...", _MAX_PRESS_AGE_DAYS)
     _cleanup_stale_press(index)
 
-    log.info("Press content ingestion complete. %d documents upserted to namespace '%s'.", total, _NAMESPACE)
+    log.info(
+        "Press content ingestion complete. %d documents upserted to namespace '%s'.",
+        total,
+        _NAMESPACE,
+    )
 
 
 if __name__ == "__main__":
