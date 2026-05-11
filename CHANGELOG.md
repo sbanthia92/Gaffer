@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.51.0] — 2026-05-11
+
+### Fixed
+- **CD always force-reinstalls sports-context-mcp** — `pip install -r requirements.txt` treats git-sourced packages as already satisfied even when the upstream repo has been updated, causing the old version to stay in the venv. The deploy step now runs a `--force-reinstall --no-deps` pass for the MCP package so EC2 always gets the latest server.py.
+
 ## [0.50.0] — 2026-05-11
 
 ### Changed
