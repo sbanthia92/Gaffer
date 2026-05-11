@@ -43,6 +43,7 @@ jobs:
 
             echo "==> Installing Python dependencies..."
             .venv/bin/pip install -r requirements.txt -q
+            .venv/bin/pip install --force-reinstall --no-deps 'sports-context-mcp @ git+https://github.com/sbanthia92/sports-context-mcp.git' -q
             .venv/bin/pip install -e . -q
 
             echo "==> Building React UI..."

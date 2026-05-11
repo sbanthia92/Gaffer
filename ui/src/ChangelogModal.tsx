@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.51.0",
+    date: "11 May 2026",
+    changed: [
+      "CD pipeline now force-reinstalls sports-context-mcp on every deploy — pip was silently keeping the old version because git-sourced packages appear satisfied even when the upstream repo changes, causing 502s after MCP updates.",
+    ],
+  },
+  {
     version: "0.50.0",
     date: "11 May 2026",
     changed: [
