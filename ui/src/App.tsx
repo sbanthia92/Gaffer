@@ -586,14 +586,17 @@ export default function App() {
       {/* Sidebar */}
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-header">
-          <button className="logo-btn" onClick={() => navigate("/")}><img src="/logo.png" alt="" className="logo-img" />the-gaffer.io</button>
-          <div className="sidebar-header-actions">
-            <button className="new-chat-btn" onClick={startNewSession}>
-              + New
-            </button>
+          <div className="sidebar-brand">
+            <div className="sidebar-brand-logo">
+              <div className="sidebar-avatar" onClick={() => navigate("/")}>G</div>
+              <button className="sidebar-name" onClick={() => navigate("/")}>the-gaffer.io</button>
+            </div>
+            <span className="sidebar-tag">Terrace zine</span>
           </div>
+          <button className="new-chat-btn" onClick={startNewSession}>＋ New chat</button>
         </div>
         <nav className="session-list">
+          <span className="session-list-label">RECENT</span>
           {sessions.length === 0 && (
             <p className="empty-sessions">No chats yet</p>
           )}
@@ -616,7 +619,7 @@ export default function App() {
         </nav>
         <div className="sidebar-footer">
           <button
-            className="sidebar-footer-btn"
+            className="sidebar-fpl-btn"
             onClick={() => setShowFplModal(true)}
           >
             {fplTeamId ? `FPL ID: ${fplTeamId}` : "⚠ Enter your FPL Team ID"}
@@ -633,16 +636,21 @@ export default function App() {
       {/* Main chat area */}
       <main className="chat-area">
         <div className="mobile-header">
-          <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
-            ☰
-          </button>
-          <button className="logo-btn" onClick={() => navigate("/")}><img src="/logo.png" alt="" className="logo-img" />the-gaffer.io</button>
+          <button className="menu-btn" onClick={() => setSidebarOpen(true)}>☰</button>
+          <button className="logo-btn" onClick={() => navigate("/")}>the-gaffer.io</button>
+        </div>
+
+        <div className="chat-topbar">
+          <div className="chat-topbar-left">
+            <button className="chat-back-btn" onClick={() => navigate("/")}>← Back</button>
+            <span className="chat-live-chip">The Dressing Room · Live</span>
+          </div>
         </div>
 
         {!activeSession || activeSession.messages.length === 0 ? (
           <div className="empty-state">
-            <h1>The Gaffer</h1>
-            <p>
+            <h1 className="empty-state-headline">ASK THE<br />GAFFER.</h1>
+            <p className="empty-state-sub">
               Your AI-powered FPL analyst. Ask anything about your squad,
               transfers, or captaincy.
             </p>
@@ -726,7 +734,7 @@ export default function App() {
           <textarea
             ref={inputRef}
             className="chat-input"
-            placeholder="Ask The Gaffer…"
+            placeholder="Ask the gaffer…"
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
@@ -738,9 +746,10 @@ export default function App() {
             onClick={handleSend}
             disabled={loading || !input.trim()}
           >
-            {loading ? "…" : "Send"}
+            {loading ? "…" : "Send ⚽"}
           </button>
         </div>
+        <div className="input-footer">THE GAFFER TALKS LIVE · FPL ANALYST · POWERED BY CLAUDE</div>
       </main>
     </div>
   );

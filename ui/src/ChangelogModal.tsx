@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.50.0",
+    date: "11 May 2026",
+    changed: [
+      "Terrace zine UI redesign — complete visual overhaul to a bold fanzine aesthetic: Anton headlines, cream halftone background, hard offset box-shadows, ink-black sidebar with gold accents, stat strip on landing, and rotated sticker chips throughout. Chat page gains a gold top bar, Anton empty-state headline, and a Send ⚽ composer.",
+    ],
+  },
+  {
     version: "0.49.0",
     date: "11 May 2026",
     changed: [

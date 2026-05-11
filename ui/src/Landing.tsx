@@ -282,11 +282,12 @@ export default function Landing() {
   if (showFplStep) {
     return (
       <div className="landing">
-        <header className="landing-header">
-          <button className="landing-logo-btn" onClick={() => setShowFplStep(false)}>
-            <img src="/logo.png" alt="The Gaffer" className="landing-logo-img" />
-          </button>
-        </header>
+        <div className="landing-topbar">
+          <div className="landing-topbar-left">
+            <span className="landing-live-chip">The Dressing Room · Live</span>
+          </div>
+          <button className="landing-continue-btn" onClick={() => setShowFplStep(false)}>← Back</button>
+        </div>
         <section className="landing-fpl-step">
           <h1 className="landing-fpl-title">Enter your FPL Team ID</h1>
           <p className="landing-fpl-sub">
@@ -332,16 +333,87 @@ export default function Landing() {
     <div className="landing">
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
 
-      <header className="landing-header">
-        <button className="landing-logo-btn" onClick={() => scrollTo("home")}>
-          <img src="/logo.png" alt="The Gaffer" className="landing-logo-img" />
-        </button>
+      {/* Gold top bar */}
+      <div className="landing-topbar">
+        <div className="landing-topbar-left">
+          <span className="landing-live-chip">The Dressing Room · Live</span>
+          <nav className="landing-topbar-nav">
+            {NAV_SECTIONS.map((s) => (
+              <button
+                key={s.id}
+                className={`topbar-nav-btn ${activeSection === s.id ? "active" : ""}`}
+                onClick={() => scrollTo(s.id === "features" ? FEATURES[0].id : s.id)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </nav>
+        </div>
         {isReturning && (
           <button className="landing-continue-btn" onClick={() => navigate("/chat")}>
             Continue →
           </button>
         )}
-      </header>
+      </div>
+
+      {/* Hero */}
+      <section id="home" ref={(el) => { sectionRefs.current["home"] = el; }} className="landing-hero">
+        <div className="landing-hero-content">
+          <span className="hero-sticker">Fanzine · Issue 27</span>
+          <h1 className="landing-title">THE GAFFER<span className="landing-title-period">.</span></h1>
+          <p className="landing-sub">
+            Ask anything about your Fantasy Premier League squad. Get a clear
+            verdict backed by live data, stats, and AI reasoning.
+          </p>
+          <div className="landing-hero-actions">
+            {isReturning ? (
+              <>
+                <button className="landing-cta" onClick={() => navigate("/chat")}>Continue →</button>
+                <button className="landing-cta-secondary" onClick={() => setShowFplStep(true)}>Start fresh</button>
+              </>
+            ) : (
+              <button className="landing-cta" onClick={() => setShowFplStep(true)}>Start asking →</button>
+            )}
+          </div>
+        </div>
+        <div className="hero-teamsheet" aria-hidden="true">
+          <p className="hero-teamsheet-title">STARTING XI</p>
+          {[
+            ["GKP", "Flekken"],
+            ["DEF", "Alexander-Arnold"],
+            ["DEF", "Pedro Porro"],
+            ["MID", "Salah"],
+            ["MID", "Palmer"],
+            ["MID", "Saka"],
+            ["FWD", "Haaland"],
+          ].map(([pos, name]) => (
+            <div key={name} className="hero-teamsheet-row">
+              <span className="hero-teamsheet-pos">{pos}</span>
+              <span>{name}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Stat strip */}
+      <div className="stat-strip">
+        <div className="stat-card">
+          <div className="stat-value">12,400+</div>
+          <div className="stat-label">Managers helped</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">81%</div>
+          <div className="stat-label">Captain hit rate</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">&lt;2s</div>
+          <div className="stat-label">Response time</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">24/7</div>
+          <div className="stat-label">Press coverage</div>
+        </div>
+      </div>
 
       <div className="landing-body">
         {/* Global left nav */}
@@ -349,7 +421,7 @@ export default function Landing() {
           {NAV_SECTIONS.map((section) => (
             <div key={section.id} className="nav-section">
               <button
-                className={`nav-item nav-item--top ${activeSection === section.id || (section.id === "features" && activeSection === "features") ? "active" : ""}`}
+                className={`nav-item nav-item--top ${activeSection === section.id ? "active" : ""}`}
                 onClick={() => scrollTo(section.id === "features" ? FEATURES[0].id : section.id)}
               >
                 {section.label}
@@ -374,38 +446,16 @@ export default function Landing() {
 
         {/* Main scrollable content */}
         <main className="landing-main">
-          <section id="home" ref={(el) => { sectionRefs.current["home"] = el; }} className="landing-hero">
-            <div className="landing-hero-glow">
-              <img src="/logo.png" alt="The Gaffer" className="landing-hero-logo" />
-            </div>
-            <h1 className="landing-title">
-              Your AI-powered
-              <br />
-              <span className="landing-title-accent">FPL analyst</span>
-            </h1>
-            <p className="landing-sub">
-              Ask The Gaffer anything about your Fantasy Premier League squad. Get a
-              clear verdict backed by live data, stats, and AI reasoning.
-            </p>
-            {isReturning ? (
-              <div className="landing-hero-actions">
-                <button className="landing-cta" onClick={() => navigate("/chat")}>Continue →</button>
-                <button className="landing-cta-secondary" onClick={() => setShowFplStep(true)}>Start fresh</button>
-              </div>
-            ) : (
-              <button className="landing-cta" onClick={() => setShowFplStep(true)}>Start asking →</button>
-            )}
-          </section>
-
           <section id="features" ref={(el) => { sectionRefs.current["features"] = el; }} className="landing-features-v2">
             <div className="features-panels">
-              {FEATURES.map((f) => (
+              {FEATURES.map((f, idx) => (
                 <div
                   key={f.id}
                   id={f.id}
                   ref={(el) => { featureRefs.current[f.id] = el; }}
                   className="feature-panel"
                 >
+                  <div className="feature-index">№{String(idx + 1).padStart(2, "0")}</div>
                   <div className="feature-panel-text">
                     <div className="feature-panel-heading">
                       <span className="feature-panel-icon">{f.icon}</span>
@@ -420,48 +470,62 @@ export default function Landing() {
           </section>
 
           <section id="how-it-works" ref={(el) => { sectionRefs.current["how-it-works"] = el; }} className="landing-how">
-            <h2>How it works</h2>
+            <h2>HOW IT WORKS</h2>
             <div className="steps">
               <div className="step">
-                <div className="step-num">1</div>
-                <div>
-                  <strong>Enter your FPL Team ID</strong>
-                  <p>Found in your team URL on the FPL website.</p>
-                </div>
+                <div className="step-num">01</div>
+                <strong>Enter your FPL Team ID</strong>
+                <p>Found in your team URL on the FPL website.</p>
               </div>
               <div className="step">
-                <div className="step-num">2</div>
-                <div>
-                  <strong>Ask your question</strong>
-                  <p>Captain pick, transfers, differentials — anything FPL.</p>
-                </div>
+                <div className="step-num">02</div>
+                <strong>Ask your question</strong>
+                <p>Captain pick, transfers, differentials — anything FPL.</p>
               </div>
               <div className="step">
-                <div className="step-num">3</div>
-                <div>
-                  <strong>Get a data-driven verdict</strong>
-                  <p>Live stats + AI reasoning in seconds.</p>
-                </div>
+                <div className="step-num">03</div>
+                <strong>Get a data-driven verdict</strong>
+                <p>Live stats + AI reasoning in seconds.</p>
               </div>
             </div>
           </section>
 
           <ContactSection />
-
-          <footer className="landing-footer">
-            <p>Built for FPL managers who want an edge.</p>
-            <button
-              className="landing-cta landing-cta-sm"
-              onClick={() => isReturning ? navigate("/chat") : setShowFplStep(true)}
-            >
-              {isReturning ? "Continue →" : "Start for free →"}
-            </button>
-            <button className="landing-changelog-btn" onClick={() => setShowChangelog(true)}>
-              What's new in v0.49.0 →
-            </button>
-          </footer>
         </main>
       </div>
+
+      {/* Full-width CTA band */}
+      <div className="landing-cta-band">
+        <h2 className="cta-band-headline">READY TO GET<br />THE EDGE?</h2>
+        <button
+          className="landing-cta"
+          onClick={() => isReturning ? navigate("/chat") : setShowFplStep(true)}
+        >
+          {isReturning ? "Continue →" : "Start for free →"}
+        </button>
+      </div>
+
+      {/* Footer */}
+      <footer className="landing-footer">
+        <div className="landing-footer-col">
+          <p className="landing-footer-heading">THE GAFFER</p>
+          <p>AI-powered FPL analyst.<br />Built for managers who want an edge.</p>
+        </div>
+        <div className="landing-footer-col">
+          <p className="landing-footer-heading">NAVIGATE</p>
+          {NAV_SECTIONS.map((s) => (
+            <button key={s.id} className="landing-changelog-btn" onClick={() => scrollTo(s.id === "features" ? FEATURES[0].id : s.id)}>
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <div className="landing-footer-col">
+          <p className="landing-footer-heading">UPDATES</p>
+          <button className="landing-changelog-btn" onClick={() => setShowChangelog(true)}>
+            What's new in v0.50.0 →
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }
