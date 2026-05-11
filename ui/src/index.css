@@ -3,24 +3,34 @@
 }
 
 :root {
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --sans: 'Inter', system-ui, sans-serif;
+  --headline: 'Anton', sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  --bg: #0f1117;
-  --sidebar-bg: #1a1d27;
-  --surface: #1e2130;
-  --border: #2a2d3e;
-  --text: #c9cdd8;
-  --text-muted: #6b7280;
-  --text-heading: #f3f4f6;
-  --accent: #f59e0b;
-  --accent-dim: rgba(245, 158, 11, 0.15);
-  --user-bubble: #2563eb;
-  --error: #ef4444;
+  --paper: #fff3df;
+  --paper-dim: rgba(17, 20, 15, 0.6);
+  --ink: #11140f;
+  --gold: #ffd23f;
+  --red: #ff3b1c;
+  --green: #3aa54a;
+  --blue: #1f7ae0;
+
+  /* Legacy token aliases so existing component CSS still resolves */
+  --bg: var(--paper);
+  --sidebar-bg: var(--ink);
+  --surface: var(--paper);
+  --border: var(--ink);
+  --text: var(--ink);
+  --text-muted: var(--paper-dim);
+  --text-heading: var(--ink);
+  --accent: var(--gold);
+  --accent-dim: rgba(255, 210, 63, 0.18);
+  --user-bubble: var(--blue);
+  --error: var(--red);
 
   font: 15px/1.5 var(--sans);
-  color: var(--text);
-  background: var(--bg);
+  color: var(--ink);
+  background: var(--paper);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -32,4 +42,11 @@ body {
   width: 100%;
   height: 100svh;
   display: flex;
+}
+
+/* ── Halftone utility ────────────────────────────────────────────────────── */
+
+.halftone {
+  background-image: radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.18) 1px, transparent 0);
+  background-size: 5px 5px;
 }

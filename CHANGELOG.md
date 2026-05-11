@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.50.0] — 2026-05-11
+
+### Changed
+- **Terrace zine UI redesign** — complete visual overhaul to a bold "terrace fanzine / Panini sticker book" aesthetic. Anton headlines, cream halftone background (`--paper: #fff3df`), no border-radius, hard offset box-shadows, ink-black sidebar with gold accents, stat strip on landing, and rotated sticker chips throughout. Chat page gains a gold top bar, Anton empty-state headline, and a "Send ⚽" composer with red-shadow button.
+
 ## [0.49.0] — 2026-05-11
 
 ### Changed
