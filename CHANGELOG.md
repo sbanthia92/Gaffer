@@ -2,6 +2,13 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.49.0] — 2026-05-11
+
+### Changed
+- **Gaffer now consumes sports-context-mcp via MCP protocol** — historical stats (`query_historical_stats`) and press conference RAG (`query_press_conferences`) are now served by a subprocess running the sports-context-mcp server over stdio. Claude's `query_database` tool is removed; the MCP tools replace it. The DB connection pool is retained for FPL-specific tools (`get_player_stats`, `get_player_vs_opponent`, `get_player_xpts`) that use pre-packaged SQL queries.
+- **RAG pre-fetch removed** — the old Pinecone `rag.py` module and its pre-fetch on every request are gone. Claude now calls `query_press_conferences` on demand when injury news or press context is relevant, reducing unnecessary token usage.
+- **MCP session lifecycle** — the MCP subprocess is started once at app startup (FastAPI lifespan) and kept alive across all requests. Tool definitions from the MCP server are registered with Claude automatically at startup.
+
 ## [0.48.0] — 2026-05-11
 
 ### Changed

@@ -121,7 +121,8 @@ async def test_ask_runs_tool_then_streams():
 
 
 @pytest.mark.asyncio
-async def test_ask_includes_rag_context_in_system_prompt():
+async def test_ask_system_prompt_references_mcp_tools():
+    """System prompt directs Claude to use query_historical_stats and query_press_conferences."""
     end_turn = _make_end_turn_response()
 
     with patch("server.claude_client.anthropic.AsyncAnthropic") as mock_anthropic:
@@ -134,35 +135,11 @@ async def test_ask_includes_rag_context_in_system_prompt():
             question="How has Salah performed vs Man City?",
             tool_definitions=[],
             tool_handler=AsyncMock(return_value={}),
-            rag_context="Salah scored 3 goals vs Man City in 2023-24.",
             league="fpl",
         )
         await _collect(stream)
 
     call_kwargs = mock_client.messages.create.call_args.kwargs
     system_text = "".join(block["text"] for block in call_kwargs["system"])
-    assert "Salah scored 3 goals vs Man City in 2023-24." in system_text
-
-
-@pytest.mark.asyncio
-async def test_ask_empty_rag_context_handled():
-    end_turn = _make_end_turn_response()
-
-    with patch("server.claude_client.anthropic.AsyncAnthropic") as mock_anthropic:
-        mock_client = AsyncMock()
-        mock_anthropic.return_value = mock_client
-        mock_client.messages.create = AsyncMock(return_value=end_turn)
-        mock_client.messages.stream = MagicMock(
-            return_value=_make_stream_context(["No context answer."])
-        )
-
-        stream = await ask(
-            question="Who should I captain?",
-            tool_definitions=[],
-            tool_handler=AsyncMock(return_value={}),
-            rag_context="",
-            league="fpl",
-        )
-        result = await _collect(stream)
-
-    assert result == "No context answer."
+    assert "query_historical_stats" in system_text
+    assert "query_press_conferences" in system_text
