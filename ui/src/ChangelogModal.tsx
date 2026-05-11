@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.48.0",
+    date: "11 May 2026",
+    changed: [
+      "Press ingestion upgraded — now pulls full article body from The Guardian content API (not just RSS summaries), giving richer injury and team news context when you ask about players.",
+    ],
+  },
+  {
     version: "0.47.0",
     date: "11 May 2026",
     changed: [
