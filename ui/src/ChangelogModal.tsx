@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.52.0",
+    date: "11 May 2026",
+    changed: [
+      "API-Sports dependency removed — fixtures, standings, recent results, and head-to-head now use the FPL API directly. Standings are computed from completed fixture results. search_team and get_odds removed; team-based tools now take team names instead of numeric IDs. API_SPORTS_KEY is no longer required.",
+    ],
+  },
+  {
     version: "0.51.0",
     date: "11 May 2026",
     changed: [

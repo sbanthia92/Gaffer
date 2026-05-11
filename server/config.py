@@ -43,7 +43,6 @@ class Settings(BaseSettings):
     anthropic_api_key: str
     pinecone_api_key: str = ""
     pinecone_index_name: str = "the-gaffer"
-    api_sports_key: str
     fpl_team_id: int | None = None
     feedback_email: str = ""
     resend_api_key: str = ""
