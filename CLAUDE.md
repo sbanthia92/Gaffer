@@ -21,7 +21,7 @@ server/
   fpl_cache.py         # In-memory FPL bootstrap cache (player cards)
   logger.py            # Structured logging
   tools/
-    fpl.py             # All 15 FPL tool implementations
+    fpl.py             # All 17 FPL tool implementations
     db.py              # query_database tool (text-to-SQL against PostgreSQL)
 ui/                    # React + Vite + TypeScript frontend
 tests/                 # pytest; asyncio_mode = auto
@@ -54,7 +54,7 @@ Every PR — no matter how small — must include all four of these:
 1. **Bump the minor version** (`0.x.0 → 0.x+1.0`) in `CHANGELOG.md`
 2. **Add a `CHANGELOG.md` entry** under the new version with what changed and why
 3. **Update `CLAUDE.md`** if the change affects conventions, architecture, domain knowledge, or known gotchas
-4. **Update the UI changelog** — bump the version string in `ui/src/Landing.tsx` ("What's new in vX.Y.Z →") and add a new entry at the top of `RELEASES` in `ui/src/ChangelogModal.tsx`
+4. **Update the UI changelog** — add a new entry at the top of `RELEASES` in `ui/src/ChangelogModal.tsx` (the version string lives there, not in `Landing.tsx`)
 
 ## Commit conventions (conventional commits)
 - `feat:` — new user-facing behaviour
@@ -103,5 +103,5 @@ Required secret: `ANTHROPIC_API_KEY` (set via GitHub repo settings → Secrets).
 - **CI/CD**: GitHub Actions — CI on every PR targeting main, auto-deploy to EC2 on merge to main
 - **Secrets**: AWS Secrets Manager (`gaffer/production`) — fetched at startup when `ENVIRONMENT=production`. No `.env` file on EC2.
 - **SSH to EC2**: `ssh -i ~/.ssh/gaffer_ec2 ec2-user@the-gaffer.io`
-- **ETL crons**: managed by `cronie` (must be installed via `sudo dnf install -y cronie && sudo systemctl enable --now crond`). All cron commands require `ENVIRONMENT=production` prefix — cron doesn't inherit the shell environment so Secrets Manager is skipped without it. Reinstall with `bash scripts/setup_cron.sh`. Three jobs: hourly snapshot, Tuesday GW sync, twice-daily press ingestion.
+- **ETL crons**: managed by `cronie` (must be installed via `sudo dnf install -y cronie && sudo systemctl enable --now crond`). All cron commands require `ENVIRONMENT=production` prefix — cron doesn't inherit the shell environment so Secrets Manager is skipped without it. Reinstall with `bash scripts/setup_cron.sh`. Three EC2 cron jobs: hourly snapshot, Tuesday GW sync, twice-daily press ingestion (07:00 + 19:00 UTC). Press ingestion also runs via the `ingest.yml` GitHub Actions workflow on a daily cron (00:00 UTC) as a separate trigger.
 - **Press RAG sources**: BBC Sport PL RSS + The Guardian PL RSS (Sky Sports replaced — empty descriptions due to paywall). Player news from FPL bootstrap. Stale press articles (>14 days) deleted on each ingest run. Player news uses content-hash IDs so unchanged injury status is never re-embedded.
