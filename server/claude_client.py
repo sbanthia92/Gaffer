@@ -34,7 +34,8 @@ _MAX_TURNS = 5
 ToolHandler = Callable[[str, dict], Coroutine[Any, Any, dict]]
 
 _TOOL_LABELS: dict[str, str] = {
-    "query_database": "Querying historical database…",
+    "query_historical_stats": "Querying historical database…",
+    "query_press_conferences": "Searching press conferences…",
     "get_my_fpl_team": "Fetching your FPL squad…",
     "get_chip_status": "Checking your chip availability…",
     "get_gameweek_schedule": "Loading gameweek schedule…",
@@ -161,10 +162,7 @@ _SHARED_RULES = (
 )
 
 
-def _build_system_prompt(rag_context: str, league: str, fpl_team_id: int | None = None) -> str:
-    press_block = (
-        rag_context if rag_context else "No recent press conference or news context available."
-    )
+def _build_system_prompt(league: str, fpl_team_id: int | None = None) -> str:
     team_id_line = (
         f"The user's FPL Team ID is {fpl_team_id}. "
         "Call get_my_fpl_team and get_chip_status immediately for any squad-related question — "
@@ -177,24 +175,24 @@ def _build_system_prompt(rag_context: str, league: str, fpl_team_id: int | None 
         f"You are The Gaffer, an expert AI football analyst specialising in {league.upper()}.\n\n"
         + team_id_line
         + "You have access to three sources of information:\n"
-        "1. A PostgreSQL database of historical FPL stats — use the query_database tool "
+        "1. A PostgreSQL database of historical FPL stats — use the query_historical_stats tool "
         "to run SQL queries for past gameweek data, player-vs-opponent records, "
         "season aggregates, xG/xA trends, and cross-season comparisons.\n"
         "2. Live data via the other tools — current squad, fixtures, standings, odds, "
         "player form, and chip status.\n"
-        "3. Recent news and press conference summaries — injected below from match reports "
-        "and manager briefings updated twice daily.\n\n"
+        "3. Recent news and press conference summaries — use the query_press_conferences tool "
+        "to search for injury news, manager quotes, and match reports updated twice daily.\n\n"
         "TOOL SELECTION GUIDE:\n"
-        "- Historical stats, past GW points, H2H vs opponent, season trends → query_database\n"
+        "- Historical stats, past GW points, H2H vs opponent, season trends → query_historical_stats\n"  # noqa: E501
+        "- Recent injury news, manager quotes, press summaries → query_press_conferences\n"
         "- Current price, ownership %, live form score → search_players_by_criteria (live)\n"
         "- Recent GW points, CS, bonus, minutes per GW → get_player_recent_form (live FPL data)\n"
         "- Your FPL squad, chips, free transfers → get_my_fpl_team, get_chip_status (live)\n"
         "- Next fixtures, odds → get_fixtures, get_odds (live)\n"
         "- Expected points for next GW, transfer ranking, start/bench decisions → get_player_xpts\n"
-        "- Anything needing both: call live tools first, then query_database for history\n\n"
+        "- Anything needing both: call live tools first, then query_historical_stats for history\n\n"  # noqa: E501
         "Be specific and cite the data you used. If data is missing or unclear, say so.\n\n"
         + _SHARED_RULES
-        + f"--- RECENT NEWS & PRESS CONFERENCES ---\n{press_block}\n--- END NEWS CONTEXT ---"
     )
 
 
@@ -235,16 +233,14 @@ async def ask(
     question: str,
     tool_definitions: list[dict],
     tool_handler: ToolHandler,
-    rag_context: str = "",
     league: str = "fpl",
     history: list[dict] | None = None,
     fpl_team_id: int | None = None,
     prefetched: dict | None = None,
 ) -> AsyncIterator[tuple[str, str]]:
     """
-    Send a question to Claude with tools and RAG context. Runs the tool-use
-    loop until Claude is ready to answer, then streams the final answer
-    token by token.
+    Send a question to Claude with tools. Runs the tool-use loop until Claude
+    is ready to answer, then streams the final answer token by token.
 
     prefetched: optional dict of pre-fetched tool results (squad, chips, schedule)
                 injected as a synthetic tool exchange so Claude skips round 1.
@@ -296,7 +292,7 @@ async def ask(
     system = [
         {
             "type": "text",
-            "text": _build_system_prompt(rag_context, league, fpl_team_id),
+            "text": _build_system_prompt(league, fpl_team_id),
             "cache_control": {"type": "ephemeral"},
         }
     ]

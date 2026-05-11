@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.49.0",
+    date: "11 May 2026",
+    changed: [
+      "Historical stats and injury news now served via MCP — The Gaffer connects to the sports-context-mcp server over stdio at startup. Claude calls query_historical_stats for SQL queries and query_press_conferences for injury news instead of an always-on Pinecone pre-fetch, reducing unnecessary token usage on every request.",
+    ],
+  },
+  {
     version: "0.48.0",
     date: "11 May 2026",
     changed: [

@@ -45,12 +45,9 @@ def test_health_returns_environment() -> None:
 
 
 def test_fpl_ask_streams_answer() -> None:
-    with (
-        patch("server.main.rag.retrieve", new=AsyncMock(return_value="")),
-        patch(
-            "server.main.claude_client.ask",
-            new=AsyncMock(return_value=_mock_stream("Captain Salah this week.")),
-        ),
+    with patch(
+        "server.main.claude_client.ask",
+        new=AsyncMock(return_value=_mock_stream("Captain Salah this week.")),
     ):
         response = client.post("/fpl/ask", json={"question": "Should I captain Salah?"})
 
@@ -70,13 +67,9 @@ def test_fpl_ask_missing_question_returns_422() -> None:
 
 
 def test_fpl_ask_passes_question_to_claude() -> None:
-    mock_retrieve = AsyncMock(return_value="")
     mock_ask = AsyncMock(return_value=_mock_stream("Transfer in Haaland."))
 
-    with (
-        patch("server.main.rag.retrieve", new=mock_retrieve),
-        patch("server.main.claude_client.ask", new=mock_ask),
-    ):
+    with patch("server.main.claude_client.ask", new=mock_ask):
         client.post("/fpl/ask", json={"question": "Who should I transfer in?"})
 
     mock_ask.assert_awaited_once()

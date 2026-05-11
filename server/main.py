@@ -1,9 +1,12 @@
 import asyncio
 import functools
+import importlib.util
 import json
 import secrets
+import sys
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import boto3
 import httpx
@@ -11,21 +14,57 @@ import resend
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+from mcp.types import TextContent
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 
-from server import claude_client, fpl_cache, rag
+from server import claude_client, fpl_cache
 from server.config import settings
 from server.logger import log
 from server.tools import db as db_tool
 from server.tools import fpl
 
 
+def _find_mcp_server_path() -> str:
+    """Find the sports-context-mcp server.py via the installed config module."""
+    spec = importlib.util.find_spec("config")
+    if spec and spec.origin:
+        server_path = Path(spec.origin).parent / "server.py"
+        if server_path.exists():
+            return str(server_path)
+    raise RuntimeError(
+        "sports-context-mcp server.py not found — "
+        "run: pip install 'sports-context-mcp @ git+https://github.com/sbanthia92/sports-context-mcp.git'"  # noqa: E501
+    )
+
+
+def _convert_mcp_tools(mcp_tools) -> list[dict]:
+    """Convert MCP tool definitions to Anthropic tool_definitions format."""
+    return [
+        {
+            "name": t.name,
+            "description": t.description or "",
+            "input_schema": t.inputSchema,
+        }
+        for t in mcp_tools
+    ]
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     await db_tool.init_pool()
-    yield
+    server_path = _find_mcp_server_path()
+    server_params = StdioServerParameters(command=sys.executable, args=[server_path])
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            tools_result = await session.list_tools()
+            app.state.mcp_session = session
+            app.state.mcp_tools = _convert_mcp_tools(tools_result.tools)
+            yield
     await db_tool.close_pool()
 
 
@@ -351,27 +390,29 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
 
             history = [{"role": m.role, "content": m.content} for m in body.history]
 
+            async def _mcp_call(name: str, inp: dict) -> dict:
+                mcp_session = request.app.state.mcp_session
+                result = await mcp_session.call_tool(name, arguments=inp)
+                if result.content and isinstance(result.content[0], TextContent):
+                    try:
+                        return json.loads(result.content[0].text)
+                    except json.JSONDecodeError:
+                        return {"result": result.content[0].text}
+                return {"error": True, "message": "No content returned from MCP tool"}
+
             async def _tracking_handler(name: str, inp: dict) -> dict:
                 tools_called.append(name)
                 return await _fpl_tool_handler(name, inp, body.fpl_team_id)
 
             async def _v2_handler(name: str, inp: dict) -> dict:
-                if name == "query_database":
+                if name in ("query_historical_stats", "query_press_conferences"):
                     tools_called.append(name)
-                    return await db_tool.execute(sql=inp["sql"])
+                    return await _mcp_call(name, inp)
                 return await _tracking_handler(name, inp)
 
             # Pre-fetch high-value context concurrently to skip round 1 tool calls.
-            # RAG + squad + chips + schedule all start at the same time.
-            prefetch_coros = [
-                rag.retrieve(
-                    query=body.question,
-                    namespace="press",
-                    top_k=3,
-                    recency_weight=0.5,
-                ),
-                fpl.get_gameweek_schedule(),
-            ]
+            # Squad + chips + schedule all start at the same time.
+            prefetch_coros: list = [fpl.get_gameweek_schedule()]
             if body.fpl_team_id:
                 prefetch_coros += [
                     fpl.get_my_fpl_team(body.fpl_team_id),
@@ -380,23 +421,20 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
 
             prefetch_results = await asyncio.gather(*prefetch_coros, return_exceptions=True)
 
-            press_context = (
-                prefetch_results[0] if not isinstance(prefetch_results[0], Exception) else ""
-            )
             schedule_data = (
-                prefetch_results[1] if not isinstance(prefetch_results[1], Exception) else None
+                prefetch_results[0] if not isinstance(prefetch_results[0], Exception) else None
             )
             squad_data = (
-                prefetch_results[2]
-                if (body.fpl_team_id and not isinstance(prefetch_results[2], Exception))
+                prefetch_results[1]
+                if (body.fpl_team_id and not isinstance(prefetch_results[1], Exception))
                 else None
             )
             chip_data = (
-                prefetch_results[3]
+                prefetch_results[2]
                 if (
                     body.fpl_team_id
-                    and len(prefetch_results) > 3
-                    and not isinstance(prefetch_results[3], Exception)
+                    and len(prefetch_results) > 2
+                    and not isinstance(prefetch_results[2], Exception)
                 )
                 else None
             )
@@ -407,11 +445,11 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
             if chip_data:
                 prefetched["chips"] = chip_data
 
+            mcp_tool_defs = getattr(request.app.state, "mcp_tools", [])
             stream = await claude_client.ask(
                 question=body.question,
-                tool_definitions=fpl.get_tool_definitions(),
+                tool_definitions=fpl.get_tool_definitions() + mcp_tool_defs,
                 tool_handler=_v2_handler,
-                rag_context=press_context,
                 league="fpl",
                 history=history,
                 fpl_team_id=body.fpl_team_id,

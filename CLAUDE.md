@@ -5,24 +5,22 @@ AI-powered Fantasy Premier League analyst web app. Provides natural language ana
 ## Stack
 - **Language**: Python 3.11+
 - **API**: FastAPI (rate-limited via `slowapi` — 10 req/min, 50 req/hour per IP on `/fpl/ask`)
-- **AI**: Anthropic Claude via the `anthropic` SDK (text-to-SQL + RAG synthesis)
+- **AI**: Anthropic Claude via the `anthropic` SDK (tool-use loop + streaming)
 - **Database**: PostgreSQL (3 seasons of historical FPL stats)
-- **RAG**: Pinecone (press conferences, injury updates)
-- **Tracing**: AWS X-Ray
+- **MCP**: `sports-context-mcp` subprocess (stdio transport) — provides `query_historical_stats` and `query_press_conferences` tools to Claude
 - **Infra**: AWS EC2, Terraform, GitHub Actions CI/CD
 
 ## Project structure
 ```
 server/
-  main.py              # FastAPI app — /fpl/ask is the main SSE endpoint
+  main.py              # FastAPI app — /fpl/ask is the main SSE endpoint; MCP session lifecycle
   claude_client.py     # Sport-agnostic Anthropic SDK wrapper; tool-use loop + streaming
   config.py            # All config via pydantic-settings `settings` object
-  rag.py               # Pinecone RAG — queries the 'press' namespace only
   fpl_cache.py         # In-memory FPL bootstrap cache (player cards)
   logger.py            # Structured logging
   tools/
     fpl.py             # All 17 FPL tool implementations
-    db.py              # query_database tool (text-to-SQL against PostgreSQL)
+    db.py              # Internal DB utility (asyncpg pool + execute); NOT a Claude tool
 ui/                    # React + Vite + TypeScript frontend
 tests/                 # pytest; asyncio_mode = auto
 pipeline/              # ETL pipeline for PostgreSQL historical data
@@ -35,6 +33,9 @@ scripts/               # EC2 setup, deploy helpers
 sports-context-mcp @ git+https://github.com/sbanthia92/sports-context-mcp.git
 ```
 The press ingestion job in that package uses **The Guardian content API** (`content.guardianapis.com`) — not the Guardian RSS feed. The Gaffer's own `pipeline/` ETL still uses its own BBC Sport + Guardian RSS fetchers for the Pinecone press namespace.
+
+## MCP client wiring
+At startup, `server/main.py` finds the MCP `server.py` via `importlib.util.find_spec("config").origin` (the MCP's `config.py` in site-packages), launches it as a subprocess, and stores the `ClientSession` in `app.state.mcp_session`. Tool definitions are fetched at startup and merged with FPL tool definitions before being passed to Claude. When Claude calls `query_historical_stats` or `query_press_conferences`, `_v2_handler` routes through the MCP session. The DB connection pool (`db_tool`) is kept alive separately for FPL tools that use hard-coded SQL internally (`get_player_stats`, `get_player_vs_opponent`, `get_player_xpts`).
 
 ## Dev commands
 ```bash
