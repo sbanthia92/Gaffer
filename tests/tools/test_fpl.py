@@ -12,7 +12,6 @@ from server.tools.fpl import (
     get_head_to_head,
     get_mini_league_standings,
     get_my_fpl_team,
-    get_odds,
     get_player_recent_form,
     get_player_stats,
     get_player_vs_opponent,
@@ -20,124 +19,103 @@ from server.tools.fpl import (
     get_team_all_fixtures,
     get_team_recent_fixtures,
     search_players_by_criteria,
-    search_team,
 )
 
-_BASE = "https://v3.football.api-sports.io"
+_FPL_BASE = "https://fantasy.premierleague.com/api"
 
-_FIXTURE_ITEM = {
-    "fixture": {"id": 42, "date": "2026-03-30T15:00:00+00:00"},
-    "teams": {
-        "home": {"name": "Man City", "winner": True},
-        "away": {"name": "Chelsea", "winner": False},
-    },
-    "goals": {"home": 2, "away": 1},
+# Minimal bootstrap with two teams
+_BOOTSTRAP_TWO_TEAMS = {
+    "events": [],
+    "teams": [
+        {"id": 8, "name": "Chelsea", "short_name": "CHE"},
+        {"id": 1, "name": "Arsenal", "short_name": "ARS"},
+    ],
+    "elements": [],
 }
 
-_PLAYER_FIXTURE_STATS = {
-    "response": [
-        {
-            "players": [
-                {
-                    "player": {"id": 276},
-                    "statistics": [
-                        {
-                            "games": {"minutes": 90, "rating": "8.2"},
-                            "goals": {"total": 1, "assists": 0},
-                            "shots": {"on": 3},
-                        }
-                    ],
-                }
-            ]
-        }
-    ]
+# A finished fixture between Chelsea (home) and Arsenal (away), 2-1
+_FINISHED_FIXTURE = {
+    "id": 42,
+    "event": 30,
+    "finished": True,
+    "started": True,
+    "kickoff_time": "2026-03-30T15:00:00+00:00",
+    "team_h": 8,
+    "team_a": 1,
+    "team_h_score": 2,
+    "team_a_score": 1,
+    "team_h_difficulty": 3,
+    "team_a_difficulty": 4,
+}
+
+# An upcoming fixture (not started)
+_UPCOMING_FIXTURE = {
+    "id": 99,
+    "event": 35,
+    "finished": False,
+    "started": False,
+    "kickoff_time": "2026-04-15T20:00:00+00:00",
+    "team_h": 8,
+    "team_a": 1,
+    "team_h_difficulty": 2,
+    "team_a_difficulty": 3,
 }
 
 
-@respx.mock
-@pytest.mark.asyncio
-async def test_search_team_returns_trimmed_response():
-    respx.get(f"{_BASE}/teams").mock(
-        return_value=httpx.Response(
-            200,
-            json={"response": [{"team": {"id": 49, "name": "Chelsea"}}]},
-        )
-    )
-    result = await search_team(name="Chelsea")
-    assert "teams" in result
-    assert result["teams"][0]["id"] == 49
-    assert result["teams"][0]["name"] == "Chelsea"
-
-
-@respx.mock
 @pytest.mark.asyncio
 async def test_get_fixtures_returns_trimmed_response():
-    respx.get(f"{_BASE}/fixtures").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "response": [
-                    {
-                        "fixture": {"id": 1, "date": "2026-04-10", "venue": {"name": "Anfield"}},
-                        "teams": {
-                            "home": {"name": "Liverpool"},
-                            "away": {"name": "Man City"},
-                        },
-                    }
-                ]
-            },
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
+    with respx.mock:
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=_BOOTSTRAP_TWO_TEAMS)
         )
-    )
-    result = await get_fixtures(next_n=5)
+        respx.get(f"{_FPL_BASE}/fixtures/").mock(
+            return_value=httpx.Response(200, json=[_UPCOMING_FIXTURE])
+        )
+        result = await get_fixtures(next_n=5)
+
     assert "fixtures" in result
-    assert result["fixtures"][0]["fixture_id"] == 1
-    assert result["fixtures"][0]["home"] == "Liverpool"
-    assert result["fixtures"][0]["away"] == "Man City"
+    assert len(result["fixtures"]) == 1
+    f = result["fixtures"][0]
+    assert f["home"] == "Chelsea"
+    assert f["away"] == "Arsenal"
+    assert f["date"] == "2026-04-15"
+    assert f["home_difficulty"] == 2
+    assert f["away_difficulty"] == 3
 
 
-@respx.mock
 @pytest.mark.asyncio
 async def test_get_standings_returns_trimmed_response():
-    respx.get(f"{_BASE}/standings").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "response": [
-                    {
-                        "league": {
-                            "standings": [
-                                [
-                                    {
-                                        "rank": 1,
-                                        "team": {"name": "Arsenal"},
-                                        "points": 70,
-                                        "form": "WWWDW",
-                                        "all": {
-                                            "played": 32,
-                                            "win": 22,
-                                            "draw": 4,
-                                            "lose": 6,
-                                            "goals": {"for": 65, "against": 28},
-                                        },
-                                    }
-                                ]
-                            ]
-                        }
-                    }
-                ]
-            },
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
+    fpl_mod._slow_cache.clear()
+    with respx.mock:
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=_BOOTSTRAP_TWO_TEAMS)
         )
-    )
-    result = await get_standings()
+        respx.get(f"{_FPL_BASE}/fixtures/").mock(
+            return_value=httpx.Response(200, json=[_FINISHED_FIXTURE])
+        )
+        result = await get_standings()
+
     assert "standings" in result
-    assert result["standings"][0]["rank"] == 1
-    assert result["standings"][0]["team"] == "Arsenal"
-    assert result["standings"][0]["points"] == 70
+    rows = {r["team"]: r for r in result["standings"]}
+    # Chelsea won 2-1: 3 pts, GD +1
+    assert rows["Chelsea"]["won"] == 1
+    assert rows["Chelsea"]["points"] == 3
+    assert rows["Chelsea"]["goal_difference"] == 1
+    assert rows["Chelsea"]["rank"] == 1
+    # Arsenal lost: 0 pts
+    assert rows["Arsenal"]["lost"] == 1
+    assert rows["Arsenal"]["points"] == 0
+    assert rows["Arsenal"]["rank"] == 2
 
 
 @pytest.mark.asyncio
 async def test_get_player_stats_returns_fpl_data():
-    _FPL = "https://fantasy.premierleague.com/api"
     bootstrap = {
         "elements": [
             {
@@ -178,7 +156,7 @@ async def test_get_player_stats_returns_fpl_data():
 
     fpl_mod._bootstrap_cache = None
     with respx.mock:
-        respx.get(f"{_FPL}/bootstrap-static/").mock(
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
             return_value=httpx.Response(200, json=bootstrap)
         )
         with patch("server.tools.db.execute", new=AsyncMock(return_value=db_result)):
@@ -190,10 +168,8 @@ async def test_get_player_stats_returns_fpl_data():
     assert result["player_stats"]["total_points"] == 180
 
 
-@respx.mock
 @pytest.mark.asyncio
 async def test_get_player_recent_form_returns_per_game_stats():
-    _FPL = "https://fantasy.premierleague.com/api"
     bootstrap = {
         "elements": [
             {
@@ -229,11 +205,14 @@ async def test_get_player_recent_form_returns_per_game_stats():
     from server.tools import fpl as fpl_mod
 
     fpl_mod._bootstrap_cache = None  # force fresh fetch
-    respx.get(f"{_FPL}/bootstrap-static/").mock(return_value=httpx.Response(200, json=bootstrap))
-    respx.get(f"{_FPL}/element-summary/328/").mock(
-        return_value=httpx.Response(200, json=element_summary)
-    )
-    result = await get_player_recent_form(player_name="Haaland", last_n=1)
+    with respx.mock:
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=bootstrap)
+        )
+        respx.get(f"{_FPL_BASE}/element-summary/328/").mock(
+            return_value=httpx.Response(200, json=element_summary)
+        )
+        result = await get_player_recent_form(player_name="Haaland", last_n=1)
     assert "recent_form" in result
     assert result["recent_form"][0]["goals"] == 2
     assert result["recent_form"][0]["minutes"] == 90
@@ -242,98 +221,80 @@ async def test_get_player_recent_form_returns_per_game_stats():
     assert result["player"] == "Erling Haaland"
 
 
-@respx.mock
 @pytest.mark.asyncio
 async def test_get_team_recent_fixtures_returns_trimmed_response():
-    respx.get(f"{_BASE}/fixtures").mock(
-        return_value=httpx.Response(200, json={"response": [_FIXTURE_ITEM]})
-    )
-    result = await get_team_recent_fixtures(team_id=50, last_n=5)
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
+    with respx.mock:
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=_BOOTSTRAP_TWO_TEAMS)
+        )
+        respx.get(f"{_FPL_BASE}/fixtures/").mock(
+            return_value=httpx.Response(200, json=[_FINISHED_FIXTURE])
+        )
+        result = await get_team_recent_fixtures(team_name="Chelsea", last_n=5)
+
     assert "recent_fixtures" in result
-    assert result["recent_fixtures"][0]["home"] == "Man City"
-    assert result["recent_fixtures"][0]["home_goals"] == 2
+    assert len(result["recent_fixtures"]) == 1
+    f = result["recent_fixtures"][0]
+    assert f["home"] == "Chelsea"
+    assert f["away"] == "Arsenal"
+    assert f["home_goals"] == 2
+    assert f["away_goals"] == 1
+    assert f["home_winner"] is True
+    assert f["away_winner"] is False
 
 
-@respx.mock
 @pytest.mark.asyncio
 async def test_get_head_to_head_returns_trimmed_response():
-    respx.get(f"{_BASE}/fixtures/headtohead").mock(
-        return_value=httpx.Response(200, json={"response": [_FIXTURE_ITEM]})
-    )
-    result = await get_head_to_head(team1_id=50, team2_id=49, last_n=5)
-    assert "h2h" in result
-    assert result["h2h"][0]["home"] == "Man City"
-    assert result["h2h"][0]["away"] == "Chelsea"
+    from server.tools import fpl as fpl_mod
 
-
-@respx.mock
-@pytest.mark.asyncio
-async def test_get_odds_returns_trimmed_response():
-    respx.get(f"{_BASE}/odds").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "response": [
-                    {
-                        "bookmakers": [
-                            {
-                                "name": "Bet365",
-                                "bets": [
-                                    {
-                                        "name": "Match Winner",
-                                        "values": [
-                                            {"value": "Home", "odd": "1.80"},
-                                            {"value": "Draw", "odd": "3.50"},
-                                            {"value": "Away", "odd": "4.20"},
-                                        ],
-                                    }
-                                ],
-                            }
-                        ]
-                    }
-                ]
-            },
+    fpl_mod._bootstrap_cache = None
+    with respx.mock:
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=_BOOTSTRAP_TWO_TEAMS)
         )
-    )
-    result = await get_odds(fixture_id=999)
-    assert result["fixture_id"] == 999
-    assert result["bookmaker"] == "Bet365"
-    assert "Match Winner" in result["bets"]
+        respx.get(f"{_FPL_BASE}/fixtures/").mock(
+            return_value=httpx.Response(200, json=[_FINISHED_FIXTURE])
+        )
+        result = await get_head_to_head(team1_name="Chelsea", team2_name="Arsenal", last_n=5)
+
+    assert "h2h" in result
+    assert len(result["h2h"]) == 1
+    f = result["h2h"][0]
+    assert f["home"] == "Chelsea"
+    assert f["away"] == "Arsenal"
+    assert f["home_goals"] == 2
+    assert f["away_goals"] == 1
 
 
-@respx.mock
 @pytest.mark.asyncio
 async def test_get_team_all_fixtures_returns_all_competitions():
-    respx.get(f"{_BASE}/fixtures").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "response": [
-                    {
-                        "fixture": {
-                            "id": 99,
-                            "date": "2026-04-15T20:00:00+00:00",
-                            "venue": {"name": "Etihad"},
-                        },
-                        "league": {"name": "UEFA Champions League", "round": "QF"},
-                        "teams": {
-                            "home": {"name": "Man City"},
-                            "away": {"name": "Real Madrid"},
-                        },
-                    }
-                ]
-            },
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
+    with respx.mock:
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=_BOOTSTRAP_TWO_TEAMS)
         )
-    )
-    result = await get_team_all_fixtures(team_id=50, next_n=7)
+        respx.get(f"{_FPL_BASE}/fixtures/").mock(
+            return_value=httpx.Response(200, json=[_UPCOMING_FIXTURE])
+        )
+        result = await get_team_all_fixtures(team_name="Chelsea", next_n=7)
+
     assert "all_fixtures" in result
-    assert result["all_fixtures"][0]["competition"] == "UEFA Champions League"
-    assert result["all_fixtures"][0]["away"] == "Real Madrid"
+    assert len(result["all_fixtures"]) == 1
+    f = result["all_fixtures"][0]
+    assert f["competition"] == "Premier League"
+    assert f["home"] == "Chelsea"
+    assert f["away"] == "Arsenal"
+    assert f["home_difficulty"] == 2
+    assert f["away_difficulty"] == 3
 
 
 @pytest.mark.asyncio
 async def test_get_player_vs_opponent_returns_per_game_stats():
-    _FPL = "https://fantasy.premierleague.com/api"
     bootstrap = {
         "elements": [
             {
@@ -377,7 +338,7 @@ async def test_get_player_vs_opponent_returns_per_game_stats():
 
     fpl_mod._bootstrap_cache = None
     with respx.mock:
-        respx.get(f"{_FPL}/bootstrap-static/").mock(
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
             return_value=httpx.Response(200, json=bootstrap)
         )
         with patch("server.tools.db.execute", new=AsyncMock(return_value=db_result)):
@@ -391,8 +352,6 @@ async def test_get_player_vs_opponent_returns_per_game_stats():
     assert result["games"][0]["total_points"] == 15
     assert result["games"][0]["minutes"] == 90
 
-
-_FPL_BASE = "https://fantasy.premierleague.com/api"
 
 _BOOTSTRAP = {
     "events": [{"id": 36, "is_current": True, "is_next": False}],
@@ -444,23 +403,22 @@ _ENTRY = {
 }
 
 
-@respx.mock
 @pytest.mark.asyncio
 async def test_get_my_fpl_team_returns_squad():
     from server.tools import fpl as fpl_mod
 
     fpl_mod._bootstrap_cache = None
-    respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
-        return_value=httpx.Response(200, json=_BOOTSTRAP)
-    )
-    respx.get(f"{_FPL_BASE}/entry/123/event/36/picks/").mock(
-        return_value=httpx.Response(200, json=_PICKS)
-    )
-    respx.get(f"{_FPL_BASE}/entry/123/").mock(return_value=httpx.Response(200, json=_ENTRY))
-    with patch("server.tools.fpl.settings") as mock_settings:
-        mock_settings.fpl_team_id = 123
-        mock_settings.api_sports_key = "test-key"
-        result = await get_my_fpl_team()
+    with respx.mock:
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=_BOOTSTRAP)
+        )
+        respx.get(f"{_FPL_BASE}/entry/123/event/36/picks/").mock(
+            return_value=httpx.Response(200, json=_PICKS)
+        )
+        respx.get(f"{_FPL_BASE}/entry/123/").mock(return_value=httpx.Response(200, json=_ENTRY))
+        with patch("server.tools.fpl.settings") as mock_settings:
+            mock_settings.fpl_team_id = 123
+            result = await get_my_fpl_team()
     assert result["gameweek"] == 36
     assert result["squad"][0]["name"] == "Erling Haaland"
     assert result["squad"][0]["is_captain"] is True
@@ -470,7 +428,6 @@ async def test_get_my_fpl_team_returns_squad():
     ]
 
 
-@respx.mock
 @pytest.mark.asyncio
 async def test_get_my_fpl_team_no_team_id():
     with patch("server.tools.fpl.settings") as mock_settings:
@@ -479,17 +436,19 @@ async def test_get_my_fpl_team_no_team_id():
     assert "error" in result
 
 
-@respx.mock
 @pytest.mark.asyncio
 async def test_api_error_raises():
-    respx.get(f"{_BASE}/fixtures").mock(return_value=httpx.Response(401))
-    with pytest.raises(httpx.HTTPStatusError):
-        await get_fixtures()
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
+    with respx.mock:
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(return_value=httpx.Response(401))
+        with pytest.raises(httpx.HTTPStatusError):
+            await get_fixtures()
 
 
 @pytest.mark.asyncio
 async def test_search_players_by_criteria_sorts_by_form_and_includes_defensive_stats():
-    _FPL = "https://fantasy.premierleague.com/api"
     bootstrap = {
         "elements": [
             {
@@ -554,7 +513,7 @@ async def test_search_players_by_criteria_sorts_by_form_and_includes_defensive_s
 
     fpl_mod._bootstrap_cache = None
     with respx.mock:
-        respx.get(f"{_FPL}/bootstrap-static/").mock(
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
             return_value=httpx.Response(200, json=bootstrap)
         )
         result = await search_players_by_criteria(position="DEF", max_price=8.0)
@@ -570,7 +529,6 @@ async def test_search_players_by_criteria_sorts_by_form_and_includes_defensive_s
 
 @pytest.mark.asyncio
 async def test_search_players_by_criteria_form_sort():
-    _FPL = "https://fantasy.premierleague.com/api"
     bootstrap = {
         "elements": [
             {
@@ -635,7 +593,7 @@ async def test_search_players_by_criteria_form_sort():
 
     fpl_mod._bootstrap_cache = None
     with respx.mock:
-        respx.get(f"{_FPL}/bootstrap-static/").mock(
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
             return_value=httpx.Response(200, json=bootstrap)
         )
         result = await search_players_by_criteria(position="FWD")
@@ -647,7 +605,6 @@ async def test_search_players_by_criteria_form_sort():
 
 @pytest.mark.asyncio
 async def test_get_gameweek_schedule_includes_difficulty_and_skips_unscheduled_blanks():
-    _FPL = "https://fantasy.premierleague.com/api"
     bootstrap = {
         "events": [
             {
@@ -685,10 +642,10 @@ async def test_get_gameweek_schedule_includes_difficulty_and_skips_unscheduled_b
     fpl_mod._bootstrap_cache = None
     fpl_mod._slow_cache.clear()
     with respx.mock:
-        respx.get(f"{_FPL}/bootstrap-static/").mock(
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
             return_value=httpx.Response(200, json=bootstrap)
         )
-        respx.get(f"{_FPL}/fixtures/").mock(return_value=httpx.Response(200, json=fixtures))
+        respx.get(f"{_FPL_BASE}/fixtures/").mock(return_value=httpx.Response(200, json=fixtures))
         result = await get_gameweek_schedule(next_n=2)
 
     schedule = result["gameweek_schedule"]
@@ -711,39 +668,39 @@ async def test_get_gameweek_schedule_includes_difficulty_and_skips_unscheduled_b
     assert gw37["is_blank_gw"] is False
 
 
-@respx.mock
 @pytest.mark.asyncio
 async def test_get_mini_league_standings_returns_standings():
-    respx.get(f"{_FPL_BASE}/leagues-classic/12345/standings/").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "league": {"id": 12345, "name": "Office League"},
-                "standings": {
-                    "has_next": False,
-                    "results": [
-                        {
-                            "rank": 1,
-                            "last_rank": 2,
-                            "player_name": "Alice Smith",
-                            "entry_name": "Alice FC",
-                            "total": 1850,
-                            "event_total": 72,
-                        },
-                        {
-                            "rank": 2,
-                            "last_rank": 1,
-                            "player_name": "Bob Jones",
-                            "entry_name": "Bob United",
-                            "total": 1820,
-                            "event_total": 55,
-                        },
-                    ],
+    with respx.mock:
+        respx.get(f"{_FPL_BASE}/leagues-classic/12345/standings/").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "league": {"id": 12345, "name": "Office League"},
+                    "standings": {
+                        "has_next": False,
+                        "results": [
+                            {
+                                "rank": 1,
+                                "last_rank": 2,
+                                "player_name": "Alice Smith",
+                                "entry_name": "Alice FC",
+                                "total": 1850,
+                                "event_total": 72,
+                            },
+                            {
+                                "rank": 2,
+                                "last_rank": 1,
+                                "player_name": "Bob Jones",
+                                "entry_name": "Bob United",
+                                "total": 1820,
+                                "event_total": 55,
+                            },
+                        ],
+                    },
                 },
-            },
+            )
         )
-    )
-    result = await get_mini_league_standings(league_id=12345)
+        result = await get_mini_league_standings(league_id=12345)
     assert result["league_name"] == "Office League"
     assert result["league_id"] == 12345
     assert len(result["standings"]) == 2
@@ -757,7 +714,6 @@ async def test_get_mini_league_standings_returns_standings():
 
 @pytest.mark.asyncio
 async def test_get_captain_options_returns_ranked_candidates():
-    _FPL = "https://fantasy.premierleague.com/api"
     bootstrap = {
         "events": [
             {"id": 36, "is_current": True, "is_next": False},
@@ -808,14 +764,16 @@ async def test_get_captain_options_returns_ranked_candidates():
 
     fpl_mod._bootstrap_cache = None
     with respx.mock:
-        respx.get(f"{_FPL}/bootstrap-static/").mock(  # noqa: E501
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(  # noqa: E501
             return_value=httpx.Response(200, json=bootstrap)
         )
-        respx.get(f"{_FPL}/fixtures/").mock(return_value=httpx.Response(200, json=fixtures_gw37))
-        respx.get(f"{_FPL}/element-summary/10/").mock(
+        respx.get(f"{_FPL_BASE}/fixtures/").mock(
+            return_value=httpx.Response(200, json=fixtures_gw37)
+        )
+        respx.get(f"{_FPL_BASE}/element-summary/10/").mock(
             return_value=httpx.Response(200, json=salah_summary)
         )
-        respx.get(f"{_FPL}/element-summary/20/").mock(
+        respx.get(f"{_FPL_BASE}/element-summary/20/").mock(
             return_value=httpx.Response(200, json=haaland_summary)
         )
         result = await get_captain_options(["Salah", "Haaland"])
@@ -836,7 +794,6 @@ def test_tool_definitions_structure():
         "get_my_fpl_team",
         "get_chip_status",
         "get_gameweek_schedule",
-        "search_team",
         "get_fixtures",
         "get_standings",
         "get_player_stats",
@@ -845,7 +802,6 @@ def test_tool_definitions_structure():
         "get_team_all_fixtures",
         "get_head_to_head",
         "get_player_vs_opponent",
-        "get_odds",
         "search_players_by_criteria",
         "get_mini_league_standings",
         "get_captain_options",

@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.52.0] — 2026-05-11
+
+### Changed
+- **API-Sports dependency removed** — `get_fixtures`, `get_standings`, `get_team_recent_fixtures`, `get_head_to_head`, and `get_team_all_fixtures` now use the FPL API instead of api-sports.io. Standings are computed from completed FPL fixture results. `search_team` and `get_odds` removed entirely — tools that previously took numeric API-Sports IDs now take team names directly. `API_SPORTS_KEY` secret is no longer needed.
+
 ## [0.51.0] — 2026-05-11
 
 ### Fixed

@@ -39,7 +39,6 @@ _TOOL_LABELS: dict[str, str] = {
     "get_my_fpl_team": "Fetching your FPL squad…",
     "get_chip_status": "Checking your chip availability…",
     "get_gameweek_schedule": "Loading gameweek schedule…",
-    "search_team": "Looking up team data…",
     "get_fixtures": "Checking upcoming fixtures…",
     "get_standings": "Fetching league standings…",
     "get_player_stats": "Fetching player stats…",
@@ -48,7 +47,6 @@ _TOOL_LABELS: dict[str, str] = {
     "get_head_to_head": "Checking head-to-head record…",
     "get_team_all_fixtures": "Loading fixture list…",
     "get_player_vs_opponent": "Analysing player vs opponent…",
-    "get_odds": "Fetching match odds…",
     "search_players_by_criteria": "Searching for players…",
     "get_mini_league_standings": "Fetching mini-league standings…",
     "get_captain_options": "Comparing captain candidates…",
@@ -139,8 +137,7 @@ _SHARED_RULES = (
     "CAPTAINCY QUESTIONS: When the user asks who to captain, use get_captain_options with the "
     "realistic captain candidates from the pre-loaded squad (typically premium attackers and "
     "midfielders). Do NOT call get_player_recent_form per player — get_captain_options fetches "
-    "all candidates concurrently and includes fixture difficulty. After get_captain_options, "
-    "call get_odds for the top candidate's fixture if match odds would strengthen the verdict.\n\n"
+    "all candidates concurrently and includes fixture difficulty.\n\n"
     "NEVER ASK FOR CLARIFICATION ON FIXTURE LOOKUPS: If the user asks about odds, a match "
     "preview, or anything fixture-related for a team (e.g. 'Liverpool this weekend', "
     "'Arsenal's next game'), always call get_fixtures or get_team_all_fixtures immediately "
@@ -178,7 +175,7 @@ def _build_system_prompt(league: str, fpl_team_id: int | None = None) -> str:
         "1. A PostgreSQL database of historical FPL stats — use the query_historical_stats tool "
         "to run SQL queries for past gameweek data, player-vs-opponent records, "
         "season aggregates, xG/xA trends, and cross-season comparisons.\n"
-        "2. Live data via the other tools — current squad, fixtures, standings, odds, "
+        "2. Live data via the other tools — current squad, fixtures, standings, "
         "player form, and chip status.\n"
         "3. Recent news and press conference summaries — use the query_press_conferences tool "
         "to search for injury news, manager quotes, and match reports updated twice daily.\n\n"
@@ -188,7 +185,7 @@ def _build_system_prompt(league: str, fpl_team_id: int | None = None) -> str:
         "- Current price, ownership %, live form score → search_players_by_criteria (live)\n"
         "- Recent GW points, CS, bonus, minutes per GW → get_player_recent_form (live FPL data)\n"
         "- Your FPL squad, chips, free transfers → get_my_fpl_team, get_chip_status (live)\n"
-        "- Next fixtures, odds → get_fixtures, get_odds (live)\n"
+        "- Next fixtures → get_fixtures (live)\n"
         "- Expected points for next GW, transfer ranking, start/bench decisions → get_player_xpts\n"
         "- Anything needing both: call live tools first, then query_historical_stats for history\n\n"  # noqa: E501
         "Be specific and cite the data you used. If data is missing or unclear, say so.\n\n"

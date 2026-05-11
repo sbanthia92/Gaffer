@@ -1,12 +1,11 @@
 """
-FPL MCP tools — live data via API-Sports.
+FPL tools — live data via the official FPL API.
 
-Each public function fetches data from the API-Sports football API and returns
+Each public function fetches data from https://fantasy.premierleague.com/api and returns
 a trimmed summary dict. Raw API responses are never passed to Claude directly —
 they are too large and blow through token limits.
 
-API-Sports docs: https://www.api-football.com/documentation-v3
-Premier League ID: 39
+FPL API docs: https://fantasy.premierleague.com/api/bootstrap-static/
 """
 
 import asyncio
@@ -17,22 +16,11 @@ import httpx
 
 from server.config import settings
 
-_BASE_URL = "https://v3.football.api-sports.io"
 _FPL_BASE_URL = "https://fantasy.premierleague.com/api"
-_PREMIER_LEAGUE_ID = 39
-_CURRENT_SEASON = "2025"  # 2025-26 season
 
-# Persistent clients — one TCP connection pool per upstream, reused across all tool calls.
+# Persistent client — one TCP connection pool, reused across all tool calls.
 # Created lazily so tests can patch settings before the first call.
-_api_sports_client: httpx.AsyncClient | None = None
 _fpl_client: httpx.AsyncClient | None = None
-
-
-def _get_api_sports_client() -> httpx.AsyncClient:
-    global _api_sports_client
-    if _api_sports_client is None or _api_sports_client.is_closed:
-        _api_sports_client = httpx.AsyncClient(base_url=_BASE_URL, headers=_headers(), timeout=10.0)
-    return _api_sports_client
 
 
 def _get_fpl_client() -> httpx.AsyncClient:
@@ -78,80 +66,134 @@ def _cache_set(key: str, result: dict[str, Any]) -> None:
     _slow_cache[key] = (result, time.monotonic())
 
 
-def _headers() -> dict[str, str]:
-    return {"x-apisports-key": settings.api_sports_key}
+def _find_team(teams: list[dict], name: str) -> dict | None:
+    """Find an FPL team by name or short name (case-insensitive substring match)."""
+    name_lower = name.lower()
+    return next(
+        (
+            t
+            for t in teams
+            if name_lower in t["name"].lower() or name_lower in t["short_name"].lower()
+        ),
+        None,
+    )
 
 
 async def get_fixtures(next_n: int = 10) -> dict:
-    """Fetch the next N Premier League fixtures."""
-    client = _get_api_sports_client()
-    response = await client.get(
-        "/fixtures",
-        params={
-            "league": _PREMIER_LEAGUE_ID,
-            "season": _CURRENT_SEASON,
-            "next": next_n,
-        },
-    )
+    """Fetch the next N Premier League fixtures from the FPL API."""
+    client = _get_fpl_client()
+    bootstrap = await _get_bootstrap()
+    team_map = {t["id"]: t["name"] for t in bootstrap["teams"]}
+
+    response = await client.get("/fixtures/")
     response.raise_for_status()
-    data = response.json()
+    all_fixtures = response.json()
+
+    upcoming = [
+        f for f in all_fixtures if not f.get("started", True) and f.get("event") is not None
+    ]
+    upcoming.sort(key=lambda f: f.get("kickoff_time") or "")
 
     fixtures = []
-    for item in data.get("response", []):
-        f = item.get("fixture", {})
-        teams = item.get("teams", {})
+    for f in upcoming[:next_n]:
         fixtures.append(
             {
-                "fixture_id": f.get("id"),
-                "date": f.get("date"),
-                "home": teams.get("home", {}).get("name"),
-                "away": teams.get("away", {}).get("name"),
-                "venue": f.get("venue", {}).get("name"),
+                "date": (f.get("kickoff_time") or "")[:10],
+                "home": team_map.get(f.get("team_h"), ""),
+                "away": team_map.get(f.get("team_a"), ""),
+                "home_difficulty": f.get("team_h_difficulty"),
+                "away_difficulty": f.get("team_a_difficulty"),
             }
         )
     return {"fixtures": fixtures}
 
 
 async def get_standings() -> dict:
-    """Fetch current Premier League standings."""
+    """Compute current Premier League standings from FPL fixture data."""
     key = "standings"
     async with _get_slow_cache_lock():
         cached = _cache_get(key)
         if cached is not _MISSING:
             return cached  # type: ignore[return-value]
 
-        client = _get_api_sports_client()
-        response = await client.get(
-            "/standings",
-            params={
-                "league": _PREMIER_LEAGUE_ID,
-                "season": _CURRENT_SEASON,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
+        bootstrap = await _get_bootstrap()
+        team_map = {t["id"]: t["name"] for t in bootstrap["teams"]}
 
-        standings = []
-        try:
-            table = data["response"][0]["league"]["standings"][0]
-            for entry in table:
-                standings.append(
-                    {
-                        "rank": entry.get("rank"),
-                        "team": entry.get("team", {}).get("name"),
-                        "played": entry.get("all", {}).get("played"),
-                        "won": entry.get("all", {}).get("win"),
-                        "drawn": entry.get("all", {}).get("draw"),
-                        "lost": entry.get("all", {}).get("lose"),
-                        "goals_for": entry.get("all", {}).get("goals", {}).get("for"),
-                        "goals_against": entry.get("all", {}).get("goals", {}).get("against"),
-                        "points": entry.get("points"),
-                        "form": entry.get("form"),
+        client = _get_fpl_client()
+        response = await client.get("/fixtures/")
+        response.raise_for_status()
+        all_fixtures = response.json()
+
+        finished = [f for f in all_fixtures if f.get("finished")]
+
+        # Accumulate W/D/L/GF/GA per team
+        stats: dict[int, dict] = {}
+        for tid in team_map:
+            stats[tid] = {
+                "played": 0,
+                "won": 0,
+                "drawn": 0,
+                "lost": 0,
+                "goals_for": 0,
+                "goals_against": 0,
+            }
+
+        for f in finished:
+            h = f.get("team_h")
+            a = f.get("team_a")
+            hg = f.get("team_h_score") or 0
+            ag = f.get("team_a_score") or 0
+            if h is None or a is None:
+                continue
+            for tid in (h, a):
+                if tid not in stats:
+                    stats[tid] = {
+                        "played": 0,
+                        "won": 0,
+                        "drawn": 0,
+                        "lost": 0,
+                        "goals_for": 0,
+                        "goals_against": 0,
                     }
-                )
-        except (IndexError, KeyError):
-            pass
-        result = {"standings": standings}
+            stats[h]["played"] += 1
+            stats[a]["played"] += 1
+            stats[h]["goals_for"] += hg
+            stats[h]["goals_against"] += ag
+            stats[a]["goals_for"] += ag
+            stats[a]["goals_against"] += hg
+            if hg > ag:
+                stats[h]["won"] += 1
+                stats[a]["lost"] += 1
+            elif hg < ag:
+                stats[a]["won"] += 1
+                stats[h]["lost"] += 1
+            else:
+                stats[h]["drawn"] += 1
+                stats[a]["drawn"] += 1
+
+        rows = []
+        for tid, s in stats.items():
+            pts = s["won"] * 3 + s["drawn"]
+            gd = s["goals_for"] - s["goals_against"]
+            rows.append(
+                {
+                    "team": team_map.get(tid, str(tid)),
+                    "played": s["played"],
+                    "won": s["won"],
+                    "drawn": s["drawn"],
+                    "lost": s["lost"],
+                    "goals_for": s["goals_for"],
+                    "goals_against": s["goals_against"],
+                    "goal_difference": gd,
+                    "points": pts,
+                }
+            )
+
+        rows.sort(key=lambda r: (-r["points"], -r["goal_difference"], -r["goals_for"]))
+        for i, row in enumerate(rows, 1):
+            row["rank"] = i
+
+        result = {"standings": rows}
         _cache_set(key, result)
         return result
 
@@ -247,124 +289,137 @@ async def get_player_recent_form(player_name: str, last_n: int = 5) -> dict:
     }
 
 
-async def search_team(name: str) -> dict:
-    """Search for a Premier League team by name to get their team ID."""
-    client = _get_api_sports_client()
-    response = await client.get(
-        "/teams",
-        params={"search": name},
-    )
-    response.raise_for_status()
-    data = response.json()
-
-    teams = []
-    for item in data.get("response", [])[:5]:
-        t = item.get("team", {})
-        teams.append({"id": t.get("id"), "name": t.get("name")})
-    return {"teams": teams}
-
-
-async def get_team_recent_fixtures(team_id: int, last_n: int = 5) -> dict:
+async def get_team_recent_fixtures(team_name: str, last_n: int = 5) -> dict:
     """Fetch a team's last N results in the Premier League."""
-    client = _get_api_sports_client()
-    response = await client.get(
-        "/fixtures",
-        params={
-            "league": _PREMIER_LEAGUE_ID,
-            "season": _CURRENT_SEASON,
-            "last": last_n,
-            "team": team_id,
-        },
-    )
+    bootstrap = await _get_bootstrap()
+    team_map = {t["id"]: t["name"] for t in bootstrap["teams"]}
+
+    team = _find_team(bootstrap["teams"], team_name)
+    if not team:
+        return {"error": f"Team '{team_name}' not found in FPL data"}
+    fpl_team_id = team["id"]
+
+    client = _get_fpl_client()
+    response = await client.get("/fixtures/")
     response.raise_for_status()
-    data = response.json()
+    all_fixtures = response.json()
+
+    finished = [
+        f
+        for f in all_fixtures
+        if f.get("finished") and (f.get("team_h") == fpl_team_id or f.get("team_a") == fpl_team_id)
+    ]
+    finished.sort(key=lambda f: f.get("kickoff_time") or "", reverse=True)
 
     fixtures = []
-    for item in data.get("response", []):
-        f = item.get("fixture", {})
-        teams = item.get("teams", {})
-        goals = item.get("goals", {})
-        home = teams.get("home", {})
-        away = teams.get("away", {})
+    for f in finished[:last_n]:
+        h = f.get("team_h")
+        a = f.get("team_a")
+        hg = f.get("team_h_score")
+        ag = f.get("team_a_score")
         fixtures.append(
             {
-                "date": f.get("date", "")[:10],
-                "home": home.get("name"),
-                "away": away.get("name"),
-                "home_goals": goals.get("home"),
-                "away_goals": goals.get("away"),
-                "home_winner": home.get("winner"),
-                "away_winner": away.get("winner"),
+                "date": (f.get("kickoff_time") or "")[:10],
+                "home": team_map.get(h, ""),
+                "away": team_map.get(a, ""),
+                "home_goals": hg,
+                "away_goals": ag,
+                "home_winner": (hg is not None and ag is not None and hg > ag),
+                "away_winner": (hg is not None and ag is not None and ag > hg),
             }
         )
     return {"recent_fixtures": fixtures}
 
 
-async def get_head_to_head(team1_id: int, team2_id: int, last_n: int = 5) -> dict:
+async def get_head_to_head(team1_name: str, team2_name: str, last_n: int = 5) -> dict:
     """Fetch head-to-head results between two teams."""
-    client = _get_api_sports_client()
-    response = await client.get(
-        "/fixtures/headtohead",
-        params={
-            "h2h": f"{team1_id}-{team2_id}",
-            "last": last_n,
-        },
-    )
+    bootstrap = await _get_bootstrap()
+    team_map = {t["id"]: t["name"] for t in bootstrap["teams"]}
+
+    team1 = _find_team(bootstrap["teams"], team1_name)
+    if not team1:
+        return {"error": f"Team '{team1_name}' not found in FPL data"}
+    team2 = _find_team(bootstrap["teams"], team2_name)
+    if not team2:
+        return {"error": f"Team '{team2_name}' not found in FPL data"}
+
+    id1, id2 = team1["id"], team2["id"]
+
+    client = _get_fpl_client()
+    response = await client.get("/fixtures/")
     response.raise_for_status()
-    data = response.json()
+    all_fixtures = response.json()
+
+    h2h = [
+        f
+        for f in all_fixtures
+        if f.get("finished")
+        and (
+            (f.get("team_h") == id1 and f.get("team_a") == id2)
+            or (f.get("team_h") == id2 and f.get("team_a") == id1)
+        )
+    ]
+    h2h.sort(key=lambda f: f.get("kickoff_time") or "", reverse=True)
 
     fixtures = []
-    for item in data.get("response", []):
-        f = item.get("fixture", {})
-        teams = item.get("teams", {})
-        goals = item.get("goals", {})
-        home = teams.get("home", {})
-        away = teams.get("away", {})
+    for f in h2h[:last_n]:
+        h = f.get("team_h")
+        a = f.get("team_a")
+        hg = f.get("team_h_score")
+        ag = f.get("team_a_score")
         fixtures.append(
             {
-                "date": f.get("date", "")[:10],
-                "home": home.get("name"),
-                "away": away.get("name"),
-                "home_goals": goals.get("home"),
-                "away_goals": goals.get("away"),
-                "home_winner": home.get("winner"),
-                "away_winner": away.get("winner"),
+                "date": (f.get("kickoff_time") or "")[:10],
+                "home": team_map.get(h, ""),
+                "away": team_map.get(a, ""),
+                "home_goals": hg,
+                "away_goals": ag,
+                "home_winner": (hg is not None and ag is not None and hg > ag),
+                "away_winner": (hg is not None and ag is not None and ag > hg),
             }
         )
     return {"h2h": fixtures}
 
 
-async def get_team_all_fixtures(team_id: int, next_n: int = 7) -> dict:
+async def get_team_all_fixtures(team_name: str, next_n: int = 7) -> dict:
     """
-    Fetch a team's next N fixtures across ALL competitions — PL, UCL, FA Cup etc.
-    Use this to assess fixture congestion and rotation risk.
+    Fetch a team's next N Premier League fixtures.
+    Use this to assess fixture congestion and verify double or blank gameweeks.
     """
-    client = _get_api_sports_client()
-    response = await client.get(
-        "/fixtures",
-        params={
-            "team": team_id,
-            "next": next_n,
-            "season": _CURRENT_SEASON,
-        },
-    )
+    bootstrap = await _get_bootstrap()
+    team_map = {t["id"]: t["name"] for t in bootstrap["teams"]}
+
+    team = _find_team(bootstrap["teams"], team_name)
+    if not team:
+        return {"error": f"Team '{team_name}' not found in FPL data"}
+    fpl_team_id = team["id"]
+
+    client = _get_fpl_client()
+    response = await client.get("/fixtures/")
     response.raise_for_status()
-    data = response.json()
+    all_fixtures = response.json()
+
+    upcoming = [
+        f
+        for f in all_fixtures
+        if not f.get("started", True)
+        and f.get("event") is not None
+        and (f.get("team_h") == fpl_team_id or f.get("team_a") == fpl_team_id)
+    ]
+    upcoming.sort(key=lambda f: f.get("kickoff_time") or "")
 
     fixtures = []
-    for item in data.get("response", []):
-        f = item.get("fixture", {})
-        teams = item.get("teams", {})
-        league = item.get("league", {})
+    for f in upcoming[:next_n]:
+        h = f.get("team_h")
+        a = f.get("team_a")
         fixtures.append(
             {
-                "fixture_id": f.get("id"),
-                "date": f.get("date", "")[:10],
-                "competition": league.get("name"),
-                "round": league.get("round"),
-                "home": teams.get("home", {}).get("name"),
-                "away": teams.get("away", {}).get("name"),
-                "venue": f.get("venue", {}).get("name"),
+                "date": (f.get("kickoff_time") or "")[:10],
+                "competition": "Premier League",
+                "home": team_map.get(h, ""),
+                "away": team_map.get(a, ""),
+                "home_difficulty": f.get("team_h_difficulty"),
+                "away_difficulty": f.get("team_a_difficulty"),
             }
         )
     return {"all_fixtures": fixtures}
@@ -422,26 +477,6 @@ async def get_player_vs_opponent(player_name: str, opponent_name: str, last_n: i
         "games": result.get("rows", []),
         "row_count": result.get("row_count", 0),
     }
-
-
-async def get_odds(fixture_id: int) -> dict:
-    """Fetch current odds for a fixture."""
-    client = _get_api_sports_client()
-    response = await client.get(
-        "/odds",
-        params={"fixture": fixture_id},
-    )
-    response.raise_for_status()
-    data = response.json()
-
-    try:
-        bookmaker = data["response"][0]["bookmakers"][0]
-        bets = {}
-        for bet in bookmaker.get("bets", [])[:3]:
-            bets[bet["name"]] = {v["value"]: v["odd"] for v in bet.get("values", [])}
-        return {"fixture_id": fixture_id, "bookmaker": bookmaker.get("name"), "bets": bets}
-    except (IndexError, KeyError):
-        return {"fixture_id": fixture_id, "odds": "unavailable"}
 
 
 async def get_my_fpl_team(team_id_override: int | None = None) -> dict:
@@ -1154,23 +1189,6 @@ TOOL_DEFINITIONS = [
         },
     },
     {
-        "name": "get_odds",
-        "description": (
-            "Get current bookmaker odds for a fixture. "
-            "Use this to gauge match outcome probability and expected goal context."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "fixture_id": {
-                    "type": "integer",
-                    "description": "The API-Sports fixture ID.",
-                }
-            },
-            "required": ["fixture_id"],
-        },
-    },
-    {
         "name": "get_player_recent_form",
         "description": (
             "Get a player's recent FPL form — exact FPL points, minutes, goals, assists, "
@@ -1194,23 +1212,6 @@ TOOL_DEFINITIONS = [
         },
     },
     {
-        "name": "search_team",
-        "description": (
-            "Search for a Premier League team by name to get their team ID. "
-            "Call this before get_team_recent_fixtures or get_head_to_head."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "Team name to search for, e.g. 'Chelsea' or 'Arsenal'.",
-                }
-            },
-            "required": ["name"],
-        },
-    },
-    {
         "name": "get_team_recent_fixtures",
         "description": (
             "Get a team's last N Premier League results. "
@@ -1219,9 +1220,9 @@ TOOL_DEFINITIONS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "team_id": {
-                    "type": "integer",
-                    "description": "The API-Sports team ID.",
+                "team_name": {
+                    "type": "string",
+                    "description": "The team name, e.g. 'Chelsea' or 'Arsenal'.",
                 },
                 "last_n": {
                     "type": "integer",
@@ -1229,7 +1230,7 @@ TOOL_DEFINITIONS = [
                     "default": 5,
                 },
             },
-            "required": ["team_id"],
+            "required": ["team_name"],
         },
     },
     {
@@ -1241,13 +1242,13 @@ TOOL_DEFINITIONS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "team1_id": {
-                    "type": "integer",
-                    "description": "The API-Sports team ID for the first team.",
+                "team1_name": {
+                    "type": "string",
+                    "description": "The name of the first team, e.g. 'Chelsea'.",
                 },
-                "team2_id": {
-                    "type": "integer",
-                    "description": "The API-Sports team ID for the second team.",
+                "team2_name": {
+                    "type": "string",
+                    "description": "The name of the second team, e.g. 'Arsenal'.",
                 },
                 "last_n": {
                     "type": "integer",
@@ -1255,25 +1256,22 @@ TOOL_DEFINITIONS = [
                     "default": 5,
                 },
             },
-            "required": ["team1_id", "team2_id"],
+            "required": ["team1_name", "team2_name"],
         },
     },
     {
         "name": "get_team_all_fixtures",
         "description": (
-            "Get a team's upcoming fixtures across ALL competitions — Premier League, "
-            "Champions League, FA Cup, etc. Use this to assess fixture congestion, "
-            "rotation risk, and to verify double or blank gameweeks. "
-            "Use this to cross-check DGW/BGW data from get_gameweek_schedule, as the "
-            "FPL API can miss rearranged fixtures — this tool (via API-Sports) is more "
-            "reliable for confirming a team's exact fixture count in a given week."
+            "Get a team's upcoming Premier League fixtures. "
+            "Use this to assess fixture congestion, rotation risk, and to verify double or "
+            "blank gameweeks. Use this to cross-check DGW/BGW data from get_gameweek_schedule."
         ),
         "input_schema": {
             "type": "object",
             "properties": {
-                "team_id": {
-                    "type": "integer",
-                    "description": "The API-Sports team ID.",
+                "team_name": {
+                    "type": "string",
+                    "description": "The team name, e.g. 'Chelsea' or 'Arsenal'.",
                 },
                 "next_n": {
                     "type": "integer",
@@ -1281,7 +1279,7 @@ TOOL_DEFINITIONS = [
                     "default": 7,
                 },
             },
-            "required": ["team_id"],
+            "required": ["team_name"],
         },
     },
     {
