@@ -55,10 +55,10 @@ add_job \
     "cd $APP_DIR && ENVIRONMENT=production $PYTHON -m pipeline.etl_v2 --mode=gw >> $LOG_DIR/etl_gw.log 2>&1" \
     "gaffer etl gw (weekly)"
 
-# Press & news ingestion — 07:00 and 19:00 UTC
+# Press & news ingestion — 07:00 and 19:00 UTC (via sports-context-mcp package)
 add_job \
     "0 7,19 * * *" \
-    "cd $APP_DIR && ENVIRONMENT=production $PYTHON -m pipeline.ingest_press >> $LOG_DIR/ingest_press.log 2>&1" \
+    "cd $APP_DIR && ENVIRONMENT=production $PYTHON -c 'from jobs.ingest_press_content import run; run()' >> $LOG_DIR/ingest_press.log 2>&1" \
     "gaffer press ingestion (twice daily)"
 
 

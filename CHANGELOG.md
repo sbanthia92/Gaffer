@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.48.0] — 2026-05-11
+
+### Changed
+- **Press ingestion consolidated to sports-context-mcp** — `pipeline/ingest_press.py` removed. The cron job now runs `jobs.ingest_press_content` from the `sports-context-mcp` package, which covers BBC Sport RSS, The Guardian content API (full article body), and FPL player news in a single job. The Pinecone `press` namespace is unchanged.
+
 ## [0.47.0] — 2026-05-11
 
 ### Changed
