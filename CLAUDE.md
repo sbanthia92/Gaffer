@@ -29,6 +29,13 @@ pipeline/              # ETL pipeline for PostgreSQL historical data
 scripts/               # EC2 setup, deploy helpers
 ```
 
+## External MCP package
+`sports-context-mcp` is a standalone MCP server that exposes two tools (`query_press_conferences`, `query_historical_stats`) and two ingestion jobs (`ingest_press_content`, `ingest_match_data`). It lives in its own repo at `https://github.com/sbanthia92/sports-context-mcp` and is referenced as an external dependency in `requirements.txt`:
+```
+sports-context-mcp @ git+https://github.com/sbanthia92/sports-context-mcp.git
+```
+The press ingestion job in that package uses **The Guardian content API** (`content.guardianapis.com`) — not the Guardian RSS feed. The Gaffer's own `pipeline/` ETL still uses its own BBC Sport + Guardian RSS fetchers for the Pinecone press namespace.
+
 ## Dev commands
 ```bash
 # Lint + format (must pass before every commit)
@@ -104,4 +111,4 @@ Required secret: `ANTHROPIC_API_KEY` (set via GitHub repo settings → Secrets).
 - **Secrets**: AWS Secrets Manager (`gaffer/production`) — fetched at startup when `ENVIRONMENT=production`. No `.env` file on EC2.
 - **SSH to EC2**: `ssh -i ~/.ssh/gaffer_ec2 ec2-user@the-gaffer.io`
 - **ETL crons**: managed by `cronie` (must be installed via `sudo dnf install -y cronie && sudo systemctl enable --now crond`). All cron commands require `ENVIRONMENT=production` prefix — cron doesn't inherit the shell environment so Secrets Manager is skipped without it. Reinstall with `bash scripts/setup_cron.sh`. Three EC2 cron jobs: hourly snapshot, Tuesday GW sync, twice-daily press ingestion (07:00 + 19:00 UTC). Press ingestion also runs via the `ingest.yml` GitHub Actions workflow on a daily cron (00:00 UTC) as a separate trigger.
-- **Press RAG sources**: BBC Sport PL RSS + The Guardian PL RSS (Sky Sports replaced — empty descriptions due to paywall). Player news from FPL bootstrap. Stale press articles (>14 days) deleted on each ingest run. Player news uses content-hash IDs so unchanged injury status is never re-embedded.
+- **Press RAG sources**: BBC Sport PL RSS + The Guardian PL RSS (Sky Sports replaced — empty descriptions due to paywall). Player news from FPL bootstrap. Stale press articles (>14 days) deleted on each ingest run. Player news uses content-hash IDs so unchanged injury status is never re-embedded. Note: the `sports-context-mcp` package (separate repo) uses The Guardian content API instead of RSS — only the Gaffer's own `pipeline/` ETL uses RSS.
