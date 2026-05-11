@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.47.0] — 2026-05-11
+
+### Changed
+- **`sports-context-mcp` extracted to standalone repo** — MCP server code (press conference queries, historical stats queries, press/match ingestion jobs) now lives at `https://github.com/sbanthia92/sports-context-mcp` and is referenced as an external dependency in `requirements.txt`. This keeps the Gaffer repo focused on the web app while the MCP server can be consumed independently by Claude Desktop or any MCP host.
+
 ## [0.46.0] — 2026-05-02
 
 ### Fixed

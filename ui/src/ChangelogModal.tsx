@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.47.0",
+    date: "11 May 2026",
+    changed: [
+      "MCP server extracted — press conference queries, historical stats queries, and ingestion jobs now live in the standalone sports-context-mcp package, keeping the Gaffer focused on the web app",
+    ],
+  },
+  {
     version: "0.46.0",
     date: "2 May 2026",
     changed: [
