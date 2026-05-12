@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.56.0] — 2026-05-11
+
+### Changed
+- **Feature mockup accuracy** — rewrote all 5 FEATURES chat mockups in `Landing.tsx` to match real Gaffer output: bold VERDICT first, DATA bullets with realistic numbers (pts, xGI, FDR, form), then REASONING. Removed odds, API-Sports references, and fabricated injury quotes that referenced removed tools (`search_team`, `get_odds`, bookmaker data). Updated feature descriptions to reflect FPL API (not API-Sports) and actual press sources (BBC Sport + The Guardian, not Sky Sports).
+
 ## [0.55.0] — 2026-05-11
 
 ### Fixed
