@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.61.0",
+    date: "11 May 2026",
+    changed: [
+      "Removed leftover placeholder flavour text from the production UI — the 'The Dressing Room · Live' chip in the landing topbar and chat topbar, plus the 'Fanzine · Issue 27' hero sticker. These were holdovers from the terrace-zine redesign that meant nothing to real users.",
+    ],
+  },
+  {
     version: "0.60.0",
     date: "11 May 2026",
     changed: [

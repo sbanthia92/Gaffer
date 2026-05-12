@@ -36,19 +36,6 @@
   gap: 14px;
 }
 
-.landing-live-chip {
-  background: var(--ink);
-  color: var(--gold);
-  font-family: var(--headline);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  padding: 2px 10px;
-  border: 2px solid var(--ink);
-  transform: rotate(-1deg);
-  display: inline-block;
-  white-space: nowrap;
-}
-
 .landing-topbar-nav {
   display: flex;
   align-items: center;
@@ -108,20 +95,6 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-}
-
-.hero-sticker {
-  display: inline-block;
-  background: var(--ink);
-  color: var(--gold);
-  font-family: var(--headline);
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  padding: 3px 10px;
-  border: 2px solid var(--ink);
-  transform: rotate(-2deg);
-  margin-bottom: 18px;
-  align-self: flex-start;
 }
 
 .landing-title {

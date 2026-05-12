@@ -643,7 +643,6 @@ export default function App() {
         <div className="chat-topbar">
           <div className="chat-topbar-left">
             <button className="chat-back-btn" onClick={() => navigate("/")}>← Back</button>
-            <span className="chat-live-chip">The Dressing Room · Live</span>
           </div>
         </div>
 
