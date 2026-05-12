@@ -493,7 +493,6 @@ async def _fpl_tool_handler(
         "get_my_fpl_team": lambda i: fpl.get_my_fpl_team(team_id_override=fpl_team_id),
         "get_chip_status": lambda i: fpl.get_chip_status(team_id_override=fpl_team_id),
         "get_gameweek_schedule": lambda i: fpl.get_gameweek_schedule(next_n=i.get("next_n", 8)),
-        "search_team": lambda i: fpl.search_team(name=i["name"]),
         "get_fixtures": lambda i: fpl.get_fixtures(next_n=i.get("next_n", 10)),
         "get_standings": lambda i: fpl.get_standings(),
         "get_player_stats": lambda i: fpl.get_player_stats(player_name=i["player_name"]),
@@ -502,16 +501,16 @@ async def _fpl_tool_handler(
             last_n=i.get("last_n", 5),
         ),
         "get_team_recent_fixtures": lambda i: fpl.get_team_recent_fixtures(
-            team_id=i["team_id"],
+            team_name=i["team_name"],
             last_n=i.get("last_n", 5),
         ),
         "get_head_to_head": lambda i: fpl.get_head_to_head(
-            team1_id=i["team1_id"],
-            team2_id=i["team2_id"],
+            team1_name=i["team1_name"],
+            team2_name=i["team2_name"],
             last_n=i.get("last_n", 5),
         ),
         "get_team_all_fixtures": lambda i: fpl.get_team_all_fixtures(
-            team_id=i["team_id"],
+            team_name=i["team_name"],
             next_n=i.get("next_n", 7),
         ),
         "get_player_vs_opponent": lambda i: fpl.get_player_vs_opponent(
@@ -519,7 +518,6 @@ async def _fpl_tool_handler(
             opponent_name=i["opponent_name"],
             last_n=i.get("last_n", 5),
         ),
-        "get_odds": lambda i: fpl.get_odds(fixture_id=i["fixture_id"]),
         "search_players_by_criteria": lambda i: fpl.search_players_by_criteria(
             position=i.get("position"),
             max_price=i.get("max_price"),
