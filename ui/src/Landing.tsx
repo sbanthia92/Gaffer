@@ -62,7 +62,7 @@ const FEATURES = [
     id: "press",
     icon: "📰",
     title: "Press conference context",
-    desc: "BBC Sport and Sky Sports press conferences ingested twice daily — so The Gaffer knows about injury news, rotation risks, and manager comments before you do.",
+    desc: "The Guardian's Premier League coverage ingested twice daily — injury news, rotation risks, and manager comments surfaced before your deadline.",
     chat: [
       { role: "user", text: "Any injury or rotation concerns for Saka this week?" },
       { role: "assistant", text: `**VERDICT: No major concerns — but monitor.**\n\n**From Arteta's pre-match presser (Apr 11):**\n> "Bukayo trained fully today. We'll assess him tomorrow but I expect him to be available."\n\n**Context:**\n• Saka played 87 mins on Thursday in the Europa tie — slight fatigue risk\n• Arsenal have 3 games in 8 days after this weekend\n• Arteta has rotated Saka in the 3rd game of a triple-gameweek before\n\n**FPL take:** Still start him, but if you have a strong bench option, be ready to use it.`, truncated: true },
