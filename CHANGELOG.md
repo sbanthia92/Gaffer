@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.60.0] — 2026-05-11
+
+### Changed
+- **CLAUDE.md cleanup of stale API-Sports references** — removed the `_CURRENT_SEASON` note (the constant was deleted in v0.52.0 when API-Sports was removed; FPL tools now derive the season from live bootstrap data), corrected the FPL tool count from 17 to 15 (`search_team` and `get_odds` were removed in v0.52.0), and renamed the player-disambiguation gotcha to reference `search_players_by_criteria` (the actual current tool) instead of the non-existent `search_player`.
+
 ## [0.59.0] — 2026-05-11
 
 ### Fixed
