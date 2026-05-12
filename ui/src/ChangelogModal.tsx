@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.57.0",
+    date: "11 May 2026",
+    changed: [
+      "Fixture difficulty (FDR) corruption fixed — the ETL was storing each fixture's home- and away-team difficulty ratings swapped, so xPts clean-sheet calculations used the opponent's FDR instead of the player's own team's FDR. Player projections (esp. defenders/keepers) will now reflect the correct fixture difficulty.",
+    ],
+  },
+  {
     version: "0.56.0",
     date: "11 May 2026",
     changed: [
@@ -26,7 +33,7 @@ const RELEASES: Release[] = [
     version: "0.54.0",
     date: "11 May 2026",
     changed: [
-      "Landing page press source attribution corrected — the press feature card credited BBC Sport and Sky Sports, but both have been retired in favour of The Guardian's Premier League coverage. Copy updated to match what's actually ingested.",
+      "Landing page press source attribution corrected — the press feature card credited BBC Sport and Sky Sports, but both have been retired in favour of The Guardian's Premier League coverage.",
     ],
   },
   {
