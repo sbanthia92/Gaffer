@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.53.0",
+    date: "11 May 2026",
+    changed: [
+      "'team_id' KeyError fixed — tool dispatch in main.py still referenced team_id/team1_id/team2_id and the removed search_team/get_odds handlers after the v0.52.0 API-Sports removal. Updated to team_name/team1_name/team2_name to match the new FPL-based function signatures.",
+    ],
+  },
+  {
     version: "0.52.0",
     date: "11 May 2026",
     changed: [

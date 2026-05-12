@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.53.0] — 2026-05-11
+
+### Fixed
+- **`'team_id'` KeyError on team fixture queries** — the tool dispatch table in `main.py` still referenced `team_id`, `team1_id`, `team2_id` and the removed `search_team`/`get_odds` handlers after the API-Sports removal in v0.52.0. Updated to `team_name`/`team1_name`/`team2_name` to match the new FPL-based function signatures and tool definitions.
+
 ## [0.52.0] — 2026-05-11
 
 ### Changed
