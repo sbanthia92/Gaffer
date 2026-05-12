@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.63.0",
+    date: "11 May 2026",
+    changed: [
+      "Landing page no longer references bookmaker odds or API-Sports — the 'Live data' feature description and example chat now reflect the FPL-API-only data path introduced in v0.52.0.",
+    ],
+  },
+  {
     version: "0.62.0",
     date: "11 May 2026",
     changed: [

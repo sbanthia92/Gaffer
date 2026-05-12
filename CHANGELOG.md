@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.63.0] — 2026-05-11
+
+### Fixed
+- **Removed stale odds and API-Sports references from landing page** — the "Live data" feature card still advertised "bookmaker odds pulled directly from API-Sports" and the example chat showed betting odds (match winner, BTTS, Over 2.5) and "to score" decimal odds for Salah/Haaland. `get_odds` and the API-Sports dependency were removed in v0.52.0; the copy now reflects the FPL-API-only data path. (Note: the broader mockup rewrite landed in v0.56.0; this entry covers the original targeted fix.)
+
 ## [0.62.0] — 2026-05-11
 
 ### Changed

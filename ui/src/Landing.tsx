@@ -22,10 +22,10 @@ const FEATURES = [
     id: "live-data",
     icon: "⚡",
     title: "Live data",
-    desc: "Real-time fixtures, standings, player prices, ownership, and form pulled from the FPL API. Every answer is backed by data from the current gameweek — never stale.",
+    desc: "Real-time fixtures, standings, and player stats pulled directly from the FPL API. Every answer is grounded in live gameweek data — never hallucinated.",
     chat: [
       { role: "user", text: "Preview Arsenal vs Chelsea this weekend" },
-      { role: "assistant", text: `**VERDICT: Lean Arsenal at home.**\n\n**DATA:**\n• Arsenal home form (last 5): W4 D1 L0, 12 GF / 3 GA\n• Chelsea away form (last 5): W2 D2 L1, conceding 1.4/game\n• Fixture FDR: ARS 2 vs CHE 4\n• xG over last 5: Arsenal 10.2 for / 4.1 against\n\n**REASONING:** Arsenal's home record and underlying numbers outweigh Chelsea's softer away xG profile. Saka and Saliba both nailed for 90.`, truncated: true },
+      { role: "assistant", text: `**VERDICT: Lean Arsenal — but not a walkover.**\n\n**Form:** Arsenal have won 4 of their last 5 at home, conceding just 2. Chelsea are unbeaten in 3 away but haven't faced a top-4 side in that run.\n\n**Fixture difficulty:** Arsenal 2/5 · Chelsea 4/5 (per FPL FDR).\n\n**Key battle:** Saka vs. Cucurella. Saka has created 9 chances in his last 4 home games.`, truncated: true },
     ],
   },
   {
@@ -35,7 +35,7 @@ const FEATURES = [
     desc: "Claude analyses your question, pulls the relevant data, and delivers a clear VERDICT with full reasoning — not just a data dump. It thinks like an experienced FPL manager.",
     chat: [
       { role: "user", text: "Should I captain Salah or Haaland this GW?" },
-      { role: "assistant", text: `**VERDICT: Captain Salah.**\n\n**DATA:**\n• Salah: 87 season pts · last 5 GWs avg 7.4 · xGI 1.3/game\n• Haaland: 79 season pts · last 5 GWs avg 5.8 · xGI 1.0/game\n• Salah fixture: LIV (H) vs Sheffield Utd — FDR 2\n• Haaland fixture: MCI (A) vs Man Utd — FDR 4\n\n**REASONING:** Salah's form, xGI, and a soft home fixture outweigh Haaland's tougher derby trip. Higher floor and ceiling this week.`, truncated: true },
+      { role: "assistant", text: `**VERDICT: Captain Salah ✅**\n\n**Salah (home vs Sheffield):**\n• 3 goals + 2 assists in last 5 GWs (avg 10.2 pts)\n• 8 attacking returns in 10 home games this season\n• Sheffield have conceded 2+ in 7 of last 9 away games\n\n**Haaland (away vs Man Utd):**\n• Blanked last 2 GWs · 1 goal in 5 vs top-6 this season\n• Man Utd have kept 3 clean sheets in last 5 at Old Trafford\n\nSalah's fixture, form, and floor are all superior this week.`, truncated: true },
     ],
   },
   {
@@ -45,7 +45,7 @@ const FEATURES = [
     desc: "Enter your FPL Team ID and get advice tailored to your actual 15 players — transfer targets, captain picks, and chip timing based on what you already own.",
     chat: [
       { role: "user", text: "Who should I bring in with my 2 free transfers?" },
-      { role: "assistant", text: `**VERDICT: Palmer (MID) + Gabriel (DEF).**\n\n**DATA:**\n• Palmer £6.0m · 142 pts · last 5 avg 7.8 · xGI 1.4/game\n• Gabriel £6.2m · 118 pts · 11 CS · 4 attacking returns\n• Your weakest MID by PPG: 3.2 — like-for-like swap\n• Next 5 FDR: Chelsea 2.4, Arsenal 2.0\n\n**REASONING:** Both upgrades hold price value and improve your fixture run through GW38. Captaincy options expand too.`, truncated: true },
+      { role: "assistant", text: `**VERDICT: Palmer (MID) + Alexander-Arnold (DEF)**\n\n**Why Palmer (£5.6m):**\n• You have no Chelsea coverage and they have 3 of the next 4 at home\n• Palmer: 7 goals + 5 assists, 2nd highest xG among mids under £6m\n• Replaces your weakest midfielder by points-per-game\n\n**Why Alexander-Arnold (£7.2m):**\n• Liverpool's next 5 fixtures: avg difficulty 2.1/5\n• 8 assists this season · plays every minute\n\n**What to sell:** Trippier (injured, doubtful GW34+) and Andreas Pereira (3 blanks in a row).`, truncated: true },
     ],
   },
   {
@@ -55,17 +55,17 @@ const FEATURES = [
     desc: "3 seasons of match-by-match stats in a live database — goals, assists, xG, minutes, clean sheets per gameweek. Ask head-to-head comparisons or long-run form questions.",
     chat: [
       { role: "user", text: "How has Salah performed against Arsenal historically?" },
-      { role: "assistant", text: `**Salah vs Arsenal — last 3 seasons (8 apps):**\n\n**DATA:**\n• 22/23: 3 apps · 2G 1A · 9.3 avg pts\n• 23/24: 3 apps · 1G 2A · 7.7 avg pts\n• 24/25: 2 apps · 1G 0A · 6.5 avg pts\n• Overall: 4G · 3A · 8.1 avg FPL pts\n• Home vs Arsenal: 10.5 avg · Away: 5.7 avg\n\n**REASONING:** Above his career average (7.4) against Arsenal, with home fixtures the standout split.`, truncated: true },
+      { role: "assistant", text: `**8 appearances vs Arsenal (2022–2025)**\n\n| Season | Apps | Goals | Assists | Avg pts |\n|--------|------|-------|---------|--------|\n| 22/23 | 3 | 2 | 1 | 9.3 |\n| 23/24 | 3 | 1 | 2 | 7.7 |\n| 24/25 | 2 | 1 | 0 | 6.5 |\n\n**Overall:** 4 goals · 3 assists · 8.1 avg FPL pts · 1 blank\n\nSalah scores above his season average (7.4) against Arsenal. Home fixtures vs Arsenal have returned 10.5 avg pts.`, truncated: true },
     ],
   },
   {
     id: "press",
     icon: "📰",
     title: "Press conference context",
-    desc: "BBC Sport, The Guardian, and FPL bootstrap player news ingested twice daily — so The Gaffer flags injury status, doubts, and rotation hints from official sources.",
+    desc: "BBC Sport and Sky Sports press conferences ingested twice daily — so The Gaffer knows about injury news, rotation risks, and manager comments before you do.",
     chat: [
       { role: "user", text: "Any injury or rotation concerns for Saka this week?" },
-      { role: "assistant", text: `**VERDICT: No flagged injury — monitor minutes.**\n\n**DATA:**\n• FPL bootstrap status: 100% (no news)\n• Saka minutes last 4 GWs: 90, 87, 90, 90\n• Arsenal fixture density: 3 games in 8 days post-weekend\n• No injury mention in latest BBC / Guardian coverage\n\n**REASONING:** Clean status but heavy recent minutes. Start him, keep a bench fallback ready in case of a late rotation call.`, truncated: true },
+      { role: "assistant", text: `**VERDICT: No major concerns — but monitor.**\n\n**From Arteta's pre-match presser (Apr 11):**\n> "Bukayo trained fully today. We'll assess him tomorrow but I expect him to be available."\n\n**Context:**\n• Saka played 87 mins on Thursday in the Europa tie — slight fatigue risk\n• Arsenal have 3 games in 8 days after this weekend\n• Arteta has rotated Saka in the 3rd game of a triple-gameweek before\n\n**FPL take:** Still start him, but if you have a strong bench option, be ready to use it.`, truncated: true },
     ],
   },
 ];
@@ -283,7 +283,9 @@ export default function Landing() {
     return (
       <div className="landing">
         <div className="landing-topbar">
-          <div className="landing-topbar-left"></div>
+          <div className="landing-topbar-left">
+            <span className="landing-live-chip">The Dressing Room · Live</span>
+          </div>
           <button className="landing-continue-btn" onClick={() => setShowFplStep(false)}>← Back</button>
         </div>
         <section className="landing-fpl-step">
@@ -334,6 +336,7 @@ export default function Landing() {
       {/* Gold top bar */}
       <div className="landing-topbar">
         <div className="landing-topbar-left">
+          <span className="landing-live-chip">The Dressing Room · Live</span>
           <nav className="landing-topbar-nav">
             {NAV_SECTIONS.map((s) => (
               <button
@@ -356,6 +359,7 @@ export default function Landing() {
       {/* Hero */}
       <section id="home" ref={(el) => { sectionRefs.current["home"] = el; }} className="landing-hero">
         <div className="landing-hero-content">
+          <span className="hero-sticker">Fanzine · Issue 27</span>
           <h1 className="landing-title">THE GAFFER<span className="landing-title-period">.</span></h1>
           <p className="landing-sub">
             Ask anything about your Fantasy Premier League squad. Get a clear
@@ -377,15 +381,11 @@ export default function Landing() {
           {[
             ["GKP", "Flekken"],
             ["DEF", "Alexander-Arnold"],
-            ["DEF", "Saliba"],
-            ["DEF", "Van Dijk"],
             ["DEF", "Pedro Porro"],
             ["MID", "Salah"],
             ["MID", "Palmer"],
             ["MID", "Saka"],
             ["FWD", "Haaland"],
-            ["FWD", "Isak"],
-            ["FWD", "Watkins"],
           ].map(([pos, name]) => (
             <div key={name} className="hero-teamsheet-row">
               <span className="hero-teamsheet-pos">{pos}</span>
