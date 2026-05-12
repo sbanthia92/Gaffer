@@ -23,7 +23,7 @@ Table population order (respects FK dependencies):
 import argparse
 import asyncio
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 import asyncpg
 import httpx
@@ -150,7 +150,7 @@ def _current_season_start_year(bootstrap: dict) -> int:
     try:
         return int(bootstrap["events"][0]["deadline_time"][:4])
     except (KeyError, IndexError, ValueError):
-        return datetime.now(datetime.UTC).year  # noqa: DTZ005
+        return datetime.now(UTC).year
 
 
 # ---------------------------------------------------------------------------

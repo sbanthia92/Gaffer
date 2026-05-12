@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.55.0",
+    date: "11 May 2026",
+    changed: [
+      "Latent ETL crash fixed — pipeline/etl_v2.py imported `datetime` as the class but the season-year fallback called `datetime.now(datetime.UTC)`. `UTC` is a module-level constant, not a class attribute, so the fallback path raised AttributeError. Import UTC directly and pass it to datetime.now().",
+    ],
+  },
+  {
     version: "0.54.0",
     date: "11 May 2026",
     changed: [

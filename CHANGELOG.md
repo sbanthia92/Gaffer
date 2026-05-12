@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.55.0] — 2026-05-11
+
+### Fixed
+- **`AttributeError: type object 'datetime.datetime' has no attribute 'UTC'` in ETL fallback** — `pipeline/etl_v2.py` imported `datetime` as the class but `_current_season_start_year` called `datetime.now(datetime.UTC)` in its fallback branch. `UTC` is a module-level constant in `datetime`, not a class attribute. Import `UTC` directly and pass it to `datetime.now()`. Only triggered when the FPL API bootstrap events array is empty/malformed, so it was a latent crash.
+
 ## [0.54.0] — 2026-05-11
 
 ### Fixed
