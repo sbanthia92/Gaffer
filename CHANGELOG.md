@@ -2,6 +2,13 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.47.0] — 2026-05-11
+
+### Fixed
+- **BUG-001 — `get_player_vs_opponent` cross-season GW collision** — query was ordering by `gw_number DESC` only, so GW 38 of an old season would surface ahead of GW 1 of a newer season. Now orders by `(season_id DESC, gw_number DESC)` and SELECTs `season_id` so Claude sees which season each appearance belongs to.
+- **BUG-002 — Fixture difficulty columns swapped in ETL** — `upsert_fixtures_fpl` was storing `team_a_difficulty` as `home_team_difficulty` (and vice-versa) based on an incorrect developer comment. Standard FPL API convention: `team_h_difficulty` = FDR for the home team, `team_a_difficulty` = FDR for the away team. The inversion corrupted every CS xPts calculation in the `player_xpts` materialised view. Removed the swap.
+- **BUG-003 — `datetime.UTC` AttributeError in ETL fallback path** — `_current_season_start_year()` used `datetime.now(datetime.UTC)` which raises `AttributeError` (no class attribute `UTC` on `datetime`). Fixed import to `from datetime import datetime, timezone` and call to `datetime.now(timezone.utc)`.
+
 ## [0.46.0] — 2026-05-02
 
 ### Fixed

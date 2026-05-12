@@ -23,7 +23,7 @@ Table population order (respects FK dependencies):
 import argparse
 import asyncio
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 import asyncpg
 import httpx
@@ -150,7 +150,7 @@ def _current_season_start_year(bootstrap: dict) -> int:
     try:
         return int(bootstrap["events"][0]["deadline_time"][:4])
     except (KeyError, IndexError, ValueError):
-        return datetime.now(datetime.UTC).year  # noqa: DTZ005
+        return datetime.now(UTC).year
 
 
 # ---------------------------------------------------------------------------
@@ -383,10 +383,8 @@ async def upsert_fixtures_fpl(conn: asyncpg.Connection, season_id: int, all_fixt
             f.get("team_a_score"),
             f.get("finished") or False,
             f.get("started") or False,
-            # Note: FPL API team_h_difficulty is the difficulty FOR the away team
-            # and team_a_difficulty is the difficulty FOR the home team — swap them
-            f.get("team_a_difficulty"),  # home_team_difficulty
-            f.get("team_h_difficulty"),  # away_team_difficulty
+            f.get("team_h_difficulty"),  # home_team_difficulty — FDR for the home team
+            f.get("team_a_difficulty"),  # away_team_difficulty — FDR for the away team
             f.get("minutes") or 0,
             f.get("provisional_start_time") or False,
         )
