@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.64.0",
+    date: "11 May 2026",
+    added: [
+      "Dynamic post-gameweek ETL — the DB sync no longer runs on a fixed Tuesday schedule that breaks during double-gameweek weeks. An hourly poller (pipeline/check_gw_complete.py) checks the FPL API for newly-finished gameweeks and only triggers the full GW stats update when one is detected.",
+    ],
+  },
+  {
     version: "0.63.0",
     date: "11 May 2026",
     changed: [

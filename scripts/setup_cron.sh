@@ -5,9 +5,9 @@
 #   bash scripts/setup_cron.sh
 #
 # Jobs installed:
-#   Hourly         — etl_v2 snapshot   (live player stats refresh)
-#   Tue 03:00 UTC  — etl_v2 gw         (post-gameweek deep sync)
-#   07:00 & 19:00  — ingest_press      (news & press conference RAG)
+#   :05 every hour — etl_v2 snapshot        (live player stats refresh)
+#   :00 every hour — check_gw_complete      (triggers gw ETL when a GW finishes)
+#   07:00 & 19:00  — ingest_press           (news & press conference RAG)
 #
 # Historical backfill (one-time, run manually — one season per day):
 #   .venv/bin/python -m pipeline.etl_v2 --mode=backfill --season=2024
@@ -49,11 +49,13 @@ add_job \
     "cd $APP_DIR && ENVIRONMENT=production $PYTHON -m pipeline.etl_v2 --mode=snapshot >> $LOG_DIR/etl_snapshot.log 2>&1" \
     "gaffer etl snapshot (hourly)"
 
-# GW sync — Tuesday 03:00 UTC (Mon night fixtures settled, Tue deadlines ahead)
+# GW completion check — every hour at :00; triggers ETL --mode=gw only when a new
+# gameweek finishes. Replaces the old Tuesday-only cron which missed double-GW
+# fixtures falling on other weekdays.
 add_job \
-    "0 3 * * 2" \
-    "cd $APP_DIR && ENVIRONMENT=production $PYTHON -m pipeline.etl_v2 --mode=gw >> $LOG_DIR/etl_gw.log 2>&1" \
-    "gaffer etl gw (weekly)"
+    "0 * * * *" \
+    "cd $APP_DIR && ENVIRONMENT=production $PYTHON -m pipeline.check_gw_complete >> $LOG_DIR/etl_gw.log 2>&1" \
+    "gaffer etl gw check (hourly)"
 
 # Press & news ingestion — 07:00 and 19:00 UTC (via sports-context-mcp package)
 add_job \
@@ -70,7 +72,7 @@ echo " Cron jobs installed. Verify with: crontab -l"
 echo ""
 echo " Logs:"
 echo "   $LOG_DIR/etl_snapshot.log   — hourly stats sync"
-echo "   $LOG_DIR/etl_gw.log          — weekly GW sync"
+echo "   $LOG_DIR/etl_gw.log          — GW completion check + gw ETL (hourly)"
 echo "   $LOG_DIR/ingest_press.log    — news/press RAG"
 echo ""
 echo " One-time historical backfill (run one per day):"
