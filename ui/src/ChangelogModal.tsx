@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.56.0",
+    date: "11 May 2026",
+    changed: [
+      "Feature mockup copy updated — all 5 landing page chat examples now match real Gaffer output style: bold VERDICT, DATA bullets with realistic numbers, then REASONING. Odds, API-Sports references, and fabricated injury quotes removed.",
+    ],
+  },
+  {
     version: "0.55.0",
     date: "11 May 2026",
     changed: [
