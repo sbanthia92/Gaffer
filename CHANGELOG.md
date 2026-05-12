@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.64.0] — 2026-05-11
+
+### Added
+- **Dynamic GW-triggered ETL** — new `pipeline/check_gw_complete.py` poller replaces the hardcoded Tuesday cron for post-gameweek DB sync. It fetches FPL bootstrap events each hour, compares the highest `finished=True` gameweek against a local state file (`pipeline/.last_synced_gw`), and only fires `etl_v2 --mode=gw` when a new gameweek has actually finished. This fixes double-gameweek weeks where some fixtures fall mid-week and the old Tuesday schedule either fired too early (before results were in) or missed them entirely. The EC2 cron in `scripts/setup_cron.sh` is updated accordingly.
+
 ## [0.63.0] — 2026-05-11
 
 ### Fixed
