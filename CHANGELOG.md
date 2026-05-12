@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.61.0] — 2026-05-11
+
+### Fixed
+- **Removed placeholder "terrace fanzine" flavour text from production UI** — the topbar chip "The Dressing Room · Live" (in `ui/src/Landing.tsx` and `ui/src/App.tsx`) and the hero sticker "Fanzine · Issue 27" (in `ui/src/Landing.tsx`) were holdovers from the terrace-zine redesign that meant nothing to real users. Removed the markup and the now-orphaned `.landing-live-chip`, `.hero-sticker`, and `.chat-live-chip` CSS rules.
+
 ## [0.60.0] — 2026-05-11
 
 ### Changed

@@ -283,9 +283,7 @@ export default function Landing() {
     return (
       <div className="landing">
         <div className="landing-topbar">
-          <div className="landing-topbar-left">
-            <span className="landing-live-chip">The Dressing Room · Live</span>
-          </div>
+          <div className="landing-topbar-left"></div>
           <button className="landing-continue-btn" onClick={() => setShowFplStep(false)}>← Back</button>
         </div>
         <section className="landing-fpl-step">
@@ -336,7 +334,6 @@ export default function Landing() {
       {/* Gold top bar */}
       <div className="landing-topbar">
         <div className="landing-topbar-left">
-          <span className="landing-live-chip">The Dressing Room · Live</span>
           <nav className="landing-topbar-nav">
             {NAV_SECTIONS.map((s) => (
               <button
@@ -359,7 +356,6 @@ export default function Landing() {
       {/* Hero */}
       <section id="home" ref={(el) => { sectionRefs.current["home"] = el; }} className="landing-hero">
         <div className="landing-hero-content">
-          <span className="hero-sticker">Fanzine · Issue 27</span>
           <h1 className="landing-title">THE GAFFER<span className="landing-title-period">.</span></h1>
           <p className="landing-sub">
             Ask anything about your Fantasy Premier League squad. Get a clear

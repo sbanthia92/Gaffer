@@ -265,18 +265,6 @@
   gap: 12px;
 }
 
-.chat-live-chip {
-  background: var(--gold);
-  color: var(--ink);
-  font-family: var(--headline);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  padding: 2px 8px;
-  border: 2px solid var(--ink);
-  transform: rotate(-1deg);
-  display: inline-block;
-}
-
 .chat-back-btn {
   background: none;
   border: none;
