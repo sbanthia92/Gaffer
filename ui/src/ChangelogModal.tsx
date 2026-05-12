@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.58.0",
+    date: "11 May 2026",
+    changed: [
+      "Player vs opponent history now shows which season each game was from — previously Claude only saw a GW number with no year attached. Results are also ordered correctly across seasons (newest first), so GW1 2025/26 ranks above GW38 2022/23.",
+    ],
+  },
+  {
     version: "0.57.0",
     date: "11 May 2026",
     changed: [

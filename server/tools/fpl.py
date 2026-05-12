@@ -452,6 +452,8 @@ async def get_player_vs_opponent(player_name: str, opponent_name: str, last_n: i
     last_n = max(1, min(int(last_n), 20))
     sql = """
         SELECT
+            s.label AS season,
+            s.start_year,
             g.gw_number,
             CASE WHEN g.was_home THEN 'H' ELSE 'A' END AS home_away,
             g.minutes,
@@ -465,9 +467,10 @@ async def get_player_vs_opponent(player_name: str, opponent_name: str, last_n: i
             ROUND(g.expected_assists::numeric, 2) AS xa,
             g.starts
         FROM gw_player_stats g
+        JOIN seasons s ON g.season_id = s.id
         WHERE g.player_fpl_id = $1
           AND g.opponent_team_fpl_id = $2
-        ORDER BY g.gw_number DESC
+        ORDER BY s.start_year DESC, g.gw_number DESC
         LIMIT $3
     """
     result = await _db_execute(sql, (element["id"], opp_team["id"], last_n))

@@ -2,6 +2,12 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.58.0] — 2026-05-11
+
+### Fixed
+- **`get_player_vs_opponent` missing season context** — the SQL query didn't JOIN the `seasons` table, so Claude received rows with just a `gw_number` and no year (e.g. "GW10" with no season). Added `JOIN seasons s ON g.season_id = s.id` and `s.label AS season` / `s.start_year` to the SELECT so each row is labelled (e.g. "2022/23 · GW38").
+- **`get_player_vs_opponent` wrong cross-season ordering** — `ORDER BY g.gw_number DESC` ranked GW38 from an older season above GW1 from the current season. Fixed to `ORDER BY s.start_year DESC, g.gw_number DESC` so the most recent fixtures always surface first.
+
 ## [0.57.0] — 2026-05-11
 
 ### Fixed
