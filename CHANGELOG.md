@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.54.0] — 2026-05-11
+
+### Fixed
+- **Landing page press source attribution** — the "Press conference context" feature card on `ui/src/Landing.tsx` still credited "BBC Sport and Sky Sports press conferences" even though both feeds were retired (Sky Sports for paywall-empty descriptions in v0.46.0, BBC swapped out afterwards). The card now accurately attributes the source to The Guardian's Premier League coverage.
+
 ## [0.53.0] — 2026-05-11
 
 ### Fixed

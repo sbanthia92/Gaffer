@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.54.0",
+    date: "11 May 2026",
+    changed: [
+      "Landing page press source attribution corrected — the press feature card credited BBC Sport and Sky Sports, but both have been retired in favour of The Guardian's Premier League coverage. Copy updated to match what's actually ingested.",
+    ],
+  },
+  {
     version: "0.53.0",
     date: "11 May 2026",
     changed: [
