@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.57.0] — 2026-05-11
+
+### Fixed
+- **Fixture difficulty columns stored swapped** — `upsert_fixtures_fpl` in `pipeline/etl_v2.py` wrote `team_a_difficulty` into `home_team_difficulty` and vice versa, based on an incorrect comment claiming the FPL API convention was reversed. In reality FPL's `team_h_difficulty` is the FDR for the home team and `team_a_difficulty` is the FDR for the away team. The swap corrupted clean-sheet probability inputs for `player_xpts`, so every CS-based xPts value was computed from the opponent's FDR instead of the player's team's FDR.
+
 ## [0.56.0] — 2026-05-11
 
 ### Changed

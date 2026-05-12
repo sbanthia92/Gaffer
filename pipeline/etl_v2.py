@@ -383,10 +383,8 @@ async def upsert_fixtures_fpl(conn: asyncpg.Connection, season_id: int, all_fixt
             f.get("team_a_score"),
             f.get("finished") or False,
             f.get("started") or False,
-            # Note: FPL API team_h_difficulty is the difficulty FOR the away team
-            # and team_a_difficulty is the difficulty FOR the home team — swap them
-            f.get("team_a_difficulty"),  # home_team_difficulty
-            f.get("team_h_difficulty"),  # away_team_difficulty
+            f.get("team_h_difficulty"),  # home_team_difficulty
+            f.get("team_a_difficulty"),  # away_team_difficulty
             f.get("minutes") or 0,
             f.get("provisional_start_time") or False,
         )
