@@ -1,7 +1,7 @@
 """Tests for pipeline/check_gw_complete.py GW detection logic."""
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
