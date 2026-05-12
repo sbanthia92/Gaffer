@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.59.0] — 2026-05-11
+
+### Fixed
+- **Landing page "STARTING XI" team sheet only had 7 players** — a valid FPL starting XI is exactly 11 players. The decorative team sheet in `ui/src/Landing.tsx` now fields a realistic 4-3-3: Flekken; Alexander-Arnold, Saliba, Van Dijk, Pedro Porro; Salah, Palmer, Saka; Haaland, Isak, Watkins.
+
 ## [0.58.0] — 2026-05-11
 
 ### Fixed

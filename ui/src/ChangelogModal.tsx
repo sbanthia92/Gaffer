@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.59.0",
+    date: "11 May 2026",
+    changed: [
+      "Landing page STARTING XI team sheet now fields all 11 players (was 7) in a realistic 4-3-3: Flekken; Alexander-Arnold, Saliba, Van Dijk, Pedro Porro; Salah, Palmer, Saka; Haaland, Isak, Watkins.",
+    ],
+  },
+  {
     version: "0.58.0",
     date: "11 May 2026",
     changed: [

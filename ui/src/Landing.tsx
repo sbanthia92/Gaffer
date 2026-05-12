@@ -381,11 +381,15 @@ export default function Landing() {
           {[
             ["GKP", "Flekken"],
             ["DEF", "Alexander-Arnold"],
+            ["DEF", "Saliba"],
+            ["DEF", "Van Dijk"],
             ["DEF", "Pedro Porro"],
             ["MID", "Salah"],
             ["MID", "Palmer"],
             ["MID", "Saka"],
             ["FWD", "Haaland"],
+            ["FWD", "Isak"],
+            ["FWD", "Watkins"],
           ].map(([pos, name]) => (
             <div key={name} className="hero-teamsheet-row">
               <span className="hero-teamsheet-pos">{pos}</span>
