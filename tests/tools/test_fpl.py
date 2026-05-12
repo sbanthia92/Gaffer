@@ -315,6 +315,8 @@ async def test_get_player_vs_opponent_returns_per_game_stats():
     db_result = {
         "rows": [
             {
+                "season": "2024/25",
+                "start_year": 2024,
                 "gw_number": 28,
                 "home_away": "H",
                 "minutes": 90,
@@ -348,6 +350,7 @@ async def test_get_player_vs_opponent_returns_per_game_stats():
 
     assert result["player"] == "Erling Haaland"
     assert result["opponent"] == "Chelsea"
+    assert result["games"][0]["season"] == "2024/25"
     assert result["games"][0]["goals_scored"] == 2
     assert result["games"][0]["total_points"] == 15
     assert result["games"][0]["minutes"] == 90
