@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.62.0",
+    date: "11 May 2026",
+    changed: [
+      "Player names are now click-to-reveal links — click any player name in an answer to open a popover showing their photo, team, position, price, form, points, and ownership. Closes on outside click or Escape. Fixes inline chips that were breaking table alignment and interrupting reading flow.",
+    ],
+  },
+  {
     version: "0.61.0",
     date: "11 May 2026",
     changed: [
