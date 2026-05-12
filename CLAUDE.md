@@ -19,7 +19,7 @@ server/
   fpl_cache.py         # In-memory FPL bootstrap cache (player cards)
   logger.py            # Structured logging
   tools/
-    fpl.py             # All 17 FPL tool implementations
+    fpl.py             # All 15 FPL tool implementations
     db.py              # Internal DB utility (asyncpg pool + execute); NOT a Claude tool
 ui/                    # React + Vite + TypeScript frontend
 tests/                 # pytest; asyncio_mode = auto
@@ -84,14 +84,14 @@ Be accurate — don't use `feat:` for a bug fix just because it involves new cod
 - Routes scoped by sport: `/fpl/ask`, not generic `/ask`
 
 ## FPL domain knowledge
-- **Current season**: 2025/26 — `_CURRENT_SEASON = "2025"` in `server/tools/fpl.py` (API-Sports uses start year)
+- **Current season**: 2025/26 — derived from live FPL bootstrap data; no hardcoded season constant in `server/tools/fpl.py`
 - **Chip reset**: TC, Bench Boost, and Free Hit reset after GW19. Chips used in GW1–19 are available again in GW20–38. Only post-reset uses count as spent.
 - **Wildcards**: two per season — GW1–19 and GW20–38 — separate API entries, no reset needed
 - **FPL chip API names**: `3xc` (Triple Captain), `bboost` (Bench Boost), `freehit` (Free Hit), `wildcard`
 - **Pre-fetch**: squad + chips + gameweek_schedule fetched concurrently before calling Claude, injected as a synthetic tool exchange to skip round-1 tool calls
 - **Transfer rules**: position must be like-for-like (MID→MID only); always pass `position=` to `search_players_by_criteria` when finding replacements
 - **Fixture source of truth**: `get_team_all_fixtures` wins over `get_gameweek_schedule` when they conflict
-- **Player search**: `search_player` returns `team` so Claude can disambiguate players sharing a surname
+- **Player search**: `search_players_by_criteria` returns `team` so Claude can disambiguate players sharing a surname
 - **Squad composition**: A full FPL squad is exactly 15 players — 2 GKP, 5 DEF, 5 MID, 3 FWD. The starting XI must field at least 1 GKP, 3 DEF, 2 MID, 1 FWD. This is enforced in the system prompt so Free-Hit/Wildcard squads are always structurally valid.
 
 ## Streaming / X-Ray gotcha

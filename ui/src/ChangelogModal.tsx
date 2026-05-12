@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.60.0",
+    date: "11 May 2026",
+    changed: [
+      "CLAUDE.md cleanup — removed stale _CURRENT_SEASON note (constant deleted in v0.52.0; FPL tools derive the season from live bootstrap), corrected tool count from 17 to 15, and fixed search_player reference to search_players_by_criteria.",
+    ],
+  },
+  {
     version: "0.59.0",
     date: "11 May 2026",
     changed: [
