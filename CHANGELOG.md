@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.62.0] — 2026-05-11
+
+### Changed
+- **Player names are now click-to-reveal links instead of inline chips** — player names mentioned in Claude's answers render as gold-underlined text links. Clicking one opens a small popover showing the full player card (photo, team, position, price, form, points, ownership, injury badge). The popover closes on outside click or Escape, and is clamped to stay within the viewport. This removes the inline chip layout that was breaking table alignment and interrupting reading flow.
+
 ## [0.61.0] — 2026-05-11
 
 ### Fixed

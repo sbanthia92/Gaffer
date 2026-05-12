@@ -152,3 +152,50 @@
   0%, 100% { opacity: 0.4; }
   50%       { opacity: 0.9; }
 }
+
+/* ── Player link + popover ────────────────────────────────────────────────── */
+
+.player-link-wrap {
+  position: relative;
+  display: inline;
+}
+
+.player-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+  border-bottom: 2px solid var(--gold);
+  text-decoration: none;
+  line-height: inherit;
+}
+
+.player-link:hover,
+.player-link:focus-visible {
+  background: var(--gold);
+  outline: none;
+}
+
+.player-link__popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  box-shadow: 4px 4px 0 var(--gold);
+  padding: 8px;
+  white-space: nowrap;
+  max-width: min(360px, calc(100vw - 16px));
+}
+
+.player-link__popover .player-card {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+}

@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useNavigate } from "react-router-dom";
 import { askGaffer, fetchPlayerCard, submitFeedback, submitThumbsDown, type PlayerCard as PlayerCardData } from "./api";
-import { PlayerChip } from "./PlayerCard";
+import { PlayerLink } from "./PlayerCard";
 import {
   appendMessage,
   deleteSession,
@@ -345,7 +345,7 @@ function renderWithTooltips(children: React.ReactNode, tooltips: TooltipMap): Re
         const entry = tooltips[part];
         if (!entry) return part;
         return entry.card ? (
-          <PlayerChip key={i} card={entry.card} />
+          <PlayerLink key={i} card={entry.card} />
         ) : (
           <span key={i}>{entry.display}</span>
         );
