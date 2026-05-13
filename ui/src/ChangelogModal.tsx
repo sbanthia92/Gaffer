@@ -7,7 +7,7 @@ interface Release {
   changed?: string[];
 }
 
-const RELEASES: Release[] = [
+export const RELEASES: Release[] = [
   {
     version: "0.69.0",
     date: "13 May 2026",
