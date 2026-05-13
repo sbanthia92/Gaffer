@@ -9,6 +9,14 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.67.0",
+    date: "13 May 2026",
+    changed: [
+      "Removed 'The Dressing Room · Live' topbar chips and 'Fanzine · Issue 27' hero sticker — these placeholder strings were reintroduced by a merge order issue and are now permanently removed.",
+      "Press feature card now correctly credits The Guardian instead of 'BBC Sport and Sky Sports'.",
+    ],
+  },
+  {
     version: "0.66.0",
     date: "13 May 2026",
     added: [

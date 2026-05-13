@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.67.0] — 2026-05-13
+
+### Fixed
+- **Re-apply stale UI string removals** — PR #158 was squash-merged from a branch cut before #155 landed, silently reintroducing three UI strings that had already been removed. Re-applies: removal of both "The Dressing Room · Live" topbar chips, removal of the "Fanzine · Issue 27" hero sticker, and corrects the press feature description from "BBC Sport and Sky Sports" to "The Guardian".
+
 ## [0.66.0] — 2026-05-13
 
 ### Added
