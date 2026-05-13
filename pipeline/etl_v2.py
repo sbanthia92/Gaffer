@@ -1,12 +1,10 @@
 """
 Gaffer V2 ETL pipeline.
 
-Populates the PostgreSQL database from two sources:
-  - API-Sports: historical seasons (2020/21 → 2024/25) and current season enrichment
-  - FPL API: current season GW-by-GW player stats, squad snapshots, fixtures
+Populates the PostgreSQL database entirely from the FPL API.
 
 Run modes:
-  python -m pipeline.etl_v2 --mode=backfill   # one-time historical import (API-Sports)
+  python -m pipeline.etl_v2 --mode=backfill   # one-time: past seasons from FPL history_past
   python -m pipeline.etl_v2 --mode=full        # full current season refresh (FPL API)
   python -m pipeline.etl_v2 --mode=gw          # post-gameweek update (FPL API gw_player_stats)
   python -m pipeline.etl_v2 --mode=snapshot    # hourly players/fixtures snapshot (FPL API)
@@ -18,6 +16,11 @@ Table population order (respects FK dependencies):
   4. players
   5. fixtures
   6. gw_player_stats
+
+Backfill note: FPL's /element-summary/{id}/history_past returns season-level totals for past
+seasons (not per-fixture). It populates the seasons and players tables so historical
+season stats are queryable. Per-fixture history (gw_player_stats) is only available for
+the current season via FPL's element-summary history endpoint.
 """
 
 import argparse
@@ -72,26 +75,7 @@ def _parse_dt(value: str | None) -> datetime | None:
 
 
 _FPL_BASE = "https://fantasy.premierleague.com/api"
-_SPORTS_BASE = "https://v3.football.api-sports.io"
-_PL_LEAGUE_ID = 39
 _POSITION_MAP = {1: "GKP", 2: "DEF", 3: "MID", 4: "FWD"}
-
-# Seasons to backfill from API-Sports (start year → label)
-_BACKFILL_SEASONS = {
-    2020: "2020/21",
-    2021: "2021/22",
-    2022: "2022/23",
-    2023: "2023/24",
-    2024: "2024/25",
-}
-
-# API-Sports position string → our schema position
-_SPORTS_POSITION_MAP = {
-    "Goalkeeper": "GKP",
-    "Defender": "DEF",
-    "Midfielder": "MID",
-    "Attacker": "FWD",
-}
 
 
 # ---------------------------------------------------------------------------
@@ -118,16 +102,6 @@ async def get_pool() -> asyncpg.Pool:
 
 async def _fpl_get(client: httpx.AsyncClient, path: str) -> dict:
     r = await client.get(f"{_FPL_BASE}{path}")
-    r.raise_for_status()
-    return r.json()
-
-
-async def _sports_get(client: httpx.AsyncClient, path: str, params: dict | None = None) -> dict:
-    r = await client.get(
-        f"{_SPORTS_BASE}{path}",
-        params=params or {},
-        headers={"x-apisports-key": settings.api_sports_key},
-    )
     r.raise_for_status()
     return r.json()
 
@@ -487,22 +461,17 @@ async def upsert_gw_stats_fpl(
 
 
 # ---------------------------------------------------------------------------
-# API-Sports — historical backfill
+# FPL — historical backfill via history_past
 # ---------------------------------------------------------------------------
 
 
-async def backfill_season(
-    conn: asyncpg.Connection,
-    client: httpx.AsyncClient,
-    start_year: int,
-    label: str,
-) -> None:
-    """Backfill one past season from API-Sports."""
-    log.info("backfilling season %s...", label)
-
-    # 1 — Ensure season row exists
-    await conn.execute("UPDATE seasons SET is_current = FALSE WHERE label = $1", label)
-    season_row = await conn.fetchrow(
+async def _upsert_past_season(conn: asyncpg.Connection, label: str) -> int:
+    """Ensure a past season row exists. Returns season.id."""
+    try:
+        start_year = int(label.split("/")[0])
+    except (ValueError, IndexError):
+        start_year = 0
+    row = await conn.fetchrow(
         """
         INSERT INTO seasons (label, start_year, is_current)
         VALUES ($1, $2, FALSE)
@@ -512,200 +481,94 @@ async def backfill_season(
         label,
         start_year,
     )
-    season_id = season_row["id"]
-    log.info("season_id=%d for %s", season_id, label)
+    return row["id"]
 
-    # 2 — Teams
-    data = await _sports_get(
-        client,
-        "/teams",
-        {"league": _PL_LEAGUE_ID, "season": start_year},
-    )
-    teams_map: dict[int, str] = {}
-    for item in data.get("response", []):
-        t = item["team"]
-        await conn.execute(
-            """
-            INSERT INTO teams (season_id, fpl_id, name, short_name)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (season_id, fpl_id) DO UPDATE SET
-                name = EXCLUDED.name, short_name = EXCLUDED.short_name
-            """,
-            season_id,
-            t["id"],
-            t["name"],
-            t.get("code") or t["name"][:3].upper(),
-        )
-        teams_map[t["id"]] = t["name"]
-    log.info("upserted %d teams for %s", len(teams_map), label)
 
-    # 3 — Fixtures
-    data = await _sports_get(
-        client,
-        "/fixtures",
-        {"league": _PL_LEAGUE_ID, "season": start_year},
-    )
-    fixture_ids: list[int] = []
-    for item in data.get("response", []):
-        f = item["fixture"]
-        teams = item["teams"]
-        goals = item["goals"]
-        league = item["league"]
-        await conn.execute(
-            """
-            INSERT INTO fixtures (
-                season_id, fpl_id, gw_number, kickoff_time,
-                home_team_fpl_id, away_team_fpl_id,
-                home_score, away_score, finished
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-            ON CONFLICT (season_id, fpl_id) DO UPDATE SET
-                home_score = EXCLUDED.home_score,
-                away_score = EXCLUDED.away_score,
-                finished = EXCLUDED.finished
-            """,
-            season_id,
-            f["id"],
-            league.get("round", "").split(" ")[-1]
-            if "Gameweek" in (league.get("round") or "")
-            else None,
-            _parse_dt(f.get("date")),
-            teams["home"]["id"],
-            teams["away"]["id"],
-            goals.get("home"),
-            goals.get("away"),
-            f["status"]["short"] == "FT",
-        )
-        if f["status"]["short"] == "FT":
-            fixture_ids.append(f["id"])
-    log.info("upserted %d fixtures for %s (%d finished)", len(fixture_ids), label, len(fixture_ids))
+async def backfill_player_history(
+    pool: asyncpg.Pool,
+    player: dict,
+    season_cache: dict[str, int],
+    sem: asyncio.Semaphore,
+) -> int:
+    """Fetch history_past for one player and upsert season-level rows into players table."""
+    async with sem:
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                data = await _fpl_get(client, f"/element-summary/{player['id']}/")
+        except Exception as exc:
+            log.warning("history_past fetch failed for player %d: %s", player["id"], exc)
+            return 0
 
-    # 4 — Players (paginated)
-    players_map: dict[int, dict] = {}
-    page = 1
-    while True:
-        data = await _sports_get(
-            client,
-            "/players",
-            {"league": _PL_LEAGUE_ID, "season": start_year, "page": page},
-        )
-        items = data.get("response", [])
-        if not items:
-            break
-        for item in items:
-            p = item["player"]
-            stats = (item.get("statistics") or [{}])[0]
-            games = stats.get("games", {})
-            position_raw = games.get("position", "Midfielder")
-            position = _SPORTS_POSITION_MAP.get(position_raw, "MID")
-            team_id = stats.get("team", {}).get("id")
+    history_past = data.get("history_past", [])
+    if not history_past:
+        return 0
+
+    position = _POSITION_MAP.get(player.get("element_type", 0), "MID")
+    first_name = player.get("first_name", "")
+    second_name = player.get("second_name", "")
+    web_name = player.get("web_name", "")
+    fpl_id = player["id"]
+
+    count = 0
+    async with pool.acquire() as conn:
+        for past in history_past:
+            label = past.get("season_name", "")
+            if not label:
+                continue
+
+            # Resolve season_id — create the season row once, then cache
+            if label not in season_cache:
+                season_cache[label] = await _upsert_past_season(conn, label)
+            season_id = season_cache[label]
+
             await conn.execute(
                 """
                 INSERT INTO players (
-                    season_id, fpl_id, team_fpl_id, first_name, second_name,
-                    web_name, position
-                ) VALUES ($1,$2,$3,$4,$5,$6,$7)
-                ON CONFLICT (season_id, fpl_id) DO NOTHING
+                    season_id, fpl_id, team_fpl_id,
+                    first_name, second_name, web_name, position,
+                    total_points, minutes, goals_scored, assists,
+                    clean_sheets, goals_conceded, own_goals,
+                    penalties_saved, penalties_missed,
+                    yellow_cards, red_cards, saves, bonus, bps
+                ) VALUES (
+                    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
+                )
+                ON CONFLICT (season_id, fpl_id) DO UPDATE SET
+                    total_points = EXCLUDED.total_points,
+                    minutes = EXCLUDED.minutes,
+                    goals_scored = EXCLUDED.goals_scored,
+                    assists = EXCLUDED.assists,
+                    clean_sheets = EXCLUDED.clean_sheets,
+                    goals_conceded = EXCLUDED.goals_conceded,
+                    bonus = EXCLUDED.bonus,
+                    bps = EXCLUDED.bps,
+                    saves = EXCLUDED.saves
                 """,
                 season_id,
-                p["id"],
-                team_id or 0,
-                (p["name"].split(" ")[0] if " " in p["name"] else p["name"]),
-                (" ".join(p["name"].split(" ")[1:]) if " " in p["name"] else ""),
-                p.get("name", ""),
+                fpl_id,
+                0,  # team_fpl_id unknown for past seasons
+                first_name,
+                second_name,
+                web_name,
                 position,
+                past.get("total_points") or 0,
+                past.get("minutes") or 0,
+                past.get("goals_scored") or 0,
+                past.get("assists") or 0,
+                past.get("clean_sheets") or 0,
+                past.get("goals_conceded") or 0,
+                past.get("own_goals") or 0,
+                past.get("penalties_saved") or 0,
+                past.get("penalties_missed") or 0,
+                past.get("yellow_cards") or 0,
+                past.get("red_cards") or 0,
+                past.get("saves") or 0,
+                past.get("bonus") or 0,
+                past.get("bps") or 0,
             )
-            players_map[p["id"]] = {"position": position, "team_id": team_id}
+            count += 1
 
-        paging = data.get("paging", {})
-        if page >= paging.get("total", 1):
-            break
-        page += 1
-        await asyncio.sleep(0.5)  # respect rate limits
-
-    log.info("upserted %d players for %s", len(players_map), label)
-
-    # 5 — Per-fixture player stats (the core fact table)
-    # Use a semaphore to limit concurrency — API-Sports rate limit is per-minute not per-day
-    sem = asyncio.Semaphore(5)
-    stats_count = 0
-
-    async def fetch_fixture_stats(fixture_id: int) -> list[dict]:
-        async with sem:
-            try:
-                data = await _sports_get(client, "/fixtures/players", {"fixture": fixture_id})
-                await asyncio.sleep(0.2)
-                return data.get("response", [])
-            except Exception as e:
-                log.warning("failed to fetch stats for fixture %d: %s", fixture_id, e)
-                return []
-
-    log.info("fetching per-fixture player stats for %d fixtures...", len(fixture_ids))
-    results = await asyncio.gather(*[fetch_fixture_stats(fid) for fid in fixture_ids])
-
-    for fixture_id, fixture_teams in zip(fixture_ids, results):
-        for team_data in fixture_teams:
-            team_id = team_data.get("team", {}).get("id")
-            for player_data in team_data.get("players", []):
-                p = player_data["player"]
-                stats_list = player_data.get("statistics", [{}])
-                s = stats_list[0] if stats_list else {}
-
-                games = s.get("games", {})
-                goals = s.get("goals", {})
-                cards = s.get("cards", {})
-
-                # Determine opponent
-                fixture_row = await conn.fetchrow(
-                    "SELECT home_team_fpl_id, away_team_fpl_id FROM fixtures "
-                    "WHERE season_id=$1 AND fpl_id=$2",
-                    season_id,
-                    fixture_id,
-                )
-                if not fixture_row:
-                    continue
-                is_home = fixture_row["home_team_fpl_id"] == team_id
-                opponent_id = (
-                    fixture_row["away_team_fpl_id"] if is_home else fixture_row["home_team_fpl_id"]
-                )
-
-                try:
-                    await conn.execute(
-                        """
-                        INSERT INTO gw_player_stats (
-                            season_id, player_fpl_id, gw_number, fixture_fpl_id,
-                            opponent_team_fpl_id, was_home,
-                            minutes, goals_scored, assists, saves,
-                            yellow_cards, red_cards, starts, total_points
-                        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
-                        ON CONFLICT (season_id, player_fpl_id, fixture_fpl_id) DO UPDATE SET
-                            minutes = EXCLUDED.minutes,
-                            goals_scored = EXCLUDED.goals_scored,
-                            assists = EXCLUDED.assists,
-                            saves = EXCLUDED.saves,
-                            yellow_cards = EXCLUDED.yellow_cards,
-                            red_cards = EXCLUDED.red_cards,
-                            starts = EXCLUDED.starts
-                        """,
-                        season_id,
-                        p["id"],
-                        None,  # gw_number — API-Sports uses fixture round, filled separately
-                        fixture_id,
-                        opponent_id,
-                        is_home,
-                        games.get("minutes") or 0,
-                        goals.get("total") or 0,
-                        goals.get("assists") or 0,
-                        s.get("goalkeeper", {}).get("saves") or 0,
-                        cards.get("yellow") or 0,
-                        cards.get("red") or 0,
-                        1 if games.get("lineups") else 0,
-                        0,  # total_points — API-Sports doesn't have FPL points
-                    )
-                    stats_count += 1
-                except Exception as e:
-                    log.warning("failed to insert stat row: %s", e)
-
-    log.info("upserted %d player-fixture stat rows for %s", stats_count, label)
+    return count
 
 
 # ---------------------------------------------------------------------------
@@ -774,14 +637,33 @@ async def run_full(pool: asyncpg.Pool) -> None:
 
 
 async def run_backfill(pool: asyncpg.Pool) -> None:
-    """One-time: backfill all historical seasons from API-Sports."""
-    log.info("=== BACKFILL: importing historical seasons from API-Sports ===")
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        async with pool.acquire() as conn:
-            for start_year, label in _BACKFILL_SEASONS.items():
-                await backfill_season(conn, client, start_year, label)
-                await asyncio.sleep(2)  # be respectful between seasons
-    log.info("=== BACKFILL complete ===")
+    """One-time: populate past seasons from FPL element-summary history_past.
+
+    Writes season-level totals (goals, assists, points, minutes, etc.) into the
+    players table for every past season found in any current player's history_past.
+    No third-party API key required — uses the public FPL API only.
+
+    Limitation: per-fixture data (gw_player_stats) is not available for past seasons
+    via the FPL API. get_player_vs_opponent results are limited to the current season.
+    """
+    log.info("=== BACKFILL: importing past season stats from FPL history_past ===")
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        bootstrap = await _fpl_get(client, "/bootstrap-static/")
+
+    players = bootstrap["elements"]
+    sem = asyncio.Semaphore(10)
+    season_cache: dict[str, int] = {}
+
+    tasks = [backfill_player_history(pool, p, season_cache, sem) for p in players]
+    counts = await asyncio.gather(*tasks)
+    total = sum(counts)
+    seasons_found = sorted(season_cache.keys())
+    log.info(
+        "=== BACKFILL complete: %d player-season rows across %d seasons: %s ===",
+        total,
+        len(seasons_found),
+        ", ".join(seasons_found),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -797,13 +679,6 @@ async def main() -> None:
         default="full",
         help="snapshot=hourly refresh | gw=post-gameweek stats | full=both | backfill=historical",
     )
-    parser.add_argument(
-        "--season",
-        type=int,
-        choices=list(_BACKFILL_SEASONS.keys()),
-        help="backfill mode only: run a single season (e.g. --season 2023 for 2023/24). "
-        "Omit to backfill all seasons.",
-    )
     args = parser.parse_args()
 
     pool = await get_pool()
@@ -816,13 +691,7 @@ async def main() -> None:
         elif args.mode == "full":
             await run_full(pool)
         elif args.mode == "backfill":
-            if args.season:
-                label = _BACKFILL_SEASONS[args.season]
-                async with pool.acquire() as conn:
-                    async with httpx.AsyncClient(timeout=60.0) as client:
-                        await backfill_season(conn, client, args.season, label)
-            else:
-                await run_backfill(pool)
+            await run_backfill(pool)
     finally:
         await pool.close()
 

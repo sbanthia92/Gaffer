@@ -2,6 +2,14 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.70.0] — 2026-05-13
+
+### Changed
+- **Historical backfill now uses FPL `history_past`** — replaced the broken API-Sports backfill (which referenced `settings.api_sports_key`, a field that was never defined in `Settings`, so it would crash on any `--mode=backfill` run) with a pure-FPL implementation. Each player's `/element-summary/{id}/history_past` provides season-level totals (goals, assists, points, minutes, clean sheets, etc.) for all past seasons. These are upserted into the `players` table so historical season stats are queryable. No third-party API key required. Limitation: per-fixture `gw_player_stats` data is not available for past seasons via FPL — `get_player_vs_opponent` remains current-season-only.
+
+### Removed
+- All API-Sports code removed from `pipeline/etl_v2.py`: `_SPORTS_BASE`, `_PL_LEAGUE_ID`, `_BACKFILL_SEASONS`, `_SPORTS_POSITION_MAP`, `_sports_get()`, `backfill_season()`. The `--season` CLI argument is also removed (the FPL backfill always covers all seasons found in `history_past`).
+
 ## [0.69.0] — 2026-05-13
 
 ### Fixed
