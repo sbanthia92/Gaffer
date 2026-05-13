@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.71.0] — 2026-05-13
+
+### Fixed
+- **Players backfill INSERT** — removed five columns (`own_goals`, `penalties_saved`, `penalties_missed`, `saves`, `bps`) that exist in the FPL `history_past` response but not in the `players` table, causing an `UndefinedColumnError` on every backfill run. The INSERT now only includes the 8 stat columns that actually exist in the schema.
+
 ## [0.70.0] — 2026-05-13
 
 ### Changed

@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.71.0",
+    date: "13 May 2026",
+    changed: [
+      "Fixed a crash in the historical backfill — five columns that FPL returns but the database doesn't store were being passed to the INSERT, causing every backfill run to fail with a column error. Backfill now completes cleanly across all historical seasons.",
+    ],
+  },
+  {
     version: "0.70.0",
     date: "13 May 2026",
     changed: [
