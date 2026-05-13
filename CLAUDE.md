@@ -6,7 +6,7 @@ AI-powered Fantasy Premier League analyst web app. Provides natural language ana
 - **Language**: Python 3.11+
 - **API**: FastAPI (rate-limited via `slowapi` — 10 req/min, 50 req/hour per IP on `/fpl/ask`)
 - **AI**: Anthropic Claude via the `anthropic` SDK (tool-use loop + streaming)
-- **Database**: PostgreSQL (3 seasons of historical FPL stats)
+- **Database**: PostgreSQL — current season GW-by-GW stats + past seasons aggregate totals (from FPL `history_past`). Per-fixture data only exists for the current season; historical data is season-level only.
 - **MCP**: `sports-context-mcp` subprocess (stdio transport) — provides `query_historical_stats` and `query_press_conferences` tools to Claude
 - **Infra**: AWS EC2, Terraform, GitHub Actions CI/CD
 

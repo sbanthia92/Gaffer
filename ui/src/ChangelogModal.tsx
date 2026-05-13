@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.70.0",
+    date: "13 May 2026",
+    changed: [
+      "Historical season stats now populated from the FPL API — past seasons' goals, assists, points, and minutes per player are stored in the database using FPL's own player IDs. No third-party API key required. Note: per-fixture historical data (e.g. player vs specific opponent by GW) is not available from FPL and remains current-season-only.",
+    ],
+  },
+  {
     version: "0.69.0",
     date: "13 May 2026",
     changed: [
