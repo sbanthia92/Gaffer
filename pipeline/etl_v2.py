@@ -527,11 +527,10 @@ async def backfill_player_history(
                     season_id, fpl_id, team_fpl_id,
                     first_name, second_name, web_name, position,
                     total_points, minutes, goals_scored, assists,
-                    clean_sheets, goals_conceded, own_goals,
-                    penalties_saved, penalties_missed,
-                    yellow_cards, red_cards, saves, bonus, bps
+                    clean_sheets, goals_conceded,
+                    yellow_cards, red_cards, bonus
                 ) VALUES (
-                    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
+                    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16
                 )
                 ON CONFLICT (season_id, fpl_id) DO UPDATE SET
                     total_points = EXCLUDED.total_points,
@@ -540,9 +539,9 @@ async def backfill_player_history(
                     assists = EXCLUDED.assists,
                     clean_sheets = EXCLUDED.clean_sheets,
                     goals_conceded = EXCLUDED.goals_conceded,
-                    bonus = EXCLUDED.bonus,
-                    bps = EXCLUDED.bps,
-                    saves = EXCLUDED.saves
+                    yellow_cards = EXCLUDED.yellow_cards,
+                    red_cards = EXCLUDED.red_cards,
+                    bonus = EXCLUDED.bonus
                 """,
                 season_id,
                 fpl_id,
@@ -557,14 +556,9 @@ async def backfill_player_history(
                 past.get("assists") or 0,
                 past.get("clean_sheets") or 0,
                 past.get("goals_conceded") or 0,
-                past.get("own_goals") or 0,
-                past.get("penalties_saved") or 0,
-                past.get("penalties_missed") or 0,
                 past.get("yellow_cards") or 0,
                 past.get("red_cards") or 0,
-                past.get("saves") or 0,
                 past.get("bonus") or 0,
-                past.get("bps") or 0,
             )
             count += 1
 
