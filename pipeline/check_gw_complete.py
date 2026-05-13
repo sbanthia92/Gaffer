@@ -16,6 +16,9 @@ from pathlib import Path
 
 import httpx
 
+import server.config  # noqa: F401 — side-effect: injects secrets into os.environ
+from pipeline.job_metrics import record_attempt, record_failure, record_success
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
@@ -48,34 +51,45 @@ def latest_finished_gw(events: list[dict]) -> int | None:
 
 
 def main() -> None:
-    log.info("check_gw_complete: fetching FPL bootstrap events")
-    r = httpx.get(_FPL_BOOTSTRAP, timeout=20.0)
-    r.raise_for_status()
-    events = r.json().get("events", [])
+    run_id = record_attempt("gw_check")
+    try:
+        log.info("check_gw_complete: fetching FPL bootstrap events")
+        r = httpx.get(_FPL_BOOTSTRAP, timeout=20.0)
+        r.raise_for_status()
+        events = r.json().get("events", [])
 
-    latest = latest_finished_gw(events)
-    if latest is None:
-        log.info("no finished gameweeks found — nothing to do")
-        return
+        latest = latest_finished_gw(events)
+        if latest is None:
+            log.info("no finished gameweeks found — nothing to do")
+            record_success(run_id, {"action": "skipped", "reason": "no finished gameweeks"})
+            return
 
-    last_synced = _load_last_synced_gw()
-    log.info("latest finished GW: %d  |  last synced GW: %d", latest, last_synced)
+        last_synced = _load_last_synced_gw()
+        log.info("latest finished GW: %d  |  last synced GW: %d", latest, last_synced)
 
-    if latest <= last_synced:
-        log.info("GW %d already synced — nothing to do", latest)
-        return
+        if latest <= last_synced:
+            log.info("GW %d already synced — nothing to do", latest)
+            record_success(run_id, {"action": "skipped", "reason": "already synced", "gw": latest})
+            return
 
-    log.info("new finished GW detected: %d — triggering ETL gw update", latest)
-    result = subprocess.run(
-        [sys.executable, "-m", "pipeline.etl_v2", "--mode=gw"],
-        check=False,
-    )
-    if result.returncode != 0:
-        log.error("ETL gw update failed with exit code %d", result.returncode)
-        sys.exit(result.returncode)
+        log.info("new finished GW detected: %d — triggering ETL gw update", latest)
+        result = subprocess.run(
+            [sys.executable, "-m", "pipeline.etl_v2", "--mode=gw"],
+            check=False,
+        )
+        if result.returncode != 0:
+            log.error("ETL gw update failed with exit code %d", result.returncode)
+            record_failure(run_id, f"ETL gw update failed with exit code {result.returncode}")
+            sys.exit(result.returncode)
 
-    _save_last_synced_gw(latest)
-    log.info("state file updated to GW %d", latest)
+        _save_last_synced_gw(latest)
+        log.info("state file updated to GW %d", latest)
+        record_success(run_id, {"action": "synced", "gw": latest})
+
+    except Exception as exc:
+        log.exception("check_gw_complete failed")
+        record_failure(run_id, str(exc))
+        sys.exit(1)
 
 
 if __name__ == "__main__":

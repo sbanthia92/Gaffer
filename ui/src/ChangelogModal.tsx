@@ -9,6 +9,14 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.66.0",
+    date: "13 May 2026",
+    added: [
+      "Admin dashboard: Background Jobs section — shows last run time, pass/fail status, duration, and 7-day pass rate for the press ingestion and gameweek-check cron jobs. Jobs failing more than 10% of the time highlight in amber.",
+      "Admin dashboard: Data Stores section — shows Postgres row counts (players, finished gameweeks, stat rows, seasons) and Pinecone vector counts by namespace so you can verify data is being ingested correctly.",
+    ],
+  },
+  {
     version: "0.65.0",
     date: "13 May 2026",
     changed: [
