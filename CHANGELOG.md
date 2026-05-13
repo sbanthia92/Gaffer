@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.68.0] — 2026-05-13
+
+### Fixed
+- **`get_player_vs_opponent` cross-season data** — the historical backfill uses API-Sports player/team IDs while the current season uses FPL IDs; querying by ID directly only returned current-season rows. Fixed by joining through the `players` and `teams` tables by name within each season's own ID system, so all three seasons of historical data are searched correctly.
+
 ## [0.67.0] — 2026-05-13
 
 ### Fixed

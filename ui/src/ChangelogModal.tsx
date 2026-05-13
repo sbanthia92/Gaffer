@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.68.0",
+    date: "13 May 2026",
+    changed: [
+      "Historical player-vs-opponent queries now correctly search across all three seasons of data — a mismatch between API-Sports IDs (used for historical backfill) and FPL IDs (used for the current season) was silently limiting results to the current season only.",
+    ],
+  },
+  {
     version: "0.67.0",
     date: "13 May 2026",
     changed: [

@@ -450,6 +450,13 @@ async def get_player_vs_opponent(player_name: str, opponent_name: str, last_n: i
         return {"error": f"Team '{opponent_name}' not found in FPL data"}
 
     last_n = max(1, min(int(last_n), 20))
+
+    # Join through players/teams by name within each season rather than by ID.
+    # The backfill (API-Sports) and current season (FPL API) use different ID systems,
+    # so filtering on player_fpl_id / opponent_team_fpl_id directly only returns
+    # current-season rows. Name-based joining works across all ID systems.
+    player_pattern = f"%{element['web_name']}%"
+    opp_pattern = f"%{opp_team['name']}%"
     sql = """
         SELECT
             s.label AS season,
@@ -468,12 +475,14 @@ async def get_player_vs_opponent(player_name: str, opponent_name: str, last_n: i
             g.starts
         FROM gw_player_stats g
         JOIN seasons s ON g.season_id = s.id
-        WHERE g.player_fpl_id = $1
-          AND g.opponent_team_fpl_id = $2
+        JOIN players p ON p.season_id = g.season_id AND p.fpl_id = g.player_fpl_id
+        JOIN teams opp ON opp.season_id = g.season_id AND opp.fpl_id = g.opponent_team_fpl_id
+        WHERE (p.web_name ILIKE $1 OR (p.first_name || ' ' || p.second_name) ILIKE $1)
+          AND (opp.name ILIKE $2 OR opp.short_name ILIKE $2)
         ORDER BY s.start_year DESC, g.gw_number DESC
         LIMIT $3
     """
-    result = await _db_execute(sql, (element["id"], opp_team["id"], last_n))
+    result = await _db_execute(sql, (player_pattern, opp_pattern, last_n))
     return {
         "player": f"{element['first_name']} {element['second_name']}",
         "opponent": opp_team["name"],
