@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ChangelogModal from "./ChangelogModal";
+import ChangelogModal, { RELEASES } from "./ChangelogModal";
 import { loadSessions } from "./storage";
 import { submitContact } from "./api";
 import "./Landing.css";
@@ -522,7 +522,7 @@ export default function Landing() {
         <div className="landing-footer-col">
           <p className="landing-footer-heading">UPDATES</p>
           <button className="landing-changelog-btn" onClick={() => setShowChangelog(true)}>
-            What's new in v0.50.0 →
+            What's new in v{RELEASES[0].version} →
           </button>
         </div>
       </footer>
