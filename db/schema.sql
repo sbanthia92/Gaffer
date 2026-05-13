@@ -313,6 +313,28 @@ CREATE INDEX IF NOT EXISTS idx_gws_player_gw_desc ON gw_player_stats (season_id,
 
 
 -- ---------------------------------------------------------------------------
+-- job_runs — background cron job audit log
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS job_runs (
+    id           SERIAL PRIMARY KEY,
+    job_name     TEXT NOT NULL,
+    status       TEXT NOT NULL CHECK (status IN ('attempt', 'success', 'failure')),
+    gw_number    INTEGER,
+    details      JSONB NOT NULL DEFAULT '{}',
+    started_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ
+);
+
+COMMENT ON TABLE job_runs IS
+    'Audit log for background cron jobs (press_ingest, gw_check). '
+    'Each run writes an attempt row on start, then updates to success/failure on completion. '
+    'Queried by the admin dashboard /admin/jobs endpoint.';
+
+CREATE INDEX IF NOT EXISTS idx_job_runs_job_name_started
+    ON job_runs (job_name, started_at DESC);
+
+
+-- ---------------------------------------------------------------------------
 -- Extensions (run once by DBA — safe to re-run)
 -- ---------------------------------------------------------------------------
 -- Enables trigram fuzzy search on player web_name (used by idx_players_web_name_trgm)

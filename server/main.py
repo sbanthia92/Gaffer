@@ -372,6 +372,109 @@ async def admin_dashboard(
     }
 
 
+@app.get("/admin/jobs")
+async def admin_jobs(_: None = Depends(_admin_auth)) -> dict:
+    """Job health (job_runs table), Postgres row counts, and Pinecone vector stats."""
+
+    # ── job_runs: last completed run per job ──────────────────────────────────
+    last_runs = await db_tool.execute("""
+        SELECT DISTINCT ON (job_name)
+            job_name,
+            status,
+            gw_number,
+            details,
+            started_at,
+            EXTRACT(EPOCH FROM (completed_at - started_at))::float AS duration_s
+        FROM job_runs
+        WHERE status IN ('success', 'failure')
+        ORDER BY job_name, started_at DESC
+    """)
+
+    # ── job_runs: 7-day counts per job ────────────────────────────────────────
+    week_counts = await db_tool.execute("""
+        SELECT job_name, status, COUNT(*) AS cnt
+        FROM job_runs
+        WHERE started_at > NOW() - INTERVAL '7 days'
+          AND status != 'attempt'
+        GROUP BY job_name, status
+        ORDER BY job_name, status
+    """)
+
+    # ── Postgres ingestion row counts ─────────────────────────────────────────
+    pg_counts = await db_tool.execute("""
+        SELECT
+            (SELECT COUNT(*)::int FROM players p
+             JOIN seasons s ON s.id = p.season_id WHERE s.is_current) AS current_players,
+            (SELECT COUNT(*)::int FROM gameweeks g
+             JOIN seasons s ON s.id = g.season_id
+             WHERE s.is_current AND g.is_finished = TRUE)             AS gameweeks_synced,
+            (SELECT COUNT(*)::int FROM gw_player_stats gps
+             JOIN seasons s ON s.id = gps.season_id WHERE s.is_current) AS gw_stats_rows,
+            (SELECT COUNT(*)::int FROM seasons)                        AS total_seasons
+    """)
+
+    # ── Build per-job health dict ─────────────────────────────────────────────
+    jobs: dict = {}
+    if not last_runs.get("error"):
+        for row in last_runs.get("rows", []):
+            dur = row.get("duration_s")
+            jobs[row["job_name"]] = {
+                "last_run_at": row["started_at"],
+                "last_status": row["status"],
+                "last_gw": row.get("gw_number"),
+                "last_duration_s": round(dur, 1) if dur is not None else None,
+                "last_details": row.get("details") or {},
+                "runs_7d": {"successes": 0, "failures": 0},
+            }
+
+    if not week_counts.get("error"):
+        for row in week_counts.get("rows", []):
+            jn = row["job_name"]
+            if jn not in jobs:
+                jobs[jn] = {
+                    "last_run_at": None,
+                    "last_status": None,
+                    "last_gw": None,
+                    "last_duration_s": None,
+                    "last_details": {},
+                    "runs_7d": {"successes": 0, "failures": 0},
+                }
+            if row["status"] == "success":
+                jobs[jn]["runs_7d"]["successes"] = int(row["cnt"])
+            elif row["status"] == "failure":
+                jobs[jn]["runs_7d"]["failures"] = int(row["cnt"])
+
+    # ── Postgres counts ───────────────────────────────────────────────────────
+    postgres: dict = {}
+    if not pg_counts.get("error") and pg_counts.get("rows"):
+        postgres = pg_counts["rows"][0]
+
+    # ── Pinecone vector stats ─────────────────────────────────────────────────
+    pinecone_stats: dict | None = None
+    if settings.pinecone_api_key and settings.pinecone_index_name:
+        try:
+            from pinecone import Pinecone as PineconeClient
+
+            pc = PineconeClient(api_key=settings.pinecone_api_key)
+            index = pc.Index(settings.pinecone_index_name)
+            raw = await asyncio.to_thread(index.describe_index_stats)
+            pinecone_stats = {
+                "total_vectors": raw.total_vector_count,
+                "namespaces": {
+                    ns: info.vector_count for ns, info in (raw.namespaces or {}).items()
+                },
+            }
+        except Exception as exc:
+            log.warning("admin.pinecone_stats_failed", error=str(exc))
+
+    return {
+        "jobs": jobs,
+        "postgres": postgres,
+        "pinecone": pinecone_stats,
+        "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+
+
 @app.post("/fpl/ask")
 @limiter.limit("10/minute;50/hour")
 async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:

@@ -2,6 +2,18 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.66.0] — 2026-05-13
+
+### Added
+- **Job run metrics** — `pipeline/job_metrics.py` records every attempt, success, and failure from the two EC2 cron jobs (`press_ingest`, `gw_check`) into a new `job_runs` PostgreSQL table. Both `pipeline/run_press_ingest.py` and `pipeline/check_gw_complete.py` are instrumented; `gw_check` records `action: skipped | synced` in `details` so silent "nothing to do" runs are distinguishable from real GW syncs.
+- **`/admin/jobs` endpoint** — new admin-auth-gated endpoint returning job health (last run time, status, duration, 7-day pass rate per job), Postgres row counts (players, finished gameweeks, GW stat rows, seasons), and Pinecone namespace vector counts.
+- **Admin dashboard: Background Jobs section** — table showing last-run time, status dot (green/red), duration, and 7-day pass rate for each cron job. Pass rate below 90% highlights in amber.
+- **Admin dashboard: Data Stores section** — metric cards for current-season player count, finished gameweeks, GW stat rows, seasons in DB, total Pinecone vectors, and a card per Pinecone namespace.
+- **`db/migrations/001_job_runs.sql`** — migration file; apply once on the existing EC2 DB with `psql $DATABASE_ETL_URL -f db/migrations/001_job_runs.sql`.
+
+### Changed
+- `pipeline/check_gw_complete.py` now imports `server.config` for secrets injection so it runs correctly in production mode (same pattern as `run_press_ingest.py`).
+
 ## [0.65.0] — 2026-05-13
 
 ### Removed
