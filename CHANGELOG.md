@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.65.0] — 2026-05-13
+
+### Removed
+- **`ingest.yml` GitHub Actions workflow deleted** — the workflow was broken (`pipeline.ingest_press` module was removed in v0.57.0) and duplicated work already handled by EC2 cron jobs running press ingestion twice daily at 07:00 and 19:00 UTC.
+
 ## [0.64.0] — 2026-05-11
 
 ### Added

@@ -9,6 +9,13 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.65.0",
+    date: "13 May 2026",
+    changed: [
+      "Internal: removed the broken ingest.yml GitHub Actions workflow. Press ingestion now runs exclusively on the EC2 server via scheduled cron jobs (07:00 and 19:00 UTC daily).",
+    ],
+  },
+  {
     version: "0.64.0",
     date: "11 May 2026",
     added: [
