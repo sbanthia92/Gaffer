@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.69.0] — 2026-05-13
+
+### Fixed
+- **Hero STARTING XI restored to 11 players** and **chat mockup copy restored to DATA/REASONING format** — both were lost when PR #158's squash-merge (cut from a stale base) reached main after PR #153/#156. The fix from PR #162 only covered the first commit; this re-applies the second commit that was added after the merge.
+
 ## [0.68.0] — 2026-05-13
 
 ### Fixed

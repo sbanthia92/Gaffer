@@ -9,6 +9,14 @@ interface Release {
 
 const RELEASES: Release[] = [
   {
+    version: "0.69.0",
+    date: "13 May 2026",
+    changed: [
+      "Hero team sheet restored to 11 players (4-3-3: Flekken; Alexander-Arnold, Saliba, Van Dijk, Pedro Porro; Salah, Palmer, Saka; Haaland, Isak, Watkins) — was reverted to 7 by a merge order issue.",
+      "Feature chat mockup copy restored to DATA/REASONING format with realistic FPL numbers — the cleaner rewrite landed in v0.56.0 but was also lost to the same merge order issue.",
+    ],
+  },
+  {
     version: "0.68.0",
     date: "13 May 2026",
     changed: [
