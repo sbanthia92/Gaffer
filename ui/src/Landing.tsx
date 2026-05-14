@@ -52,10 +52,10 @@ const FEATURES = [
     id: "historical",
     icon: "📈",
     title: "Historical context",
-    desc: "3 seasons of match-by-match stats in a live database — goals, assists, xG, minutes, clean sheets per gameweek. Ask head-to-head comparisons or long-run form questions.",
+    desc: "GW-by-GW stats for the current season plus 3 seasons of historical totals — goals, assists, xG, minutes, clean sheets. Ask about reverse fixtures, recent form against a team, or seasonal trends.",
     chat: [
-      { role: "user", text: "How has Salah performed against Arsenal historically?" },
-      { role: "assistant", text: `**Salah vs Arsenal — last 3 seasons (8 apps):**\n\n**DATA:**\n• 22/23: 3 apps · 2G 1A · 9.3 avg pts\n• 23/24: 3 apps · 1G 2A · 7.7 avg pts\n• 24/25: 2 apps · 1G 0A · 6.5 avg pts\n• Overall: 4G · 3A · 8.1 avg FPL pts\n• Home vs Arsenal: 10.5 avg · Away: 5.7 avg\n\n**REASONING:** Above his career average (7.4) against Arsenal, with home fixtures the standout split.`, truncated: true },
+      { role: "user", text: "How did Haaland perform against Arsenal in the reverse fixture?" },
+      { role: "assistant", text: `**Haaland vs Arsenal — GW14 (H), 2025/26:**\n\n**DATA:**\n• 90 mins · 0G 0A · 2 FPL pts\n• xG: 0.38 · shots: 3 (1 on target)\n• Arsenal held City to 0 — clean sheet for Raya\n• Haaland blanked in both fixtures vs Arsenal last season too\n\n**REASONING:** Arsenal's low block has consistently neutralised Haaland — he's averaging 2.5 pts in his last 4 appearances against them. Avoid the armband if City draw Arsenal again.`, truncated: true },
     ],
   },
   {

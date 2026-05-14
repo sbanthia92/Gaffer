@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.72.0] — 2026-05-14
+
+### Changed
+- **Historical context feature card** — updated mockup query from "How has Salah performed against Arsenal historically?" to "How did Haaland perform against Arsenal in the reverse fixture?" to accurately reflect current-season per-fixture capability. Updated desc from "3 seasons of match-by-match stats" (inaccurate — historical data is season-level totals only) to clarify GW-by-GW is current season only.
+
 ## [0.71.0] — 2026-05-13
 
 ### Fixed
