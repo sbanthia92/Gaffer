@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.72.0",
+    date: "14 May 2026",
+    changed: [
+      "Historical context feature card updated — mockup query now asks about the reverse fixture (Haaland vs Arsenal) rather than multi-season history, accurately reflecting that per-fixture data is current-season only. Feature description corrected to say GW-by-GW for current season + seasonal totals for prior seasons.",
+    ],
+  },
+  {
     version: "0.71.0",
     date: "13 May 2026",
     changed: [
