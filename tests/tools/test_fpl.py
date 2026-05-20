@@ -289,8 +289,7 @@ async def test_get_team_all_fixtures_returns_all_competitions():
     assert f["competition"] == "Premier League"
     assert f["home"] == "Chelsea"
     assert f["away"] == "Arsenal"
-    assert f["home_difficulty"] == 2
-    assert f["away_difficulty"] == 3
+    assert f["difficulty"] == 2
 
 
 @pytest.mark.asyncio
