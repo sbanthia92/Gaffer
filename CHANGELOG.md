@@ -2,6 +2,14 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.73.0] — 2026-05-20
+
+### Fixed
+- **FDR perspective in `get_team_all_fixtures`** — was returning both `home_difficulty` and `away_difficulty`, leaving Claude to guess which applied. Now returns a single `difficulty` field from the queried team's perspective (home FDR when the team plays at home, away FDR when they travel).
+- **Silent blank responses on errors** — if `_generate()` threw an exception mid-stream, the UI would silently show nothing. Generator is now wrapped in a try/except that yields a user-facing error message.
+- **3-player club limit enforced in system prompt** — FPL's hard 3-player-per-club rule was not stated anywhere in Claude's instructions, allowing it to suggest a fourth player from the same team. Rule is now explicit: count the user's existing squad members per club before suggesting transfers.
+- **FDR 5 fixture warning on transfer suggestions** — Claude was suggesting players with FDR 5 next fixtures without flagging the difficulty. New FIXTURE DIFFICULTY RULE in the system prompt requires Claude to lead with a warning if the candidate's very next fixture is FDR 5.
+
 ## [0.72.0] — 2026-05-14
 
 ### Changed

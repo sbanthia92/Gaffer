@@ -9,6 +9,7 @@ include = ["server*", "pipeline*"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+exclude = ["get-pip.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]

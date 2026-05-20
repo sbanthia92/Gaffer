@@ -9,6 +9,16 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.73.0",
+    date: "20 May 2026",
+    changed: [
+      "Fixture difficulty now shown from your team's perspective — previously both home and away FDR were returned, leaving ambiguity about which one applied.",
+      "Errors during response generation now surface a visible message instead of a silent blank response.",
+      "FPL's 3-player-per-club hard limit is now enforced in Claude's transfer logic — it will no longer suggest a fourth player from a club already represented three times in your squad.",
+      "Transfer suggestions for players with an FDR 5 next fixture now lead with an explicit difficulty warning.",
+    ],
+  },
+  {
     version: "0.72.0",
     date: "14 May 2026",
     changed: [

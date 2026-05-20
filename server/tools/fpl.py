@@ -412,14 +412,14 @@ async def get_team_all_fixtures(team_name: str, next_n: int = 7) -> dict:
     for f in upcoming[:next_n]:
         h = f.get("team_h")
         a = f.get("team_a")
+        is_home = h == fpl_team_id
         fixtures.append(
             {
                 "date": (f.get("kickoff_time") or "")[:10],
                 "competition": "Premier League",
                 "home": team_map.get(h, ""),
                 "away": team_map.get(a, ""),
-                "home_difficulty": f.get("team_h_difficulty"),
-                "away_difficulty": f.get("team_a_difficulty"),
+                "difficulty": f.get("team_h_difficulty") if is_home else f.get("team_a_difficulty"),
             }
         )
     return {"all_fixtures": fixtures}
