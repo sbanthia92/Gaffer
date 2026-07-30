@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.80.0] — 2026-07-30
+
+### Added
+- **Auth foundation (Phase 2, schema only)** — `db/migrations/002_auth_tables.sql` adds `users`, `device_tokens`, `conversations`, and `chat_messages` tables, laying the groundwork for optional Google sign-in and persisted chat history. A new least-privilege `gaffer_app` Postgres role owns these tables — deliberately excluded from `gaffer_readonly` and `gaffer_etl` since they hold PII and will later hold encrypted API keys. No app code or user-facing behavior changes yet; cookie/OAuth wiring lands in follow-up PRs.
+
 ## [0.79.0] — 2026-07-30
 
 ### Fixed

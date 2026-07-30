@@ -513,3 +513,56 @@ COMMENT ON MATERIALIZED VIEW player_xpts IS
   'Pre-computed expected FPL points per player for the next gameweek. '
   'Refreshed hourly. xpts sums across fixtures so DGW players score double. '
   'Use get_player_xpts tool — do not query this view directly via query_database.';
+
+
+-- =============================================================================
+-- AUTH TABLES (Phase 2) — added by db/migrations/002_auth_tables.sql
+-- =============================================================================
+-- Unlike every table above, these are NOT meant to help Claude write SQL —
+-- they hold PII (email) and later encrypted API keys (Phase 3). They are never
+-- granted to gaffer_readonly (the role backing the query_database tool) or to
+-- gaffer_etl. Access is via a dedicated gaffer_app role, scoped only to these
+-- 4 tables. Do not add "help Claude understand this table" comments here.
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS users (
+    id             SERIAL PRIMARY KEY,
+    google_sub     TEXT NOT NULL UNIQUE,
+    email          TEXT NOT NULL,
+    name           TEXT,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_login_at  TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS device_tokens (
+    token        TEXT PRIMARY KEY,
+    user_id      INT REFERENCES users(id) ON DELETE CASCADE,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS conversations (
+    id            SERIAL PRIMARY KEY,
+    user_id       INT REFERENCES users(id) ON DELETE CASCADE,
+    device_token  TEXT REFERENCES device_tokens(token) ON DELETE CASCADE,
+    fpl_team_id   INT,
+    title         TEXT,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT conversations_owner_check
+        CHECK (user_id IS NOT NULL OR device_token IS NOT NULL)
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversations_user_id      ON conversations (user_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_device_token ON conversations (device_token);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id               SERIAL PRIMARY KEY,
+    conversation_id  INT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    role             TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content          TEXT NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation_created
+    ON chat_messages (conversation_id, created_at);
