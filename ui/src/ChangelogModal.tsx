@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.79.0",
+    date: "30 Jul 2026",
+    changed: [
+      "Internal: fixed background job tracking for the hourly data sync, which was silently failing to log its own run history.",
+    ],
+  },
+  {
     version: "0.78.0",
     date: "30 Jul 2026",
     changed: [

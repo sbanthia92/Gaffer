@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.79.0] — 2026-07-30
+
+### Fixed
+- **`job_metrics` calls in `etl_v2.py` were silently broken** — first live run of #174 hit `asyncio.run() cannot be called from a running event loop`. `record_attempt`/`record_success`/`record_failure` are synchronous wrappers that call `asyncio.run()` internally, built for scripts with a synchronous top level (`run_press_ingest.py`, `check_gw_complete.py`). `etl_v2.py`'s `main()` is already async, so calling the sync wrappers from inside it nests event loops. Added `arecord_attempt`/`arecord_success`/`arecord_failure` async coroutines for async callers; `etl_v2.py` now awaits those directly. The snapshot's own data validation was unaffected — only the `job_runs` tracking around it was broken.
+
 ## [0.78.0] — 2026-07-30
 
 ### Added
