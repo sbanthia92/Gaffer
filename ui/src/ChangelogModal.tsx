@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.74.0",
+    date: "30 Jul 2026",
+    changed: [
+      "Internal: fixed a missing IAM permission that was silently blocking the hourly ETL heartbeat metric from reaching CloudWatch.",
+    ],
+  },
+  {
     version: "0.73.0",
     date: "20 May 2026",
     changed: [

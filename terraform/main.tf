@@ -93,16 +93,28 @@ resource "aws_iam_role_policy" "gaffer_cloudwatch" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream",
-        "logs:PutLogEvents",
-        "logs:DescribeLogStreams",
-      ]
-      Resource = "arn:aws:logs:${var.aws_region}:*:log-group:/gaffer/*"
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams",
+        ]
+        Resource = "arn:aws:logs:${var.aws_region}:*:log-group:/gaffer/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["cloudwatch:PutMetricData"]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "cloudwatch:namespace" = "Gaffer/ETL"
+          }
+        }
+      }
+    ]
   })
 }
 

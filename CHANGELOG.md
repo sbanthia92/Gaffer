@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.74.0] — 2026-07-30
+
+### Fixed
+- **CloudWatch ETL heartbeat permission** — `gaffer-ec2-role` was missing `cloudwatch:PutMetricData`, so the hourly ETL snapshot's heartbeat metric (`Gaffer/ETL` namespace) has been silently failing on every run since it was added. Added a scoped IAM statement for that one namespace.
+
 ## [0.73.0] — 2026-05-20
 
 ### Fixed
