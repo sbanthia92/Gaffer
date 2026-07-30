@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.76.0] — 2026-07-30
+
+### Added
+- **Nightly automated DB backups** — `pipeline/backup_db.py` runs `pg_dump` against `DATABASE_URL` (read-only role), gzips the output, and uploads to a new private S3 bucket (`gaffer-db-backups-<account-id>`, 30-day lifecycle expiration). Scheduled 02:15 UTC daily via `scripts/setup_cron.sh`. EBS survives reboots but not instance replacement, so this closes that durability gap without a full RDS migration.
+
 ## [0.75.0] — 2026-07-30
 
 ### Fixed

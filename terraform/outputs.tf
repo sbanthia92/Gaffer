@@ -17,3 +17,8 @@ output "ecr_repository_url" {
   description = "ECR repository URL (for future ECS/EKS migration)"
   value       = aws_ecr_repository.gaffer_api.repository_url
 }
+
+output "db_backups_bucket" {
+  description = "S3 bucket for nightly pg_dump backups"
+  value       = aws_s3_bucket.gaffer_db_backups.bucket
+}

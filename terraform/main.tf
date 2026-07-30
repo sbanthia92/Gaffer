@@ -20,6 +20,8 @@ provider "aws" {
   region = var.aws_region
 }
 
+data "aws_caller_identity" "current" {}
+
 # ── ECR ────────────────────────────────────────────────────────────────────────
 # Kept for future use (Stage 3/4 ECS/EKS migration).
 
@@ -145,6 +147,55 @@ resource "aws_cloudwatch_log_group" "gaffer_api" {
 resource "aws_iam_instance_profile" "gaffer_ec2" {
   name = "gaffer-ec2-profile"
   role = aws_iam_role.gaffer_ec2.name
+}
+
+# ── DB backups (S3) ──────────────────────────────────────────────────────────
+# Nightly pg_dump from the EC2 cron, uploaded here. EBS survives reboots but
+# not instance replacement, so this is the durability layer for that gap.
+
+resource "aws_s3_bucket" "gaffer_db_backups" {
+  bucket = "gaffer-db-backups-${data.aws_caller_identity.current.account_id}"
+
+  tags = {
+    Project     = "the-gaffer"
+    Environment = var.environment
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "gaffer_db_backups" {
+  bucket                  = aws_s3_bucket.gaffer_db_backups.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "gaffer_db_backups" {
+  bucket = aws_s3_bucket.gaffer_db_backups.id
+
+  rule {
+    id     = "expire-old-backups"
+    status = "Enabled"
+    filter {}
+
+    expiration {
+      days = 30
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "gaffer_db_backups" {
+  name = "gaffer-db-backups-write"
+  role = aws_iam_role.gaffer_ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:PutObject"]
+      Resource = "${aws_s3_bucket.gaffer_db_backups.arn}/*"
+    }]
+  })
 }
 
 # ── Security group ─────────────────────────────────────────────────────────────
