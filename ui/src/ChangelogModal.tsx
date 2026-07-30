@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.76.0",
+    date: "30 Jul 2026",
+    changed: [
+      "Internal: added nightly automated database backups (pg_dump to S3, 30-day retention).",
+    ],
+  },
+  {
     version: "0.75.0",
     date: "30 Jul 2026",
     changed: [

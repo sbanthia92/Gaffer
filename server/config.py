@@ -54,6 +54,7 @@ class Settings(BaseSettings):
     admin_password: str = ""  # set in Secrets Manager as ADMIN_PASSWORD
     cloudwatch_region: str = "us-east-1"
     cloudwatch_log_group: str = "/gaffer/production/api"
+    db_backup_bucket: str = "gaffer-db-backups-690624555080"
 
     model_config = {"env_file": str(_ENV_FILE)}
 
