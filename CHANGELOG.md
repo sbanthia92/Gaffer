@@ -2,6 +2,12 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.77.0] — 2026-07-30
+
+### Fixed
+- **`gaffer_readonly` was missing `SELECT` on sequences** — the newly-shipped nightly DB backup (`pg_dump` via `DATABASE_URL`) failed on its first real run with `permission denied for sequence fixtures_id_seq`. Table `SELECT` doesn't imply sequence `SELECT`; `pg_dump` reads every identity column's backing sequence. Granted on prod, plus `ALTER DEFAULT PRIVILEGES` so future tables' sequences inherit it automatically.
+- **`backup_db.py` swallowed `pg_dump`'s stderr** — a failure only surfaced a generic "non-zero exit status" with no indication of *why*, which is why the above required an SSH session and a manual re-run to diagnose. Now captures and surfaces stderr in the raised error.
+
 ## [0.76.0] — 2026-07-30
 
 ### Added

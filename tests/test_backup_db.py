@@ -30,6 +30,7 @@ class TestRun:
 
         def fake_pg_dump(cmd, stdout, stderr, check):
             stdout.write(b"-- fake sql dump --")
+            return MagicMock(returncode=0)
 
         mock_run.side_effect = fake_pg_dump
 
@@ -47,3 +48,18 @@ class TestRun:
         assert args[2].endswith(".sql.gz")
         assert result["bucket"] == "gaffer-db-backups-test"
         assert result["size_bytes"] > 0
+
+    @patch("pipeline.backup_db.boto3.client")
+    @patch("pipeline.backup_db.subprocess.run")
+    @patch("pipeline.backup_db.shutil.which", return_value="/usr/bin/pg_dump")
+    def test_raises_with_pg_dump_stderr_on_failure(self, mock_which, mock_run, mock_boto_client):
+        mock_run.return_value = MagicMock(
+            returncode=1, stderr=b"permission denied for sequence fixtures_id_seq"
+        )
+
+        with patch("pipeline.backup_db.settings") as mock_settings:
+            mock_settings.database_url = "postgres://user@host/db"
+            with pytest.raises(RuntimeError, match="permission denied for sequence"):
+                run()
+
+        mock_boto_client.return_value.upload_file.assert_not_called()
