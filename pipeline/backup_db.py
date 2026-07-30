@@ -40,12 +40,14 @@ def run() -> dict:
         gz_path = Path(tmp) / "gaffer.sql.gz"
 
         with dump_path.open("wb") as f:
-            subprocess.run(
+            proc = subprocess.run(
                 ["pg_dump", settings.database_url, "--no-owner", "--no-privileges"],
                 stdout=f,
                 stderr=subprocess.PIPE,
-                check=True,
+                check=False,
             )
+            if proc.returncode != 0:
+                raise RuntimeError(f"pg_dump failed: {proc.stderr.decode().strip()}")
 
         with dump_path.open("rb") as src, gzip.open(gz_path, "wb") as dst:
             shutil.copyfileobj(src, dst)
