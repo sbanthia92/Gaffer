@@ -31,6 +31,7 @@ from datetime import UTC, datetime
 import asyncpg
 import httpx
 
+from pipeline.job_metrics import record_attempt, record_failure, record_success
 from server.config import settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -570,6 +571,56 @@ async def backfill_player_history(
 # ---------------------------------------------------------------------------
 
 
+async def _validate_snapshot(
+    conn: asyncpg.Connection, season_id: int, bootstrap: dict, all_fixtures: list
+) -> None:
+    """
+    Sanity-check the snapshot write path against the FPL source data. A 200 OK from
+    the FPL API only proves the fetch succeeded, not that the upsert wrote correct
+    data — this catches a malformed response or a transformation bug that would
+    otherwise corrupt the DB silently. Raises RuntimeError on any mismatch so the
+    run is recorded as a failure rather than a silent partial write.
+    """
+    expected_players = len(bootstrap["elements"])
+    expected_teams = len(bootstrap["teams"])
+    expected_fixtures = len(all_fixtures)
+
+    db_player_count = await conn.fetchval(
+        "SELECT COUNT(*) FROM players WHERE season_id = $1", season_id
+    )
+    db_team_count = await conn.fetchval(
+        "SELECT COUNT(*) FROM teams WHERE season_id = $1", season_id
+    )
+    db_fixture_count = await conn.fetchval(
+        "SELECT COUNT(*) FROM fixtures WHERE season_id = $1", season_id
+    )
+
+    if db_player_count != expected_players:
+        raise RuntimeError(
+            f"player count mismatch: DB has {db_player_count}, FPL has {expected_players}"
+        )
+    if db_team_count != expected_teams:
+        raise RuntimeError(f"team count mismatch: DB has {db_team_count}, FPL has {expected_teams}")
+    if db_fixture_count != expected_fixtures:
+        raise RuntimeError(
+            f"fixture count mismatch: DB has {db_fixture_count}, FPL has {expected_fixtures}"
+        )
+
+    # Spot-check a real value survived the write path unchanged — catches
+    # transformation bugs that row counts alone would miss.
+    top_scorer = max(bootstrap["elements"], key=lambda p: p.get("total_points", 0))
+    db_points = await conn.fetchval(
+        "SELECT total_points FROM players WHERE season_id = $1 AND fpl_id = $2",
+        season_id,
+        top_scorer["id"],
+    )
+    if db_points != top_scorer["total_points"]:
+        raise RuntimeError(
+            f"total_points mismatch for player fpl_id={top_scorer['id']}: "
+            f"DB has {db_points}, FPL has {top_scorer['total_points']}"
+        )
+
+
 async def run_snapshot(conn: asyncpg.Connection) -> None:
     """Hourly: refresh players/teams/gameweeks/fixtures from FPL API."""
     log.info("=== SNAPSHOT: fetching FPL bootstrap + fixtures ===")
@@ -582,6 +633,7 @@ async def run_snapshot(conn: asyncpg.Connection) -> None:
     await upsert_gameweeks(conn, season_id, bootstrap)
     await upsert_players(conn, season_id, bootstrap)
     await upsert_fixtures_fpl(conn, season_id, all_fixtures)
+    await _validate_snapshot(conn, season_id, bootstrap, all_fixtures)
     try:
         await conn.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY player_xpts")
         log.info("player_xpts refreshed")
@@ -678,8 +730,14 @@ async def main() -> None:
     pool = await get_pool()
     try:
         if args.mode == "snapshot":
-            async with pool.acquire() as conn:
-                await run_snapshot(conn)
+            run_id = record_attempt("etl_snapshot")
+            try:
+                async with pool.acquire() as conn:
+                    await run_snapshot(conn)
+                record_success(run_id)
+            except Exception as exc:
+                record_failure(run_id, str(exc))
+                raise
         elif args.mode == "gw":
             await run_gw_update(pool)
         elif args.mode == "full":

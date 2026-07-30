@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.78.0",
+    date: "30 Jul 2026",
+    changed: [
+      "Internal: added data-integrity checks to the hourly data sync, so a bad or malformed FPL API response can no longer silently corrupt stored data.",
+    ],
+  },
+  {
     version: "0.77.0",
     date: "30 Jul 2026",
     changed: [
