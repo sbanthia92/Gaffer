@@ -17,6 +17,12 @@
 -- least-privilege role, gaffer_app, for the FastAPI app's own read/write access.
 -- Set its password via Secrets Manager (gaffer/production) before wiring
 -- DATABASE_APP_URL in a follow-up PR — do not commit it here.
+--
+-- IMPORTANT: scripts/setup_postgres.sh set ALTER DEFAULT PRIVILEGES IN SCHEMA
+-- public for objects created by the postgres role, granting gaffer_readonly
+-- SELECT and gaffer_etl SELECT/INSERT/UPDATE on every new table by default.
+-- Since this migration runs as postgres, these 4 tables would silently inherit
+-- those grants without the explicit REVOKE block below — do not remove it.
 
 CREATE TABLE IF NOT EXISTS users (
     id             SERIAL PRIMARY KEY,
@@ -82,6 +88,20 @@ COMMENT ON TABLE chat_messages IS
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation_created
     ON chat_messages (conversation_id, created_at);
+
+
+-- ---------------------------------------------------------------------------
+-- REVOKE default grants — scripts/setup_postgres.sh set up
+-- ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ... TO gaffer_readonly/gaffer_etl
+-- for objects created by the postgres role. This migration runs as postgres
+-- (see header), so without this block these 4 PII-bearing tables would
+-- silently inherit SELECT for gaffer_readonly and SELECT/INSERT/UPDATE for
+-- gaffer_etl the instant they're created — exactly what must never happen.
+-- ---------------------------------------------------------------------------
+REVOKE ALL ON users, device_tokens, conversations, chat_messages FROM gaffer_readonly;
+REVOKE ALL ON users, device_tokens, conversations, chat_messages FROM gaffer_etl;
+REVOKE ALL ON users_id_seq, conversations_id_seq, chat_messages_id_seq FROM gaffer_readonly;
+REVOKE ALL ON users_id_seq, conversations_id_seq, chat_messages_id_seq FROM gaffer_etl;
 
 
 -- ---------------------------------------------------------------------------
