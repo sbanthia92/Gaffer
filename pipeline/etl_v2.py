@@ -31,7 +31,7 @@ from datetime import UTC, datetime
 import asyncpg
 import httpx
 
-from pipeline.job_metrics import record_attempt, record_failure, record_success
+from pipeline.job_metrics import arecord_attempt, arecord_failure, arecord_success
 from server.config import settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -730,13 +730,13 @@ async def main() -> None:
     pool = await get_pool()
     try:
         if args.mode == "snapshot":
-            run_id = record_attempt("etl_snapshot")
+            run_id = await arecord_attempt("etl_snapshot")
             try:
                 async with pool.acquire() as conn:
                     await run_snapshot(conn)
-                record_success(run_id)
+                await arecord_success(run_id)
             except Exception as exc:
-                record_failure(run_id, str(exc))
+                await arecord_failure(run_id, str(exc))
                 raise
         elif args.mode == "gw":
             await run_gw_update(pool)
