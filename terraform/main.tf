@@ -191,24 +191,13 @@ resource "aws_security_group" "gaffer" {
 }
 
 # ── EC2 instance ───────────────────────────────────────────────────────────────
-
-data "aws_ami" "amazon_linux_2023" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-*-x86_64"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
+# AMI is pinned, not looked up via `most_recent = true` — that data source
+# re-resolves on every plan/apply and silently forces a full instance
+# replacement (new instance, new root EBS volume, production data gone)
+# whenever AWS publishes a newer al2023 AMI. Bump ec2_ami_id deliberately.
 
 resource "aws_instance" "gaffer" {
-  ami                    = data.aws_ami.amazon_linux_2023.id
+  ami                    = var.ec2_ami_id
   instance_type          = var.ec2_instance_type
   key_name               = var.ec2_key_name
   vpc_security_group_ids = [aws_security_group.gaffer.id]

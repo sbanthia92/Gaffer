@@ -21,3 +21,9 @@ variable "ec2_key_name" {
   type        = string
   default     = "gaffer-ec2"
 }
+
+variable "ec2_ami_id" {
+  description = "Amazon Linux 2023 AMI ID for the Gaffer EC2 instance. Pinned deliberately — bumping this replaces the instance and its root volume, so only change it as part of a planned migration with a backup/snapshot taken first."
+  type        = string
+  default     = "ami-0c456f2cfcc96df82"
+}

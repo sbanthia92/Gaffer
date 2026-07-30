@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.75.0] — 2026-07-30
+
+### Fixed
+- **EC2 AMI was unpinned** — `terraform/main.tf` looked up the latest Amazon Linux 2023 AMI via `most_recent = true` on every plan/apply. AWS had published a newer AMI since the instance was created, so the next `terraform apply` would have force-replaced the running production instance (new instance, new root EBS volume, all Postgres data gone). AMI is now pinned via `var.ec2_ami_id`, defaulting to the currently-running AMI. Bumping it is now a deliberate, documented action.
+
 ## [0.74.0] — 2026-07-30
 
 ### Fixed

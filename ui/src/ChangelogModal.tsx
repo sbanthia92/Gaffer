@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.75.0",
+    date: "30 Jul 2026",
+    changed: [
+      "Internal: pinned the production server's AMI in Terraform — it was resolving to \"latest\" on every apply, which was one deploy away from silently replacing the live server and its data.",
+    ],
+  },
+  {
     version: "0.74.0",
     date: "30 Jul 2026",
     changed: [
