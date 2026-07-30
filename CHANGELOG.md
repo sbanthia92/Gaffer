@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.78.0] — 2026-07-30
+
+### Added
+- **ETL snapshot data validation** — `etl_v2.py`'s hourly snapshot now validates its own write path: player/team/fixture row counts must match the FPL source payload exactly, and the top scorer's `total_points` is spot-checked to have survived the upsert unchanged. A 200 OK from the FPL API only proved the fetch worked, not that the DB write was correct — this catches a malformed response or transformation bug instead of letting it complete silently. Failures now record to `job_runs` (`etl_snapshot`), which wasn't tracked there before.
+
 ## [0.77.0] — 2026-07-30
 
 ### Fixed
