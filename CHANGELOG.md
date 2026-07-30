@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.81.0] — 2026-07-30
+
+### Fixed
+- **`002_auth_tables.sql` would have silently exposed PII to the wrong roles** — `scripts/setup_postgres.sh` set `ALTER DEFAULT PRIVILEGES IN SCHEMA public` for the `postgres` role, auto-granting `gaffer_readonly` SELECT and `gaffer_etl` SELECT/INSERT/UPDATE on every new table. Since migrations apply as `postgres` via the superuser bypass, the new `users`/`device_tokens`/`conversations`/`chat_messages` tables would have inherited those grants on creation — putting user email addresses within reach of `gaffer_readonly`, the role backing Claude's `query_database` tool. Caught before the migration was ever run on production. Added explicit `REVOKE` statements for both roles ahead of the `gaffer_app` grants.
+
 ## [0.80.0] — 2026-07-30
 
 ### Added
