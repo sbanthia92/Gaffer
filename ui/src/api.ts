@@ -22,6 +22,7 @@ export async function askGaffer(
   const res = await fetch(`${BASE_URL}/api/${league}/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ question, fpl_team_id: fplTeamId, history }),
   });
 

@@ -21,11 +21,14 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 
-from server import claude_client, fpl_cache
+from server import claude_client, device_auth, fpl_cache
 from server.config import settings
 from server.logger import log
 from server.tools import db as db_tool
 from server.tools import fpl
+
+DEVICE_COOKIE = "gaffer_device"
+_DEVICE_COOKIE_MAX_AGE = 60 * 60 * 24 * 400  # 400 days — Chrome's cap on cookie lifetime
 
 
 def _find_mcp_server_path() -> str:
@@ -56,6 +59,7 @@ def _convert_mcp_tools(mcp_tools) -> list[dict]:
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     await db_tool.init_pool()
+    await device_auth.init_pool()
     server_path = _find_mcp_server_path()
     server_params = StdioServerParameters(command=sys.executable, args=[server_path])
     async with stdio_client(server_params) as (read, write):
@@ -66,6 +70,7 @@ async def _lifespan(app: FastAPI):
             app.state.mcp_tools = _convert_mcp_tools(tools_result.tools)
             yield
     await db_tool.close_pool()
+    await device_auth.close_pool()
 
 
 def _real_ip(request: Request) -> str:
@@ -579,7 +584,9 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
             )
             yield _sse("error", str(e))
 
-    return StreamingResponse(
+    device_token = await device_auth.get_or_create_device_token(request.cookies.get(DEVICE_COOKIE))
+
+    response = StreamingResponse(
         _generate(),
         media_type="text/event-stream",
         headers={
@@ -587,6 +594,15 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
             "X-Accel-Buffering": "no",  # disable nginx buffering
         },
     )
+    response.set_cookie(
+        DEVICE_COOKIE,
+        device_token,
+        max_age=_DEVICE_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=settings.environment == "production",
+        samesite="lax",
+    )
+    return response
 
 
 async def _fpl_tool_handler(

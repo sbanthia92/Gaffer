@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     # V2
     database_url: str = ""  # postgres://gaffer_readonly:...@localhost:5432/gaffer (read-only)
     database_etl_url: str = ""  # postgres://gaffer_etl:...@localhost:5432/gaffer (read/write)
+    database_app_url: str = ""  # postgres://gaffer_app:...@localhost:5432/gaffer (auth tables only)
     admin_password: str = ""  # set in Secrets Manager as ADMIN_PASSWORD
     cloudwatch_region: str = "us-east-1"
     cloudwatch_log_group: str = "/gaffer/production/api"
