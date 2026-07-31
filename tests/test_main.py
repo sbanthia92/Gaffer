@@ -66,6 +66,30 @@ def test_fpl_ask_missing_question_returns_422() -> None:
     assert response.status_code == 422
 
 
+def test_fpl_ask_sets_device_cookie() -> None:
+    with patch(
+        "server.main.claude_client.ask",
+        new=AsyncMock(return_value=_mock_stream("Captain Salah this week.")),
+    ):
+        response = client.post("/fpl/ask", json={"question": "Should I captain Salah?"})
+
+    assert "gaffer_device" in response.cookies
+    assert len(response.cookies["gaffer_device"]) > 20
+
+
+def test_fpl_ask_reuses_existing_device_cookie() -> None:
+    client.cookies.set("gaffer_device", "existing-token-value")
+    try:
+        with patch(
+            "server.main.claude_client.ask",
+            new=AsyncMock(return_value=_mock_stream("Captain Salah this week.")),
+        ):
+            response = client.post("/fpl/ask", json={"question": "Should I captain Salah?"})
+        assert response.cookies["gaffer_device"] == "existing-token-value"
+    finally:
+        client.cookies.clear()
+
+
 def test_fpl_ask_passes_question_to_claude() -> None:
     mock_ask = AsyncMock(return_value=_mock_stream("Transfer in Haaland."))
 

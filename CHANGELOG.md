@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.82.0] — 2026-07-31
+
+### Added
+- **Anonymous device-token cookie** — `/fpl/ask` now issues a `gaffer_device` cookie (httponly, secure in production) on first visit and touches it on every request. Backed by a new `gaffer_app`-owned `device_tokens` row via `DATABASE_APP_URL`, added in `server/device_auth.py`. No user-facing behavior change yet — FPL team ID persistence still works exactly as before via `localStorage`; this just gives the backend a stable per-browser identity to attach future chat history to once that lands. Falls back to an unpersisted in-memory token if `DATABASE_APP_URL` isn't configured (local dev).
+
 ## [0.81.0] — 2026-07-30
 
 ### Fixed
