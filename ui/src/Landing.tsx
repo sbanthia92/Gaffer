@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import AuthStatus from "./AuthStatus";
 import ChangelogModal, { RELEASES } from "./ChangelogModal";
 import { loadSessions } from "./storage";
 import { submitContact } from "./api";
@@ -346,11 +347,14 @@ export default function Landing() {
             ))}
           </nav>
         </div>
-        {isReturning && (
-          <button className="landing-continue-btn" onClick={() => navigate("/chat")}>
-            Continue →
-          </button>
-        )}
+        <div className="landing-topbar-right">
+          {isReturning && (
+            <button className="landing-continue-btn" onClick={() => navigate("/chat")}>
+              Continue →
+            </button>
+          )}
+          <AuthStatus />
+        </div>
       </div>
 
       {/* Hero */}

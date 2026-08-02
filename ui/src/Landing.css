@@ -36,6 +36,12 @@
   gap: 14px;
 }
 
+.landing-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .landing-topbar-nav {
   display: flex;
   align-items: center;

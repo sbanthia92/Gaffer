@@ -2,6 +2,15 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.83.0] — 2026-08-02
+
+### Added
+- **Google sign-in** — `GET /auth/google/login` and `/auth/google/callback` (authlib OAuth + a signed session cookie via Starlette's `SessionMiddleware`) create/update a `users` row per Google account and merge the current anonymous device (`device_tokens.user_id`) into it on login. `GET /auth/me` / `POST /auth/logout` round out the flow. A minimal "Sign in with Google" button (`ui/src/AuthStatus.tsx`) now appears in the chat sidebar and the landing page topbar, showing the signed-in user's name once authenticated.
+- **Known gap**: this requires a real Google OAuth Client ID/Secret and `SESSION_SECRET_KEY`/`PUBLIC_BASE_URL` in Secrets Manager to work end-to-end in production — not yet created. Inert until then, same as the device-token cookie before it.
+
+### Changed
+- `server/device_auth.py` renamed to `server/app_db.py` — it now owns both device-token and user DB access via the `gaffer_app` role, not just device tokens.
+
 ## [0.82.0] — 2026-07-31
 
 ### Added

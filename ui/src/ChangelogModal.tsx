@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.83.0",
+    date: "2 Aug 2026",
+    added: [
+      "Sign in with Google — optional, saves nothing extra yet, but your account will carry your chat history forward once that lands.",
+    ],
+  },
+  {
     version: "0.82.0",
     date: "31 Jul 2026",
     changed: [

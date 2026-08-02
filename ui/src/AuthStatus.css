@@ -1,0 +1,36 @@
+.auth-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-status-name {
+  font-size: 11px;
+  opacity: 0.65;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+.auth-status-btn {
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.75;
+  padding: 0;
+  text-decoration: none;
+  transition: opacity 0.12s;
+}
+
+.auth-status-btn:hover {
+  opacity: 1;
+}
+
+/* Sidebar footer context — match the full-width, padded look of the other footer buttons */
+.sidebar-footer .auth-status {
+  padding: 7px 10px;
+  justify-content: space-between;
+}

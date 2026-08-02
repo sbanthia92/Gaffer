@@ -2,7 +2,7 @@ import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.testclient import TestClient
 
 from server.main import _fpl_tool_handler, _on_rate_limit_exceeded, app
@@ -117,3 +117,70 @@ def test_rate_limit_handler_returns_429() -> None:
 async def test_fpl_tool_handler_unknown_tool_raises() -> None:
     with pytest.raises(ValueError, match="Unknown tool"):
         await _fpl_tool_handler("nonexistent_tool", {})
+
+
+def test_auth_me_unauthenticated_by_default() -> None:
+    response = TestClient(app).get("/auth/me")
+    assert response.json() == {"authenticated": False}
+
+
+def test_google_login_redirects_to_google() -> None:
+    fresh_client = TestClient(app)
+    mock_redirect = AsyncMock(
+        return_value=RedirectResponse(url="https://accounts.google.com/o/oauth2/auth")
+    )
+
+    with patch("server.main.oauth.google.authorize_redirect", new=mock_redirect):
+        response = fresh_client.get("/auth/google/login", follow_redirects=False)
+
+    assert response.status_code in (302, 307)
+    mock_redirect.assert_awaited_once()
+    redirect_uri = mock_redirect.call_args.args[1]
+    assert redirect_uri.endswith("/api/auth/google/callback")
+
+
+def test_google_callback_sets_session_and_auth_me_reflects_it() -> None:
+    fresh_client = TestClient(app)
+    mock_token = {
+        "userinfo": {"sub": "google-123", "email": "person@example.com", "name": "Person"}
+    }
+
+    with (
+        patch(
+            "server.main.oauth.google.authorize_access_token",
+            new=AsyncMock(return_value=mock_token),
+        ),
+        patch("server.main.app_db.get_or_create_user", new=AsyncMock(return_value=42)),
+        patch("server.main.app_db.merge_device_into_user", new=AsyncMock()) as mock_merge,
+    ):
+        callback_response = fresh_client.get("/auth/google/callback", follow_redirects=False)
+
+    assert callback_response.status_code in (302, 307)
+    mock_merge.assert_not_awaited()  # no device cookie present on this fresh client
+
+    me = fresh_client.get("/auth/me")
+    assert me.json() == {"authenticated": True, "email": "person@example.com", "name": "Person"}
+
+    logout = fresh_client.post("/auth/logout")
+    assert logout.json() == {"status": "ok"}
+
+    me_after_logout = fresh_client.get("/auth/me")
+    assert me_after_logout.json() == {"authenticated": False}
+
+
+def test_google_callback_merges_existing_device_token() -> None:
+    fresh_client = TestClient(app)
+    fresh_client.cookies.set("gaffer_device", "some-device-token")
+    mock_token = {"userinfo": {"sub": "google-456", "email": "b@example.com", "name": "B"}}
+
+    with (
+        patch(
+            "server.main.oauth.google.authorize_access_token",
+            new=AsyncMock(return_value=mock_token),
+        ),
+        patch("server.main.app_db.get_or_create_user", new=AsyncMock(return_value=7)),
+        patch("server.main.app_db.merge_device_into_user", new=AsyncMock()) as mock_merge,
+    ):
+        fresh_client.get("/auth/google/callback", follow_redirects=False)
+
+    mock_merge.assert_awaited_once_with("some-device-token", 7)
