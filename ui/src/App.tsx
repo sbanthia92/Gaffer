@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useNavigate } from "react-router-dom";
 import { askGaffer, fetchPlayerCard, submitFeedback, submitThumbsDown, type PlayerCard as PlayerCardData } from "./api";
+import AuthStatus from "./AuthStatus";
 import { PlayerLink } from "./PlayerCard";
 import {
   appendMessage,
@@ -630,6 +631,7 @@ export default function App() {
           >
             Report a bug
           </button>
+          <AuthStatus />
         </div>
       </aside>
 

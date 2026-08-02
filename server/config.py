@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     database_url: str = ""  # postgres://gaffer_readonly:...@localhost:5432/gaffer (read-only)
     database_etl_url: str = ""  # postgres://gaffer_etl:...@localhost:5432/gaffer (read/write)
     database_app_url: str = ""  # postgres://gaffer_app:...@localhost:5432/gaffer (auth tables only)
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    session_secret_key: str = ""  # signs the session cookie; must be set in prod Secrets Manager
+    public_base_url: str = "http://localhost:5173"  # https://the-gaffer.io in prod
     admin_password: str = ""  # set in Secrets Manager as ADMIN_PASSWORD
     cloudwatch_region: str = "us-east-1"
     cloudwatch_log_group: str = "/gaffer/production/api"

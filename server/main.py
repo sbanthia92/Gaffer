@@ -12,7 +12,7 @@ import boto3
 import httpx
 import resend
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -20,9 +20,11 @@ from mcp.types import TextContent
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.sessions import SessionMiddleware
 
-from server import claude_client, device_auth, fpl_cache
+from server import app_db, claude_client, fpl_cache
 from server.config import settings
+from server.google_auth import oauth
 from server.logger import log
 from server.tools import db as db_tool
 from server.tools import fpl
@@ -59,7 +61,7 @@ def _convert_mcp_tools(mcp_tools) -> list[dict]:
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     await db_tool.init_pool()
-    await device_auth.init_pool()
+    await app_db.init_pool()
     server_path = _find_mcp_server_path()
     server_params = StdioServerParameters(command=sys.executable, args=[server_path])
     async with stdio_client(server_params) as (read, write):
@@ -70,7 +72,7 @@ async def _lifespan(app: FastAPI):
             app.state.mcp_tools = _convert_mcp_tools(tools_result.tools)
             yield
     await db_tool.close_pool()
-    await device_auth.close_pool()
+    await app_db.close_pool()
 
 
 def _real_ip(request: Request) -> str:
@@ -90,6 +92,12 @@ limiter = Limiter(key_func=_real_ip)
 app = FastAPI(title="The Gaffer", version="0.1.0", lifespan=_lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _on_rate_limit_exceeded)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret_key or secrets.token_urlsafe(32),
+    same_site="lax",
+    https_only=settings.environment == "production",
+)
 
 
 @app.middleware("http")
@@ -218,6 +226,54 @@ def _field(row: list[dict], name: str, default: float = 0.0) -> float:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.environment}
+
+
+# ── Google sign-in ─────────────────────────────────────────────────────────────
+
+
+@app.get("/auth/google/login")
+async def google_login(request: Request):
+    redirect_uri = f"{settings.public_base_url}/api/auth/google/callback"
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
+
+@app.get("/auth/google/callback")
+async def google_callback(request: Request):
+    token = await oauth.google.authorize_access_token(request)
+    userinfo = token.get("userinfo") or await oauth.google.userinfo(token=token)
+
+    user_id = await app_db.get_or_create_user(
+        google_sub=userinfo["sub"],
+        email=userinfo["email"],
+        name=userinfo.get("name", ""),
+    )
+
+    device_token = request.cookies.get(DEVICE_COOKIE)
+    if device_token:
+        await app_db.merge_device_into_user(device_token, user_id)
+
+    request.session["user_id"] = user_id
+    request.session["email"] = userinfo["email"]
+    request.session["name"] = userinfo.get("name", "")
+
+    return RedirectResponse(url="/")
+
+
+@app.get("/auth/me")
+async def auth_me(request: Request) -> dict:
+    if "user_id" not in request.session:
+        return {"authenticated": False}
+    return {
+        "authenticated": True,
+        "email": request.session.get("email"),
+        "name": request.session.get("name"),
+    }
+
+
+@app.post("/auth/logout")
+async def auth_logout(request: Request) -> dict[str, str]:
+    request.session.clear()
+    return {"status": "ok"}
 
 
 @app.get("/fpl/player-card")
@@ -584,7 +640,7 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
             )
             yield _sse("error", str(e))
 
-    device_token = await device_auth.get_or_create_device_token(request.cookies.get(DEVICE_COOKIE))
+    device_token = await app_db.get_or_create_device_token(request.cookies.get(DEVICE_COOKIE))
 
     response = StreamingResponse(
         _generate(),

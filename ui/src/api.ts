@@ -126,6 +126,27 @@ export async function submitFeedback(
   }
 }
 
+export interface AuthStatus {
+  authenticated: boolean;
+  email?: string;
+  name?: string;
+}
+
+export async function getAuthStatus(): Promise<AuthStatus> {
+  const res = await fetch(`${BASE_URL}/api/auth/me`, {
+    credentials: "include",
+  });
+  if (!res.ok) return { authenticated: false };
+  return res.json();
+}
+
+export async function logout(): Promise<void> {
+  await fetch(`${BASE_URL}/api/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+}
+
 export async function submitThumbsDown(
   question: string,
   answer: string,
