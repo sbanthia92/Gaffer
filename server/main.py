@@ -130,6 +130,7 @@ class AskRequest(BaseModel):
     question: str
     fpl_team_id: int | None = None
     history: list[HistoryMessage] = []
+    session_id: str | None = None  # frontend's ChatSession.id — enables server-side persistence
 
 
 class FeedbackRequest(BaseModel):
@@ -542,9 +543,12 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
     if not body.question.strip():
         raise HTTPException(status_code=422, detail="Question must not be empty.")
 
+    device_token = await app_db.get_or_create_device_token(request.cookies.get(DEVICE_COOKIE))
+
     async def _generate():
         t0 = time.monotonic()
         tools_called: list[str] = []
+        answer_parts: list[str] = []
         try:
             log.info(
                 "ask.start",
@@ -621,6 +625,8 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
             )
 
             async for event_type, data in stream:
+                if event_type == "chunk":
+                    answer_parts.append(data)
                 yield _sse(event_type, data)
 
             log.info(
@@ -631,6 +637,21 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
                 latency_ms=round((time.monotonic() - t0) * 1000),
             )
 
+            if body.session_id:
+                try:
+                    conversation_id = await app_db.upsert_conversation(
+                        client_session_id=body.session_id,
+                        device_token=device_token,
+                        user_id=request.session.get("user_id"),
+                        fpl_team_id=body.fpl_team_id,
+                    )
+                    if conversation_id is not None:
+                        await app_db.save_chat_messages(
+                            conversation_id, body.question, "".join(answer_parts)
+                        )
+                except Exception as persist_exc:
+                    log.warning("chat_history.persist_failed", error=str(persist_exc))
+
         except Exception as e:
             log.error(
                 "ask.error",
@@ -639,8 +660,6 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
                 latency_ms=round((time.monotonic() - t0) * 1000),
             )
             yield _sse("error", str(e))
-
-    device_token = await app_db.get_or_create_device_token(request.cookies.get(DEVICE_COOKIE))
 
     response = StreamingResponse(
         _generate(),

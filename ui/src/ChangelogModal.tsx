@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.84.0",
+    date: "4 Aug 2026",
+    changed: [
+      "Internal: the app now quietly saves each chat exchange server-side — no visible change yet, just more groundwork for cross-device history.",
+    ],
+  },
+  {
     version: "0.83.0",
     date: "2 Aug 2026",
     added: [

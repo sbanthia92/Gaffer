@@ -542,13 +542,14 @@ CREATE TABLE IF NOT EXISTS device_tokens (
 );
 
 CREATE TABLE IF NOT EXISTS conversations (
-    id            SERIAL PRIMARY KEY,
-    user_id       INT REFERENCES users(id) ON DELETE CASCADE,
-    device_token  TEXT REFERENCES device_tokens(token) ON DELETE CASCADE,
-    fpl_team_id   INT,
-    title         TEXT,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id                 SERIAL PRIMARY KEY,
+    user_id            INT REFERENCES users(id) ON DELETE CASCADE,
+    device_token       TEXT REFERENCES device_tokens(token) ON DELETE CASCADE,
+    fpl_team_id        INT,
+    title              TEXT,
+    client_session_id  TEXT UNIQUE,   -- frontend's ChatSession.id (crypto.randomUUID())
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT conversations_owner_check
         CHECK (user_id IS NOT NULL OR device_token IS NOT NULL)
 );

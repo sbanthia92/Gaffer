@@ -79,3 +79,52 @@ async def merge_device_into_user(device_token: str, user_id: int) -> None:
         await conn.execute(
             "UPDATE device_tokens SET user_id = $1 WHERE token = $2", user_id, device_token
         )
+
+
+async def upsert_conversation(
+    client_session_id: str,
+    device_token: str,
+    user_id: int | None,
+    fpl_team_id: int | None,
+) -> int | None:
+    """
+    Best-effort — returns None if DATABASE_APP_URL isn't configured, so callers
+    can skip persistence instead of crashing the chat response over it.
+
+    NOTE: client_session_id is not scoped to device_token/user_id here — a
+    client that already knew another session's UUID could in theory append to
+    it. Not exploitable today since there's no read endpoint to leak IDs
+    through, but a future read path must add that scoping before trusting
+    this table for anything sensitive.
+    """
+    if _pool is None:
+        return None
+
+    async with _pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO conversations (client_session_id, device_token, user_id, fpl_team_id)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (client_session_id) DO UPDATE
+                SET updated_at = NOW(),
+                    user_id = COALESCE(conversations.user_id, EXCLUDED.user_id)
+            RETURNING id
+            """,
+            client_session_id,
+            device_token,
+            user_id,
+            fpl_team_id,
+        )
+        return row["id"]
+
+
+async def save_chat_messages(conversation_id: int, question: str, answer: str) -> None:
+    """Best-effort — no-ops if DATABASE_APP_URL isn't configured."""
+    if _pool is None:
+        return
+
+    async with _pool.acquire() as conn:
+        await conn.executemany(
+            "INSERT INTO chat_messages (conversation_id, role, content) VALUES ($1, $2, $3)",
+            [(conversation_id, "user", question), (conversation_id, "assistant", answer)],
+        )

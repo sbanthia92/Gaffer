@@ -529,7 +529,8 @@ export default function App() {
         (status) => {
           setStatusText(status);
         },
-        history
+        history,
+        updatedWithUser.id
       );
 
       // Persist the final answer

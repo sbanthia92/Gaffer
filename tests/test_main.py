@@ -168,6 +168,64 @@ def test_google_callback_sets_session_and_auth_me_reflects_it() -> None:
     assert me_after_logout.json() == {"authenticated": False}
 
 
+def test_fpl_ask_persists_conversation_when_session_id_given() -> None:
+    with (
+        patch(
+            "server.main.claude_client.ask",
+            new=AsyncMock(return_value=_mock_stream("Captain Salah this week.")),
+        ),
+        patch(
+            "server.main.app_db.upsert_conversation", new=AsyncMock(return_value=99)
+        ) as mock_upsert,
+        patch("server.main.app_db.save_chat_messages", new=AsyncMock()) as mock_save,
+    ):
+        response = client.post(
+            "/fpl/ask",
+            json={"question": "Should I captain Salah?", "session_id": "thread-1"},
+        )
+
+    assert response.status_code == 200
+    mock_upsert.assert_awaited_once()
+    assert mock_upsert.call_args.kwargs["client_session_id"] == "thread-1"
+    mock_save.assert_awaited_once_with(99, "Should I captain Salah?", "Captain Salah this week.")
+
+
+def test_fpl_ask_skips_persistence_without_session_id() -> None:
+    with (
+        patch(
+            "server.main.claude_client.ask",
+            new=AsyncMock(return_value=_mock_stream("Captain Salah this week.")),
+        ),
+        patch("server.main.app_db.upsert_conversation", new=AsyncMock()) as mock_upsert,
+        patch("server.main.app_db.save_chat_messages", new=AsyncMock()) as mock_save,
+    ):
+        response = client.post("/fpl/ask", json={"question": "Should I captain Salah?"})
+
+    assert response.status_code == 200
+    mock_upsert.assert_not_awaited()
+    mock_save.assert_not_awaited()
+
+
+def test_fpl_ask_persist_failure_does_not_break_response() -> None:
+    with (
+        patch(
+            "server.main.claude_client.ask",
+            new=AsyncMock(return_value=_mock_stream("Captain Salah this week.")),
+        ),
+        patch(
+            "server.main.app_db.upsert_conversation",
+            new=AsyncMock(side_effect=RuntimeError("db exploded")),
+        ),
+    ):
+        response = client.post(
+            "/fpl/ask",
+            json={"question": "Should I captain Salah?", "session_id": "thread-2"},
+        )
+
+    assert response.status_code == 200
+    assert _parse_sse(response.text) == "Captain Salah this week."
+
+
 def test_google_callback_merges_existing_device_token() -> None:
     fresh_client = TestClient(app)
     fresh_client.cookies.set("gaffer_device", "some-device-token")
