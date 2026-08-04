@@ -17,13 +17,19 @@ export async function askGaffer(
   fplTeamId: number | null = null,
   onChunk: (chunk: string) => void = () => {},
   onStatus: (status: string) => void = () => {},
-  history: HistoryMessage[] = []
+  history: HistoryMessage[] = [],
+  sessionId: string | null = null
 ): Promise<string> {
   const res = await fetch(`${BASE_URL}/api/${league}/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ question, fpl_team_id: fplTeamId, history }),
+    body: JSON.stringify({
+      question,
+      fpl_team_id: fplTeamId,
+      history,
+      session_id: sessionId,
+    }),
   });
 
   if (!res.ok || !res.body) {

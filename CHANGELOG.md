@@ -2,7 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
-## [0.83.0] — 2026-08-02
+## [0.84.0] — 2026-08-04
+
+### Added
+- **Chat-history persistence (write path)** — `/fpl/ask` now saves each question/answer pair to the `conversations`/`chat_messages` tables when the frontend sends a `session_id` (the chat thread's existing client-side id), via new `server/app_db.upsert_conversation`/`save_chat_messages`. Best-effort only — a persistence failure logs a warning and never breaks the chat response, and nothing changes for the user: the sidebar's chat history is still driven entirely by `localStorage`, same as before. `db/migrations/003_conversations_client_session_id.sql` adds the column this upsert keys on.
+- **Known gap, tracked deliberately**: no read/list endpoint exists yet to consume this data, so it's write-only groundwork. `client_session_id` isn't scoped to the requesting device/user at write time — noted in code, to be closed when a read path actually needs that guarantee. Also blocked on the same undeployed migration chain as the last two auth PRs.
 
 ### Added
 - **Google sign-in** — `GET /auth/google/login` and `/auth/google/callback` (authlib OAuth + a signed session cookie via Starlette's `SessionMiddleware`) create/update a `users` row per Google account and merge the current anonymous device (`device_tokens.user_id`) into it on login. `GET /auth/me` / `POST /auth/logout` round out the flow. A minimal "Sign in with Google" button (`ui/src/AuthStatus.tsx`) now appears in the chat sidebar and the landing page topbar, showing the signed-in user's name once authenticated.
