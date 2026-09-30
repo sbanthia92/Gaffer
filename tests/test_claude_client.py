@@ -13,6 +13,7 @@ def _make_usage() -> MagicMock:
     u.output_tokens = 50
     u.cache_read_input_tokens = 0
     u.cache_creation_input_tokens = 0
+    u.server_tool_use = None
     return u
 
 
@@ -143,3 +144,83 @@ async def test_ask_system_prompt_references_mcp_tools():
     system_text = "".join(block["text"] for block in call_kwargs["system"])
     assert "query_historical_stats" in system_text
     assert "query_press_conferences" not in system_text
+
+
+def _make_block(block_type: str, **attrs) -> MagicMock:
+    block = MagicMock()
+    block.type = block_type
+    for k, v in attrs.items():
+        setattr(block, k, v)
+    return block
+
+
+def _make_response(stop_reason: str, content: list) -> MagicMock:
+    response = MagicMock(spec=anthropic.types.Message)
+    response.stop_reason = stop_reason
+    response.content = content
+    response.usage = _make_usage()
+    return response
+
+
+@pytest.mark.asyncio
+async def test_ask_resumes_after_pause_turn():
+    """pause_turn: the partial assistant turn is sent back and the loop continues."""
+    paused = _make_response("pause_turn", [_make_block("server_tool_use", name="web_search")])
+    end_turn = _make_end_turn_response()
+
+    with patch("server.claude_client.anthropic.AsyncAnthropic") as mock_anthropic:
+        mock_client = AsyncMock()
+        mock_anthropic.return_value = mock_client
+        mock_client.messages.create = AsyncMock(side_effect=[paused, end_turn])
+        mock_client.messages.stream = MagicMock(return_value=_make_stream_context(["Done."]))
+
+        stream = await ask(
+            question="Is Saka fit?",
+            tool_definitions=[],
+            tool_handler=AsyncMock(return_value={}),
+            league="fpl",
+        )
+        result = await _collect(stream)
+
+    assert result == "Done."
+    assert mock_client.messages.create.await_count == 2
+    second_messages = mock_client.messages.create.call_args_list[1].kwargs["messages"]
+    assert second_messages[-1] == {"role": "assistant", "content": paused.content}
+
+
+@pytest.mark.asyncio
+async def test_ask_emits_answer_written_after_web_search_without_restreaming():
+    """If the final turn ran web searches, its text is the answer — no second stream call."""
+    answer = _make_response(
+        "end_turn",
+        [
+            _make_block("server_tool_use", name="web_search"),
+            _make_block("web_search_tool_result"),
+            _make_block("text", text="✅ Yes — Saka trained fully (BBC)."),
+        ],
+    )
+
+    with patch("server.claude_client.anthropic.AsyncAnthropic") as mock_anthropic:
+        mock_client = AsyncMock()
+        mock_anthropic.return_value = mock_client
+        mock_client.messages.create = AsyncMock(return_value=answer)
+        mock_client.messages.stream = MagicMock()
+
+        stream = await ask(
+            question="Is Saka fit?",
+            tool_definitions=[],
+            tool_handler=AsyncMock(return_value={}),
+            league="fpl",
+        )
+        result = await _collect(stream)
+
+    assert result == "✅ Yes — Saka trained fully (BBC)."
+    mock_client.messages.stream.assert_not_called()
+
+
+def test_system_prompt_requires_web_search_for_analysed_players():
+    from server.claude_client import _build_system_prompt
+
+    prompt = _build_system_prompt("fpl", 123)
+    assert "web_search" in prompt
+    assert "recommend bringing in" in prompt

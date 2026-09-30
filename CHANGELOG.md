@@ -2,6 +2,12 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.86.0] — 2026-09-30
+
+### Added
+- **Live player news via Anthropic web search** — Claude now has the server-side `web_search_20260209` tool (`max_uses: 5` per request, `server/claude_client.py` `WEB_SEARCH_TOOL`). The system prompt tells it to search the latest news (injuries, press-conference fitness updates, suspensions, rotation risk) for every player it gives a verdict on — squad players being assessed and transfer targets it recommends — and nobody else. Replaces the retired press-conference RAG without storing any third-party content: results live only inside the request.
+- The tool loop now handles `pause_turn` (sends the partial assistant turn back to resume a long server-tool turn), and when the final non-streamed turn already ran web searches its answer is emitted directly instead of being re-streamed — the re-stream uses `tool_choice: none` and would have lost the search results. `claude.tokens` logs now include `web_searches` (billed per search).
+
 ## [0.85.0] — 2026-09-30
 
 ### Changed
