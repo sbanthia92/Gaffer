@@ -249,11 +249,11 @@ async def upsert_players(conn: asyncpg.Connection, season_id: int, bootstrap: di
                 status, chance_of_playing_next_round, news,
                 creativity, influence, threat, ict_index,
                 expected_goals, expected_assists, expected_goal_involvements,
-                photo, updated_at
+                photo, news_added, updated_at
             ) VALUES (
                 $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
                 $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,
-                $29,$30,$31,$32,$33,$34,NOW()
+                $29,$30,$31,$32,$33,$34,$35,NOW()
             )
             ON CONFLICT (season_id, fpl_id) DO UPDATE SET
                 team_fpl_id = EXCLUDED.team_fpl_id,
@@ -275,6 +275,7 @@ async def upsert_players(conn: asyncpg.Connection, season_id: int, bootstrap: di
                 status = EXCLUDED.status,
                 chance_of_playing_next_round = EXCLUDED.chance_of_playing_next_round,
                 news = EXCLUDED.news,
+                news_added = EXCLUDED.news_added,
                 creativity = EXCLUDED.creativity,
                 influence = EXCLUDED.influence,
                 threat = EXCLUDED.threat,
@@ -318,6 +319,7 @@ async def upsert_players(conn: asyncpg.Connection, season_id: int, bootstrap: di
             float(p["expected_assists"]) if p.get("expected_assists") else None,
             float(p["expected_goal_involvements"]) if p.get("expected_goal_involvements") else None,
             p.get("photo"),
+            _parse_dt(p.get("news_added")),
         )
         fpl_ids.append(p["id"])
     log.info("upserted %d players", len(fpl_ids))

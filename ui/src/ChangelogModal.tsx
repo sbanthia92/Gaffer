@@ -9,6 +9,15 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.85.0",
+    date: "30 Sep 2026",
+    changed: [
+      "Stats now come from the fpl-context-mcp server — historical stats queries work reliably again in production.",
+      "Injury and availability info now comes straight from FPL's own player status and news flags.",
+      "Press-conference search retired — the old news archive is gone.",
+    ],
+  },
+  {
     version: "0.84.0",
     date: "4 Aug 2026",
     changed: [

@@ -1,8 +1,8 @@
 import asyncio
 import functools
-import importlib.util
 import json
 import secrets
+import shutil
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -33,17 +33,15 @@ DEVICE_COOKIE = "gaffer_device"
 _DEVICE_COOKIE_MAX_AGE = 60 * 60 * 24 * 400  # 400 days — Chrome's cap on cookie lifetime
 
 
-def _find_mcp_server_path() -> str:
-    """Find the sports-context-mcp server.py via the installed config module."""
-    spec = importlib.util.find_spec("config")
-    if spec and spec.origin:
-        server_path = Path(spec.origin).parent / "server.py"
-        if server_path.exists():
-            return str(server_path)
-    raise RuntimeError(
-        "sports-context-mcp server.py not found — "
-        "run: pip install 'sports-context-mcp @ git+https://github.com/sbanthia92/sports-context-mcp.git'"  # noqa: E501
-    )
+def _find_mcp_server_command() -> str:
+    """Find the fpl-context-mcp console script installed alongside this interpreter."""
+    script = Path(sys.executable).parent / "fpl-context-mcp"
+    if script.exists():
+        return str(script)
+    found = shutil.which("fpl-context-mcp")
+    if found:
+        return found
+    raise RuntimeError("fpl-context-mcp not found — run: pip install fpl-context-mcp")
 
 
 def _convert_mcp_tools(mcp_tools) -> list[dict]:
@@ -62,8 +60,12 @@ def _convert_mcp_tools(mcp_tools) -> list[dict]:
 async def _lifespan(app: FastAPI):
     await db_tool.init_pool()
     await app_db.init_pool()
-    server_path = _find_mcp_server_path()
-    server_params = StdioServerParameters(command=sys.executable, args=[server_path])
+    # The MCP client only forwards a safe subset of env vars (HOME, PATH, ...) to the
+    # subprocess, so DATABASE_URL must be passed explicitly or the tool has no DSN.
+    server_params = StdioServerParameters(
+        command=_find_mcp_server_command(),
+        env={"DATABASE_URL": settings.database_url},
+    )
     async with stdio_client(server_params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
@@ -436,7 +438,7 @@ async def admin_dashboard(
 
 @app.get("/admin/jobs")
 async def admin_jobs(_: None = Depends(_admin_auth)) -> dict:
-    """Job health (job_runs table), Postgres row counts, and Pinecone vector stats."""
+    """Job health (job_runs table) and Postgres row counts."""
 
     # ── job_runs: last completed run per job ──────────────────────────────────
     last_runs = await db_tool.execute("""
@@ -511,28 +513,9 @@ async def admin_jobs(_: None = Depends(_admin_auth)) -> dict:
     if not pg_counts.get("error") and pg_counts.get("rows"):
         postgres = pg_counts["rows"][0]
 
-    # ── Pinecone vector stats ─────────────────────────────────────────────────
-    pinecone_stats: dict | None = None
-    if settings.pinecone_api_key and settings.pinecone_index_name:
-        try:
-            from pinecone import Pinecone as PineconeClient
-
-            pc = PineconeClient(api_key=settings.pinecone_api_key)
-            index = pc.Index(settings.pinecone_index_name)
-            raw = await asyncio.to_thread(index.describe_index_stats)
-            pinecone_stats = {
-                "total_vectors": raw.total_vector_count,
-                "namespaces": {
-                    ns: info.vector_count for ns, info in (raw.namespaces or {}).items()
-                },
-            }
-        except Exception as exc:
-            log.warning("admin.pinecone_stats_failed", error=str(exc))
-
     return {
         "jobs": jobs,
         "postgres": postgres,
-        "pinecone": pinecone_stats,
         "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
 
@@ -573,7 +556,7 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
                 return await _fpl_tool_handler(name, inp, body.fpl_team_id)
 
             async def _v2_handler(name: str, inp: dict) -> dict:
-                if name in ("query_historical_stats", "query_press_conferences"):
+                if name == "query_historical_stats":
                     tools_called.append(name)
                     return await _mcp_call(name, inp)
                 return await _tracking_handler(name, inp)

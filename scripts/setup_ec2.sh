@@ -54,9 +54,6 @@ sudo mkdir -p /etc/gaffer
 if [ ! -f /etc/gaffer/.env ]; then
   sudo tee /etc/gaffer/.env > /dev/null <<'ENV'
 ANTHROPIC_API_KEY=your_key_here
-PINECONE_API_KEY=your_key_here
-PINECONE_INDEX_NAME=the-gaffer
-API_SPORTS_KEY=your_key_here
 FPL_TEAM_ID=your_team_id_here
 ENVIRONMENT=production
 ENV

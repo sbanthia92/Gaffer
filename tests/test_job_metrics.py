@@ -61,7 +61,7 @@ class TestArecordSuccessFailure:
 class TestSyncWrappersCallable:
     def test_record_attempt_does_not_raise_outside_event_loop(self):
         # Regression test: record_attempt() must be callable from plain sync top-level
-        # code (run_press_ingest.py, check_gw_complete.py), not from inside an already
+        # code (check_gw_complete.py, backup_db.py), not from inside an already
         # running event loop — that's what arecord_attempt is for (see etl_v2.py).
         with patch("pipeline.job_metrics._db_url", return_value=""):
             assert record_attempt("some_job") is None

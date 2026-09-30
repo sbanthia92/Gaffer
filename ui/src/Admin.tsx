@@ -40,10 +40,6 @@ interface JobsData {
     gw_stats_rows: number;
     total_seasons: number;
   } | null;
-  pinecone: {
-    total_vectors: number;
-    namespaces: Record<string, number>;
-  } | null;
   fetched_at: string;
 }
 
@@ -385,29 +381,6 @@ export default function Admin() {
                   sub="historical seasons loaded"
                 />
               </>
-            )}
-            {jobs.pinecone ? (
-              <>
-                <MetricCard
-                  label="Pinecone Vectors"
-                  value={fmtNum(jobs.pinecone.total_vectors)}
-                  sub="total across all namespaces"
-                />
-                {Object.entries(jobs.pinecone.namespaces).map(([ns, count]) => (
-                  <MetricCard
-                    key={ns}
-                    label={`Pinecone · ${ns}`}
-                    value={fmtNum(count)}
-                    sub="vectors in namespace"
-                  />
-                ))}
-              </>
-            ) : (
-              <MetricCard
-                label="Pinecone"
-                value="—"
-                sub="stats unavailable (check API key)"
-              />
             )}
           </div>
         </>

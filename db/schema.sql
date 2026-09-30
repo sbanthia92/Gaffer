@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS players (
     status              TEXT,            -- 'a' available, 'i' injured, 'd' doubtful, 's' suspended, 'u' unavailable
     chance_of_playing_next_round INT,   -- 0–100, null if fully available
     news                TEXT,           -- latest injury/suspension news
+    news_added          TIMESTAMPTZ,    -- when FPL last changed the news note
     creativity          NUMERIC(6,1),
     influence           NUMERIC(6,1),
     threat              NUMERIC(6,1),

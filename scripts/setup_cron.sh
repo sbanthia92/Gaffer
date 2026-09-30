@@ -7,7 +7,6 @@
 # Jobs installed:
 #   :05 every hour — etl_v2 snapshot        (live player stats refresh)
 #   :00 every hour — check_gw_complete      (triggers gw ETL when a GW finishes)
-#   07:00 & 19:00  — ingest_press           (news & press conference RAG)
 #   02:15 daily    — backup_db              (pg_dump -> gzip -> S3, 30-day lifecycle)
 #
 # Historical backfill (one-time, run manually — one season per day):
@@ -58,12 +57,6 @@ add_job \
     "cd $APP_DIR && ENVIRONMENT=production $PYTHON -m pipeline.check_gw_complete >> $LOG_DIR/etl_gw.log 2>&1" \
     "gaffer etl gw check (hourly)"
 
-# Press & news ingestion — 07:00 and 19:00 UTC (via sports-context-mcp package)
-add_job \
-    "0 7,19 * * *" \
-    "cd $APP_DIR && ENVIRONMENT=production $PYTHON -m pipeline.run_press_ingest >> $LOG_DIR/ingest_press.log 2>&1" \
-    "gaffer press ingestion (twice daily)"
-
 # DB backup — 02:15 UTC daily, off-hour to avoid the hourly snapshot/gw jobs
 add_job \
     "15 2 * * *" \
@@ -80,7 +73,6 @@ echo ""
 echo " Logs:"
 echo "   $LOG_DIR/etl_snapshot.log   — hourly stats sync"
 echo "   $LOG_DIR/etl_gw.log          — GW completion check + gw ETL (hourly)"
-echo "   $LOG_DIR/ingest_press.log    — news/press RAG"
 echo "   $LOG_DIR/backup_db.log        — nightly DB backup"
 echo ""
 echo " One-time historical backfill (run one per day):"

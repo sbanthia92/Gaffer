@@ -4,7 +4,7 @@ Record job run events to the job_runs PostgreSQL table.
 Each pipeline script calls record_attempt() at the top, then record_success()
 or record_failure() depending on outcome. record_attempt/success/failure are
 synchronous wrappers around asyncpg for scripts with a synchronous top level
-(run_press_ingest.py, check_gw_complete.py). Scripts that are already async at
+(check_gw_complete.py, backup_db.py). Scripts that are already async at
 the top level (etl_v2.py's main()) must use the arecord_* coroutines directly —
 the sync wrappers call asyncio.run() internally and cannot be invoked from
 inside an already-running event loop.

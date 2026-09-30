@@ -19,15 +19,13 @@ def test_convert_mcp_tools_formats_correctly():
 
     mcp_tools = [
         _make_mcp_tool("query_historical_stats", "Query historical FPL stats"),
-        _make_mcp_tool("query_press_conferences", "Search press conferences"),
     ]
     result = _convert_mcp_tools(mcp_tools)
 
-    assert len(result) == 2
+    assert len(result) == 1
     assert result[0]["name"] == "query_historical_stats"
     assert result[0]["description"] == "Query historical FPL stats"
     assert "input_schema" in result[0]
-    assert result[1]["name"] == "query_press_conferences"
 
 
 def test_convert_mcp_tools_handles_none_description():
@@ -38,20 +36,20 @@ def test_convert_mcp_tools_handles_none_description():
     assert result[0]["description"] == ""
 
 
-@pytest.mark.asyncio
-async def test_mcp_call_parses_json_response():
-    """_mcp_call parses JSON text from a TextContent result."""
-    from server.main import _find_mcp_server_path
+def test_find_mcp_server_command_raises_when_missing():
+    from server.main import _find_mcp_server_command
 
-    # Verify _find_mcp_server_path raises if config module is missing
-    with patch("server.main.importlib.util.find_spec", return_value=None):
-        with pytest.raises(RuntimeError, match="sports-context-mcp server.py not found"):
-            _find_mcp_server_path()
+    with (
+        patch("server.main.Path.exists", return_value=False),
+        patch("server.main.shutil.which", return_value=None),
+    ):
+        with pytest.raises(RuntimeError, match="fpl-context-mcp not found"):
+            _find_mcp_server_command()
 
 
 @pytest.mark.asyncio
 async def test_v2_handler_routes_mcp_tools_via_session():
-    """query_historical_stats and query_press_conferences route through MCP session."""
+    """query_historical_stats routes through the MCP session."""
     from fastapi.testclient import TestClient
 
     from server.main import app
