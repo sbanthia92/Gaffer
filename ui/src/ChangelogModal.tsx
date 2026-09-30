@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.88.0",
+    date: "30 Sep 2026",
+    changed: [
+      "Internal: second fix for nightly database backups.",
+    ],
+  },
+  {
     version: "0.87.0",
     date: "30 Sep 2026",
     changed: [

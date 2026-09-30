@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.88.0] — 2026-09-30
+
+### Fixed
+- **Backups still failed after v0.87.0**, one step later: with the auth tables excluded, `pg_dump` still read their `SERIAL` sequences (`chat_messages_id_seq` etc.), which `gaffer_readonly` also can't `SELECT`. Excluding a table doesn't exclude its sequence, so the dump now also passes `--exclude-table=public.<table>_id_seq` for each auth table.
+
 ## [0.87.0] — 2026-09-30
 
 ### Fixed
