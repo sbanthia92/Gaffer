@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.86.0",
+    date: "30 Sep 2026",
+    added: [
+      "Live player news — before giving a verdict on a player in your squad or recommending a transfer target, The Gaffer now searches the web for their latest injury, press-conference and rotation news.",
+    ],
+  },
+  {
     version: "0.85.0",
     date: "30 Sep 2026",
     changed: [

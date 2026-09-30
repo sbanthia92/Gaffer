@@ -599,7 +599,9 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
             mcp_tool_defs = getattr(request.app.state, "mcp_tools", [])
             stream = await claude_client.ask(
                 question=body.question,
-                tool_definitions=fpl.get_tool_definitions() + mcp_tool_defs,
+                tool_definitions=fpl.get_tool_definitions()
+                + mcp_tool_defs
+                + [claude_client.WEB_SEARCH_TOOL],
                 tool_handler=_v2_handler,
                 league="fpl",
                 history=history,

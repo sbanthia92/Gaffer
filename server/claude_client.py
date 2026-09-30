@@ -30,6 +30,11 @@ _MODEL = "claude-sonnet-4-6"
 _MAX_TOKENS = 4096
 _MAX_TURNS = 5
 
+# Anthropic server-side web search — runs on Anthropic's side, results come back
+# inline as server_tool_use / web_search_tool_result blocks. Nothing is stored.
+# max_uses caps searches per request (billed per search).
+WEB_SEARCH_TOOL: dict = {"type": "web_search_20260209", "name": "web_search", "max_uses": 5}
+
 # Type alias for an async tool handler function
 ToolHandler = Callable[[str, dict], Coroutine[Any, Any, dict]]
 
@@ -50,6 +55,7 @@ _TOOL_LABELS: dict[str, str] = {
     "get_mini_league_standings": "Fetching mini-league standings…",
     "get_captain_options": "Comparing captain candidates…",
     "get_player_xpts": "Calculating expected points…",
+    "web_search": "Searching the web for player news…",
 }
 
 
@@ -88,6 +94,18 @@ _SHARED_RULES = (
     "7. POSITION FILTER — when calling search_players_by_criteria to find transfer targets, "
     "ALWAYS set position= to the exact position of the player being transferred out (MID, "
     "FWD, DEF, or GKP). Never search without a position filter for transfer suggestions.\n\n"
+    "PLAYER NEWS (web_search) — whenever your answer analyses a specific player, either one "
+    "already in the user's squad that you are assessing (captain, bench, sell, keep) or one "
+    "you are about to recommend bringing in, call web_search for that player's latest news "
+    "before giving the verdict: injuries, fitness updates from the manager's press "
+    "conference, suspensions, rotation or minutes risk. Rules:\n"
+    "1. Only search players you actually give a verdict on — not every player in the squad "
+    "and not players mentioned only in passing.\n"
+    "2. One focused search per player, e.g. '<full name> <club> injury news press "
+    "conference'. Issue the searches in the same turn as your other tool calls.\n"
+    "3. Prefer news from the last 7 days; ignore anything older than the current gameweek. "
+    "If sources conflict with FPL's own status/news flag, say so.\n"
+    "4. Mention the key news briefly in THE DATA and name the source.\n\n"
     "FIXTURE SOURCE OF TRUTH: When get_gameweek_schedule and get_team_all_fixtures disagree "
     "on the GW number or opponent for a team, trust get_team_all_fixtures — it reads the "
     "team's full fixture list directly and is more reliable than the schedule overview. "
@@ -304,8 +322,9 @@ async def ask(
         # ── Tool-use loop (non-streaming) ──────────────────────────────────
         # Yield a thinking status before every Claude API call so the SSE
         # connection stays alive through nginx's proxy_read_timeout.
-        in_tok = out_tok = cache_read = cache_write = 0
+        in_tok = out_tok = cache_read = cache_write = web_searches = 0
         turns = 0
+        final_text: str | None = None
 
         yield "status", "Thinking…"
         while turns < _MAX_TURNS:
@@ -322,8 +341,22 @@ async def ask(
             out_tok += u.output_tokens
             cache_read += getattr(u, "cache_read_input_tokens", 0) or 0
             cache_write += getattr(u, "cache_creation_input_tokens", 0) or 0
+            web_searches += _web_search_count(u)
+
+            if response.stop_reason == "pause_turn":
+                # A long server-tool (web search) turn was paused — send the partial
+                # assistant turn back as-is and the API resumes where it stopped.
+                turns += 1
+                messages.append({"role": "assistant", "content": response.content})
+                yield "status", _TOOL_LABELS["web_search"]
+                continue
 
             if response.stop_reason != "tool_use":
+                if any(b.type == "server_tool_use" for b in response.content):
+                    # The answer was written after web searches in this same turn —
+                    # re-streaming would drop those results (tool_choice none can't
+                    # search), so emit this answer directly.
+                    final_text = "".join(b.text for b in response.content if b.type == "text")
                 break
 
             turns += 1
@@ -336,6 +369,12 @@ async def ask(
             yield "status", "Analysing…"
         else:
             log.warning("claude.turn_limit_reached", turns=turns, model=_MODEL)
+
+        if final_text is not None:
+            yield "chunk", final_text
+            _log_tokens(in_tok, out_tok, cache_read, cache_write, turns, web_searches)
+            yield "done", ""
+            return
 
         # ── Stream the final answer ────────────────────────────────────────
         async with client.messages.stream(
@@ -355,19 +394,32 @@ async def ask(
             out_tok += fu.output_tokens
             cache_read += getattr(fu, "cache_read_input_tokens", 0) or 0
             cache_write += getattr(fu, "cache_creation_input_tokens", 0) or 0
+            web_searches += _web_search_count(fu)
 
-        log.info(
-            "claude.tokens",
-            model=_MODEL,
-            input_tokens=in_tok,
-            output_tokens=out_tok,
-            cache_read_tokens=cache_read,
-            cache_write_tokens=cache_write,
-            tool_turns=turns,
-        )
+        _log_tokens(in_tok, out_tok, cache_read, cache_write, turns, web_searches)
         yield "done", ""
 
     return _generate()
+
+
+def _web_search_count(usage: Any) -> int:
+    server_tool_use = getattr(usage, "server_tool_use", None)
+    return (getattr(server_tool_use, "web_search_requests", 0) or 0) if server_tool_use else 0
+
+
+def _log_tokens(
+    in_tok: int, out_tok: int, cache_read: int, cache_write: int, turns: int, web_searches: int
+) -> None:
+    log.info(
+        "claude.tokens",
+        model=_MODEL,
+        input_tokens=in_tok,
+        output_tokens=out_tok,
+        cache_read_tokens=cache_read,
+        cache_write_tokens=cache_write,
+        tool_turns=turns,
+        web_searches=web_searches,
+    )
 
 
 def _extract_text(response: anthropic.types.Message) -> str:

@@ -39,6 +39,9 @@ Since 0.7.0 there is **no press/news tool and no Pinecone** — dropped because 
 ## MCP client wiring
 At startup, `server/main.py` launches the `fpl-context-mcp` console script (next to `sys.executable`, falling back to `PATH`) as a stdio subprocess and stores the `ClientSession` in `app.state.mcp_session`. Tool definitions are fetched at startup and merged with FPL tool definitions before being passed to Claude. When Claude calls `query_historical_stats`, `_v2_handler` routes through the MCP session. **Env gotcha**: the MCP stdio client only forwards a safe subset of env vars (`HOME`, `PATH`, …) to the subprocess — `DATABASE_URL` must be passed explicitly via `StdioServerParameters(env=...)`, otherwise the tool silently has no DSN in production (this was broken until v0.85.0). The DB connection pool (`db_tool`) is kept alive separately for FPL tools that use hard-coded SQL internally (`get_player_stats`, `get_player_vs_opponent`, `get_player_xpts`).
 
+## Web search (player news)
+Claude gets Anthropic's server-side `web_search_20260209` tool (`claude_client.WEB_SEARCH_TOOL`, appended in `main.py`, `max_uses: 5`, billed per search). The system prompt's PLAYER NEWS rule limits it to players Claude gives a verdict on (squad players being assessed + recommended transfer targets). Nothing is stored — this replaced the press RAG for licensing reasons. **Loop gotchas** in `claude_client.ask()`: `pause_turn` must be handled by appending the assistant content and re-calling (no user message); and when the last `messages.create` turn contains `server_tool_use` blocks, its text is emitted directly — the final `messages.stream` call uses `tool_choice: none` and would regenerate the answer without those search results. The `_20260209` variant needs Sonnet/Opus 4.6+; drop to `web_search_20250305` if `_MODEL` ever moves to an older model.
+
 ## Dev commands
 ```bash
 # Lint + format (must pass before every commit)
