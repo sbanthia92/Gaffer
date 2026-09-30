@@ -24,8 +24,10 @@ from server.config import settings
 
 # Auth tables (PII, eventually encrypted API keys) are deliberately not granted to
 # gaffer_readonly (db/migrations/002_auth_tables.sql), so pg_dump as that role fails
-# its LOCK TABLE on them and aborts the whole dump. Exclude them; backing them up
-# needs a separate dump as gaffer_app.
+# its LOCK TABLE on them and aborts the whole dump. Exclude them — and their SERIAL
+# sequences, which pg_dump reads separately (--exclude-table matches sequences too,
+# and excluding a table doesn't exclude its sequence). Backing them up needs a
+# separate dump as gaffer_app.
 _EXCLUDED_TABLES = ("users", "device_tokens", "conversations", "chat_messages")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -53,6 +55,7 @@ def run() -> dict:
                     "--no-owner",
                     "--no-privileges",
                     *(f"--exclude-table=public.{t}" for t in _EXCLUDED_TABLES),
+                    *(f"--exclude-table=public.{t}_id_seq" for t in _EXCLUDED_TABLES),
                 ],
                 stdout=f,
                 stderr=subprocess.PIPE,

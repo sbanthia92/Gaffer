@@ -44,6 +44,7 @@ class TestRun:
         # gaffer_readonly has no grants on the auth tables — dumping them aborts pg_dump
         for table in ("users", "device_tokens", "conversations", "chat_messages"):
             assert f"--exclude-table=public.{table}" in mock_run.call_args.args[0]
+            assert f"--exclude-table=public.{table}_id_seq" in mock_run.call_args.args[0]
         mock_s3.upload_file.assert_called_once()
         args, _ = mock_s3.upload_file.call_args
         assert args[1] == "gaffer-db-backups-test"
