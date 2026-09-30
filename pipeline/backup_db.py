@@ -22,6 +22,12 @@ import boto3
 from pipeline.job_metrics import record_attempt, record_failure, record_success
 from server.config import settings
 
+# Auth tables (PII, eventually encrypted API keys) are deliberately not granted to
+# gaffer_readonly (db/migrations/002_auth_tables.sql), so pg_dump as that role fails
+# its LOCK TABLE on them and aborts the whole dump. Exclude them; backing them up
+# needs a separate dump as gaffer_app.
+_EXCLUDED_TABLES = ("users", "device_tokens", "conversations", "chat_messages")
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
@@ -41,7 +47,13 @@ def run() -> dict:
 
         with dump_path.open("wb") as f:
             proc = subprocess.run(
-                ["pg_dump", settings.database_url, "--no-owner", "--no-privileges"],
+                [
+                    "pg_dump",
+                    settings.database_url,
+                    "--no-owner",
+                    "--no-privileges",
+                    *(f"--exclude-table=public.{t}" for t in _EXCLUDED_TABLES),
+                ],
                 stdout=f,
                 stderr=subprocess.PIPE,
                 check=False,
