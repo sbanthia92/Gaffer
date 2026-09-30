@@ -122,7 +122,7 @@ async def test_ask_runs_tool_then_streams():
 
 @pytest.mark.asyncio
 async def test_ask_system_prompt_references_mcp_tools():
-    """System prompt directs Claude to use query_historical_stats and query_press_conferences."""
+    """System prompt directs Claude to query_historical_stats and no longer to press RAG."""
     end_turn = _make_end_turn_response()
 
     with patch("server.claude_client.anthropic.AsyncAnthropic") as mock_anthropic:
@@ -142,4 +142,4 @@ async def test_ask_system_prompt_references_mcp_tools():
     call_kwargs = mock_client.messages.create.call_args.kwargs
     system_text = "".join(block["text"] for block in call_kwargs["system"])
     assert "query_historical_stats" in system_text
-    assert "query_press_conferences" in system_text
+    assert "query_press_conferences" not in system_text

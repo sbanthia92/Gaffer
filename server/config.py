@@ -41,8 +41,6 @@ _inject_secrets()
 
 class Settings(BaseSettings):
     anthropic_api_key: str
-    pinecone_api_key: str = ""
-    pinecone_index_name: str = "the-gaffer"
     fpl_team_id: int | None = None
     feedback_email: str = ""
     resend_api_key: str = ""
@@ -61,7 +59,8 @@ class Settings(BaseSettings):
     cloudwatch_log_group: str = "/gaffer/production/api"
     db_backup_bucket: str = "gaffer-db-backups-690624555080"
 
-    model_config = {"env_file": str(_ENV_FILE)}
+    # extra="ignore": stale keys in an old .env (e.g. PINECONE_API_KEY) must not crash startup
+    model_config = {"env_file": str(_ENV_FILE), "extra": "ignore"}
 
 
 settings = Settings()

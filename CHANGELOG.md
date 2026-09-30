@@ -2,6 +2,19 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.85.0] — 2026-09-30
+
+### Changed
+- **Migrated to `fpl-context-mcp` (PyPI, `>=0.7.1,<0.8`)** — the MCP server was renamed from `sports-context-mcp` and published to PyPI. `requirements.txt` now pins the PyPI package instead of the git URL, and the CD step that force-reinstalled the git package is gone (a pinned version range makes that workaround unnecessary). `server/main.py` launches the `fpl-context-mcp` console script from the venv instead of locating `server.py` via `importlib.util.find_spec("config")`.
+- **`players.news_added`** — `fpl-context-mcp` 0.7.0 documents this column in the schema description it hands Claude, so SQL using it would fail on our DB. Added via `db/migrations/004_players_news_added.sql`; `etl_v2` now writes it from FPL bootstrap.
+- `Settings` now ignores unknown keys in `.env` (`extra="ignore"`) so stale keys like `PINECONE_API_KEY` in an old local `.env` don't crash startup.
+
+### Fixed
+- **`query_historical_stats` never received `DATABASE_URL` in production.** The MCP stdio client only forwards a safe subset of env vars (`HOME`, `PATH`, …) to the subprocess, and production secrets live in `os.environ` (injected from Secrets Manager), not a `.env` file the MCP could read — so the tool had no DSN. The DSN is now passed explicitly via `StdioServerParameters(env=...)`.
+
+### Removed
+- **Press-conference RAG** — `fpl-context-mcp` 0.7.0 dropped `query_press_conferences`, the press ingest job and Pinecone (Guardian/BBC terms don't permit this use). Removed `pipeline/run_press_ingest.py`, its cron entry, the `query_press_conferences` references in the system prompt/tool labels, the Pinecone stats in `/admin/jobs` and the admin dashboard, and the `pinecone` dependency + settings. Injury/availability now comes from FPL's own `players.status`/`news` fields via `query_historical_stats`.
+
 ## [0.84.0] — 2026-08-04
 
 ### Added

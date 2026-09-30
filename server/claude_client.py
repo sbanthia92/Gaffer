@@ -35,7 +35,6 @@ ToolHandler = Callable[[str, dict], Coroutine[Any, Any, dict]]
 
 _TOOL_LABELS: dict[str, str] = {
     "query_historical_stats": "Querying historical database…",
-    "query_press_conferences": "Searching press conferences…",
     "get_my_fpl_team": "Fetching your FPL squad…",
     "get_chip_status": "Checking your chip availability…",
     "get_gameweek_schedule": "Loading gameweek schedule…",
@@ -179,17 +178,16 @@ def _build_system_prompt(league: str, fpl_team_id: int | None = None) -> str:
     return (
         f"You are The Gaffer, an expert AI football analyst specialising in {league.upper()}.\n\n"
         + team_id_line
-        + "You have access to three sources of information:\n"
-        "1. A PostgreSQL database of historical FPL stats — use the query_historical_stats tool "
+        + "You have access to two sources of information:\n"
+        "1. A PostgreSQL database of FPL stats — use the query_historical_stats tool "
         "to run SQL queries for past gameweek data, player-vs-opponent records, "
-        "season aggregates, xG/xA trends, and cross-season comparisons.\n"
+        "season aggregates, xG/xA trends, cross-season comparisons, and FPL's own "
+        "injury/availability fields (players.status, chance_of_playing_next_round, news).\n"
         "2. Live data via the other tools — current squad, fixtures, standings, "
-        "player form, and chip status.\n"
-        "3. Recent news and press conference summaries — use the query_press_conferences tool "
-        "to search for injury news, manager quotes, and match reports updated twice daily.\n\n"
+        "player form, and chip status.\n\n"
         "TOOL SELECTION GUIDE:\n"
         "- Historical stats, past GW points, H2H vs opponent, season trends → query_historical_stats\n"  # noqa: E501
-        "- Recent injury news, manager quotes, press summaries → query_press_conferences\n"
+        "- Injury/availability status (FPL news flag) → query_historical_stats on players\n"
         "- Current price, ownership %, live form score → search_players_by_criteria (live)\n"
         "- Recent GW points, CS, bonus, minutes per GW → get_player_recent_form (live FPL data)\n"
         "- Your FPL squad, chips, free transfers → get_my_fpl_team, get_chip_status (live)\n"
