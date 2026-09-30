@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.87.0] — 2026-09-30
+
+### Fixed
+- **Nightly DB backups had failed every night since v0.80.0 — the S3 bucket held zero backups.** `backup_db.py` runs `pg_dump` as `gaffer_readonly`, and #177 correctly revoked that role's access to the auth tables (`users`, `device_tokens`, `conversations`, `chat_messages`), so `pg_dump`'s `LOCK TABLE` failed with `permission denied for table users` and aborted the whole dump. The dump now passes `--exclude-table` for those four tables. They are not backed up yet (that needs a separate dump as `gaffer_app`); every FPL stats table is.
+
 ## [0.86.0] — 2026-09-30
 
 ### Added
