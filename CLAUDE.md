@@ -52,6 +52,9 @@ pytest tests/ -v
 
 # Run server locally
 uvicorn server.main:app --reload --port 8000
+
+# Stale-knowledge trap questions (real requests — run by hand, not in CI)
+python scripts/eval_stale_knowledge.py --base-url http://localhost:8000
 ```
 
 ## Git workflow
@@ -93,11 +96,11 @@ Be accurate — don't use `feat:` for a bug fix just because it involves new cod
 - **Chip reset**: TC, Bench Boost, and Free Hit reset after GW19. Chips used in GW1–19 are available again in GW20–38. Only post-reset uses count as spent.
 - **Wildcards**: two per season — GW1–19 and GW20–38 — separate API entries, no reset needed
 - **FPL chip API names**: `3xc` (Triple Captain), `bboost` (Bench Boost), `freehit` (Free Hit), `wildcard`
-- **Pre-fetch**: squad + chips + gameweek_schedule fetched concurrently before calling Claude, injected as a synthetic tool exchange to skip round-1 tool calls
+- **Pre-fetch**: squad + chips + gameweek_schedule + standings fetched concurrently before calling Claude, injected as a synthetic tool exchange to skip round-1 tool calls. A pre-fetch that raises is dropped; the rest still go through.
 - **Transfer rules**: position must be like-for-like (MID→MID only); always pass `position=` to `search_players_by_criteria` when finding replacements
 - **Fixture source of truth**: `get_team_all_fixtures` wins over `get_gameweek_schedule` when they conflict
 - **Player search**: `search_players_by_criteria` returns `team` so Claude can disambiguate players sharing a surname
-- **Stale club knowledge**: the model's training data ends a season or more behind the live one, so it will describe clubs from memory (e.g. calling a side "newly promoted" a year late). The system prompt states today's date and a STALE CLUB KNOWLEDGE rule — club form/defence/league-position claims must come from tool results. Keep that rule when editing the prompt, and never hardcode club facts (promoted teams, managers) into it.
+- **Stale club knowledge**: the model's training data ends a season or more behind the live one, so it will describe clubs from memory (e.g. calling a side "newly promoted" a year late). The system prompt states today's date and a STALE CLUB KNOWLEDGE rule — club form/defence/league-position claims must come from tool results. Keep that rule when editing the prompt, and never hardcode club facts (promoted teams, managers) into it. Two things back the rule up: standings are pre-fetched so the model has current club facts in context, and `get_standings` returns `new_to_league_this_season` (this season's teams minus last season's `teams` rows; omitted when unknown) — the only basis on which Claude may call a club promoted. Run `python scripts/eval_stale_knowledge.py` (real `/fpl/ask` requests, costs tokens) after changing the prompt, the pre-fetch or `_MODEL`, and refresh its `TRAP_CLUBS` when the model's training cutoff moves.
 - **Squad composition**: A full FPL squad is exactly 15 players — 2 GKP, 5 DEF, 5 MID, 3 FWD. The starting XI must field at least 1 GKP, 3 DEF, 2 MID, 1 FWD. This is enforced in the system prompt so Free-Hit/Wildcard squads are always structurally valid.
 
 ## Auth (Phase 2, in progress)

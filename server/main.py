@@ -562,39 +562,24 @@ async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
                 return await _tracking_handler(name, inp)
 
             # Pre-fetch high-value context concurrently to skip round 1 tool calls.
-            # Squad + chips + schedule all start at the same time.
-            prefetch_coros: list = [fpl.get_gameweek_schedule()]
+            # Standings ride along so Claude has this season's league table in context
+            # instead of describing clubs from stale training knowledge.
+            prefetch_calls = {
+                "gameweek_schedule": fpl.get_gameweek_schedule(),
+                "standings": fpl.get_standings(),
+            }
             if body.fpl_team_id:
-                prefetch_coros += [
-                    fpl.get_my_fpl_team(body.fpl_team_id),
-                    fpl.get_chip_status(body.fpl_team_id),
-                ]
+                prefetch_calls["squad"] = fpl.get_my_fpl_team(body.fpl_team_id)
+                prefetch_calls["chips"] = fpl.get_chip_status(body.fpl_team_id)
 
-            prefetch_results = await asyncio.gather(*prefetch_coros, return_exceptions=True)
-
-            schedule_data = (
-                prefetch_results[0] if not isinstance(prefetch_results[0], Exception) else None
+            prefetch_results = await asyncio.gather(
+                *prefetch_calls.values(), return_exceptions=True
             )
-            squad_data = (
-                prefetch_results[1]
-                if (body.fpl_team_id and not isinstance(prefetch_results[1], Exception))
-                else None
-            )
-            chip_data = (
-                prefetch_results[2]
-                if (
-                    body.fpl_team_id
-                    and len(prefetch_results) > 2
-                    and not isinstance(prefetch_results[2], Exception)
-                )
-                else None
-            )
-
-            prefetched = {"gameweek_schedule": schedule_data}
-            if squad_data:
-                prefetched["squad"] = squad_data
-            if chip_data:
-                prefetched["chips"] = chip_data
+            prefetched = {
+                key: result
+                for key, result in zip(prefetch_calls, prefetch_results, strict=True)
+                if result and not isinstance(result, Exception)
+            }
 
             mcp_tool_defs = getattr(request.app.state, "mcp_tools", [])
             stream = await claude_client.ask(

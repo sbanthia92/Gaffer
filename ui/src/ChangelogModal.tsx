@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.90.0",
+    date: "2 Oct 2026",
+    added: [
+      "The Gaffer now sees the live league table on every question, so what it says about a club's form, defence and league position comes from this season's results.",
+    ],
+  },
+  {
     version: "0.89.0",
     date: "2 Oct 2026",
     changed: [

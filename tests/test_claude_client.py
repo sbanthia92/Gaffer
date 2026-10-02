@@ -235,3 +235,35 @@ def test_system_prompt_forbids_club_claims_from_memory():
     assert "STALE CLUB KNOWLEDGE" in prompt
     assert "newly promoted" in prompt
     assert f"Today's date is {datetime.now(UTC).date().isoformat()}" in prompt
+
+
+@pytest.mark.asyncio
+async def test_ask_injects_prefetched_standings_as_tool_result():
+    standings = {"standings": [{"team": "Leeds", "rank": 9}], "new_to_league_this_season": []}
+
+    with patch("server.claude_client.anthropic.AsyncAnthropic") as mock_anthropic:
+        mock_client = AsyncMock()
+        mock_anthropic.return_value = mock_client
+        mock_client.messages.create = AsyncMock(return_value=_make_end_turn_response())
+        mock_client.messages.stream = MagicMock(return_value=_make_stream_context(["ok"]))
+
+        stream = await ask(
+            question="Is a Leeds defender worth owning?",
+            tool_definitions=[],
+            tool_handler=AsyncMock(return_value={}),
+            league="fpl",
+            prefetched={"standings": standings},
+        )
+        await _collect(stream)
+
+    messages = mock_client.messages.create.call_args.kwargs["messages"]
+    assert messages[1]["content"][0]["name"] == "get_standings"
+    assert "new_to_league_this_season" in messages[2]["content"][0]["content"]
+
+
+def test_system_prompt_ties_promotion_claims_to_standings_data():
+    from server.claude_client import _build_system_prompt
+
+    prompt = _build_system_prompt("fpl", 123)
+    assert "new_to_league_this_season" in prompt
+    assert "get_standings again" in prompt

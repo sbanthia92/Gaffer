@@ -108,6 +108,32 @@ async def get_fixtures(next_n: int = 10) -> dict:
     return {"fixtures": fixtures}
 
 
+async def _new_to_league_this_season(current_teams: list[str]) -> list[str] | None:
+    """
+    Clubs in this season's FPL bootstrap that were not in last season's teams table.
+    Returns None when that can't be worked out (no DB, last season's teams not stored,
+    or the diff looks wrong) — "unknown", which is not the same as "nobody was promoted".
+    """
+    from server.tools.db import execute as _db_execute
+
+    sql = """
+        SELECT t.name
+        FROM teams t
+        JOIN seasons prev ON t.season_id = prev.id
+        JOIN seasons cur ON cur.is_current = TRUE
+        WHERE prev.start_year = cur.start_year - 1
+    """
+    result = await _db_execute(sql)
+    previous = {row["name"] for row in result.get("rows", [])}
+    if len(previous) != len(current_teams):
+        return None
+    new_teams = sorted(set(current_teams) - previous)
+    # Three clubs come up each season; more than that means names changed between seasons.
+    if len(new_teams) > 3:
+        return None
+    return new_teams
+
+
 async def get_standings() -> dict:
     """Compute current Premier League standings from FPL fixture data."""
     key = "standings"
@@ -193,7 +219,10 @@ async def get_standings() -> dict:
         for i, row in enumerate(rows, 1):
             row["rank"] = i
 
-        result = {"standings": rows}
+        result: dict[str, Any] = {"standings": rows}
+        new_teams = await _new_to_league_this_season(list(team_map.values()))
+        if new_teams is not None:
+            result["new_to_league_this_season"] = new_teams
         _cache_set(key, result)
         return result
 
@@ -1173,8 +1202,10 @@ TOOL_DEFINITIONS = [
     {
         "name": "get_standings",
         "description": (
-            "Get current Premier League standings. "
-            "Use this for context on team form, position, and motivation."
+            "Get current Premier League standings (rank, W/D/L, goals for/against, points). "
+            "Use this for context on team form, position, and motivation. "
+            "When present, new_to_league_this_season lists the clubs promoted for this "
+            "season — any club not in that list is NOT newly promoted."
         ),
         "input_schema": {
             "type": "object",

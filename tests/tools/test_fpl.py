@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
@@ -112,6 +112,51 @@ async def test_get_standings_returns_trimmed_response():
     assert rows["Arsenal"]["lost"] == 1
     assert rows["Arsenal"]["points"] == 0
     assert rows["Arsenal"]["rank"] == 2
+
+
+async def _standings_with_previous_season(previous_rows: dict) -> dict:
+    from server.tools import fpl as fpl_mod
+
+    fpl_mod._bootstrap_cache = None
+    fpl_mod._slow_cache.clear()
+    with (
+        respx.mock,
+        patch("server.tools.db.execute", new=AsyncMock(return_value=previous_rows)),
+    ):
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=_BOOTSTRAP_TWO_TEAMS)
+        )
+        respx.get(f"{_FPL_BASE}/fixtures/").mock(
+            return_value=httpx.Response(200, json=[_FINISHED_FIXTURE])
+        )
+        result = await get_standings()
+    fpl_mod._slow_cache.clear()
+    return result
+
+
+@pytest.mark.asyncio
+async def test_get_standings_flags_clubs_new_to_league():
+    # Last season had Arsenal + Leeds; Chelsea is new this season.
+    result = await _standings_with_previous_season(
+        {"rows": [{"name": "Arsenal"}, {"name": "Leeds"}], "row_count": 2}
+    )
+    assert result["new_to_league_this_season"] == ["Chelsea"]
+
+
+@pytest.mark.asyncio
+async def test_get_standings_reports_no_new_clubs_when_teams_unchanged():
+    result = await _standings_with_previous_season(
+        {"rows": [{"name": "Arsenal"}, {"name": "Chelsea"}], "row_count": 2}
+    )
+    assert result["new_to_league_this_season"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_standings_omits_new_clubs_when_last_season_unknown():
+    # DB unavailable / last season's teams never stored: unknown, so say nothing.
+    result = await _standings_with_previous_season({"error": True, "message": "no db"})
+    assert "new_to_league_this_season" not in result
+    assert len(result["standings"]) == 2
 
 
 @pytest.mark.asyncio
