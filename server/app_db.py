@@ -128,3 +128,25 @@ async def save_chat_messages(conversation_id: int, question: str, answer: str) -
             "INSERT INTO chat_messages (conversation_id, role, content) VALUES ($1, $2, $3)",
             [(conversation_id, "user", question), (conversation_id, "assistant", answer)],
         )
+
+
+async def count_question(usage_key: str) -> int | None:
+    """
+    Record one question against today's (UTC) allowance for usage_key and return the
+    new total. Returns None if DATABASE_APP_URL isn't configured, so local dev has
+    no daily limit.
+    """
+    if _pool is None:
+        return None
+
+    async with _pool.acquire() as conn:
+        return await conn.fetchval(
+            """
+            INSERT INTO daily_question_counts (usage_key, day, question_count)
+            VALUES ($1, (NOW() AT TIME ZONE 'UTC')::date, 1)
+            ON CONFLICT (usage_key, day) DO UPDATE
+                SET question_count = daily_question_counts.question_count + 1
+            RETURNING question_count
+            """,
+            usage_key,
+        )

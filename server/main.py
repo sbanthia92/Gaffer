@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import hashlib
 import json
 import secrets
 import shutil
@@ -84,6 +85,65 @@ def _real_ip(request: Request) -> str:
     if forwarded:
         return forwarded.split(",")[-1].strip()
     return (request.client and request.client.host) or "unknown"
+
+
+def _usage_key(request: Request) -> str:
+    """Who a question counts against: the signed-in user, otherwise the client IP (hashed)."""
+    user_id = request.session.get("user_id")
+    if user_id:
+        return f"user:{user_id}"
+    salted = f"{settings.session_secret_key}:{_real_ip(request)}"
+    return f"ip:{hashlib.sha256(salted.encode()).hexdigest()[:32]}"
+
+
+async def _is_exempt_from_daily_limit(request: Request) -> bool:
+    """
+    Owner/admin bypass. Either a signed-in Google account whose verified email is in
+    daily_limit_exempt_emails, or the admin password sent as HTTP Basic auth — the same
+    credential as /admin, for scripts such as scripts/eval_stale_knowledge.py.
+    """
+    exempt_emails = {
+        email.strip().lower()
+        for email in settings.daily_limit_exempt_emails.split(",")
+        if email.strip()
+    }
+    session_email = (request.session.get("email") or "").lower()
+    if request.session.get("email_verified") and session_email in exempt_emails:
+        return True
+
+    if not settings.admin_password:
+        return False
+    credentials = await _http_basic(request)
+    supplied = credentials.password if credentials else ""
+    return secrets.compare_digest(supplied.encode(), settings.admin_password.encode())
+
+
+async def _enforce_daily_limit(request: Request) -> None:
+    """
+    Free tier: daily_question_limit questions per UTC day. Fails open — a broken
+    counter must never take the chat down; the per-minute/hour limiter still applies.
+    """
+    if await _is_exempt_from_daily_limit(request):
+        return
+    try:
+        # count_question records THIS question and returns the running total including
+        # it, so the limit-th question of the day returns exactly the limit and is allowed.
+        asked_today_including_this = await app_db.count_question(_usage_key(request))
+    except Exception as exc:
+        log.warning("daily_limit.check_failed", error=str(exc))
+        return
+    if (
+        asked_today_including_this is None
+        or asked_today_including_this <= settings.daily_question_limit
+    ):
+        return
+
+    detail = f"Daily limit reached — {settings.daily_question_limit} questions per day. "
+    if settings.google_client_id and "user_id" not in request.session:
+        detail += "Sign in with Google for your own allowance, or come back after 00:00 UTC."
+    else:
+        detail += "Resets at 00:00 UTC."
+    raise HTTPException(status_code=429, detail=detail)
 
 
 def _on_rate_limit_exceeded(request: Request, exc: RateLimitExceeded) -> JSONResponse:
@@ -257,6 +317,7 @@ async def google_callback(request: Request):
 
     request.session["user_id"] = user_id
     request.session["email"] = userinfo["email"]
+    request.session["email_verified"] = bool(userinfo.get("email_verified"))
     request.session["name"] = userinfo.get("name", "")
 
     return RedirectResponse(url="/")
@@ -525,6 +586,8 @@ async def admin_jobs(_: None = Depends(_admin_auth)) -> dict:
 async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
     if not body.question.strip():
         raise HTTPException(status_code=422, detail="Question must not be empty.")
+
+    await _enforce_daily_limit(request)
 
     device_token = await app_db.get_or_create_device_token(request.cookies.get(DEVICE_COOKIE))
 

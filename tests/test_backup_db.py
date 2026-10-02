@@ -42,7 +42,13 @@ class TestRun:
         mock_run.assert_called_once()
         assert mock_run.call_args.args[0][0] == "pg_dump"
         # gaffer_readonly has no grants on the auth tables — dumping them aborts pg_dump
-        for table in ("users", "device_tokens", "conversations", "chat_messages"):
+        for table in (
+            "users",
+            "device_tokens",
+            "conversations",
+            "chat_messages",
+            "daily_question_counts",
+        ):
             assert f"--exclude-table=public.{table}" in mock_run.call_args.args[0]
             assert f"--exclude-table=public.{table}_id_seq" in mock_run.call_args.args[0]
         mock_s3.upload_file.assert_called_once()

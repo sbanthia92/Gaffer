@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.91.0",
+    date: "2 Oct 2026",
+    changed: [
+      "Free use is now limited to 5 questions a day. Sign in with Google to get your own daily allowance instead of sharing one with your network.",
+    ],
+  },
+  {
     version: "0.90.0",
     date: "2 Oct 2026",
     added: [

@@ -32,6 +32,12 @@ export async function askGaffer(
     }),
   });
 
+  if (res.status === 429) {
+    // Daily allowance or burst limit — the server's message is written for the user.
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? "Too many questions — try again later.");
+  }
+
   if (!res.ok || !res.body) {
     const text = await res.text().catch(() => "Unknown error");
     throw new Error(`Server error ${res.status}: ${text}`);

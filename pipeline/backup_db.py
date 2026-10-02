@@ -28,7 +28,13 @@ from server.config import settings
 # sequences, which pg_dump reads separately (--exclude-table matches sequences too,
 # and excluding a table doesn't exclude its sequence). Backing them up needs a
 # separate dump as gaffer_app.
-_EXCLUDED_TABLES = ("users", "device_tokens", "conversations", "chat_messages")
+_EXCLUDED_TABLES = (
+    "users",
+    "device_tokens",
+    "conversations",
+    "chat_messages",
+    "daily_question_counts",
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)

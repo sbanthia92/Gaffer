@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     session_secret_key: str = ""  # signs the session cookie; must be set in prod Secrets Manager
     public_base_url: str = "http://localhost:5173"  # https://the-gaffer.io in prod
     admin_password: str = ""  # set in Secrets Manager as ADMIN_PASSWORD
+    daily_question_limit: int = 5  # free-tier /fpl/ask questions per user (or IP) per UTC day
+    # Comma-separated Google account emails with no daily limit (site owner/admins)
+    daily_limit_exempt_emails: str = ""
     cloudwatch_region: str = "us-east-1"
     cloudwatch_log_group: str = "/gaffer/production/api"
     db_backup_bucket: str = "gaffer-db-backups-690624555080"
