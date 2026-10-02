@@ -97,6 +97,7 @@ Be accurate — don't use `feat:` for a bug fix just because it involves new cod
 - **Transfer rules**: position must be like-for-like (MID→MID only); always pass `position=` to `search_players_by_criteria` when finding replacements
 - **Fixture source of truth**: `get_team_all_fixtures` wins over `get_gameweek_schedule` when they conflict
 - **Player search**: `search_players_by_criteria` returns `team` so Claude can disambiguate players sharing a surname
+- **Stale club knowledge**: the model's training data ends a season or more behind the live one, so it will describe clubs from memory (e.g. calling a side "newly promoted" a year late). The system prompt states today's date and a STALE CLUB KNOWLEDGE rule — club form/defence/league-position claims must come from tool results. Keep that rule when editing the prompt, and never hardcode club facts (promoted teams, managers) into it.
 - **Squad composition**: A full FPL squad is exactly 15 players — 2 GKP, 5 DEF, 5 MID, 3 FWD. The starting XI must field at least 1 GKP, 3 DEF, 2 MID, 1 FWD. This is enforced in the system prompt so Free-Hit/Wildcard squads are always structurally valid.
 
 ## Auth (Phase 2, in progress)

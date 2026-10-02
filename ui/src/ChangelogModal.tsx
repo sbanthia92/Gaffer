@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.89.0",
+    date: "2 Oct 2026",
+    changed: [
+      "The Gaffer no longer describes clubs from out-of-date memory (e.g. calling a side \"newly promoted\" when it isn't) — club form and defensive claims now have to come from this season's data.",
+    ],
+  },
+  {
     version: "0.88.0",
     date: "30 Sep 2026",
     changed: [
