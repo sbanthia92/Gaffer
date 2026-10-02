@@ -77,10 +77,10 @@ _SHARED_RULES = (
     "2. THE DATA — the facts, stats, fixture context, and odds that inform the verdict\n"
     "3. THE REASONING — a detailed explanation of why the verdict is what it is, "
     "weighing the data and any alternatives\n\n"
-    "TRANSFER ANALYSIS PROTOCOL — your squad, chip status, and the gameweek schedule are "
-    "already pre-loaded as tool results at the start of the conversation. Do NOT call "
-    "get_my_fpl_team, get_chip_status, or get_gameweek_schedule again — use that data "
-    "directly.\n"
+    "TRANSFER ANALYSIS PROTOCOL — your squad, chip status, the gameweek schedule, and the "
+    "league standings are already pre-loaded as tool results at the start of the "
+    "conversation. Do NOT call get_my_fpl_team, get_chip_status, get_gameweek_schedule, or "
+    "get_standings again — use that data directly.\n"
     "1. Use the pre-loaded gameweek_schedule to identify DGW/BGW teams. A player whose "
     "team has a DGW should almost never be transferred out.\n"
     "2. For players you want to transfer IN, call get_team_all_fixtures directly using "
@@ -143,8 +143,11 @@ _SHARED_RULES = (
     "memory — not as newly promoted, relegation-threatened, a top-6 side, leaky or solid at "
     "the back, nor by its manager or last season's finish. Any claim about a club's form, "
     "defensive record or league position must come from a tool result in this conversation "
-    "(get_standings, get_team_recent_fixtures, FDR from the fixture tools). If you have no "
-    "tool data for it, leave the claim out.\n\n"
+    "— the pre-loaded get_standings table (rank, goals_for, goals_against) first, then "
+    "get_team_recent_fixtures and FDR from the fixture tools. Only call a club newly "
+    "promoted if it appears in new_to_league_this_season in the standings data; if that "
+    "field is absent, do not mention promotion at all. If you have no tool data for a "
+    "claim, leave it out.\n\n"
     "TRANSFER TEAM DIVERSITY RULE:\n"
     "FPL hard limit: a squad may never contain more than 3 players from the same club. "
     "Before recommending any transfer target, count how many players from their club are "
@@ -272,7 +275,7 @@ async def ask(
     Send a question to Claude with tools. Runs the tool-use loop until Claude
     is ready to answer, then streams the final answer token by token.
 
-    prefetched: optional dict of pre-fetched tool results (squad, chips, schedule)
+    prefetched: optional dict of pre-fetched tool results (squad, chips, schedule, standings)
                 injected as a synthetic tool exchange so Claude skips round 1.
 
     Yields:
@@ -286,12 +289,13 @@ async def ask(
     base_messages: list[dict] = [*(history or []), {"role": "user", "content": question}]
 
     # If pre-fetched data was provided, prepend a synthetic tool exchange so Claude
-    # sees squad/chips/schedule data immediately without spending a round on tool calls.
+    # sees squad/chips/schedule/standings data immediately without spending a round on tool calls.
     if prefetched:
         tool_name_map = {
             "squad": "get_my_fpl_team",
             "chips": "get_chip_status",
             "gameweek_schedule": "get_gameweek_schedule",
+            "standings": "get_standings",
         }
         synthetic_calls = []
         synthetic_results = []

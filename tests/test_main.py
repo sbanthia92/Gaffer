@@ -242,3 +242,21 @@ def test_google_callback_merges_existing_device_token() -> None:
         fresh_client.get("/auth/google/callback", follow_redirects=False)
 
     mock_merge.assert_awaited_once_with("some-device-token", 7)
+
+
+def test_fpl_ask_prefetches_standings() -> None:
+    mock_ask = AsyncMock(return_value=_mock_stream("ok"))
+    standings = {"standings": [{"team": "Leeds", "rank": 9}]}
+
+    with (
+        patch("server.main.claude_client.ask", new=mock_ask),
+        patch("server.main.fpl.get_standings", new=AsyncMock(return_value=standings)),
+        patch(
+            "server.main.fpl.get_gameweek_schedule",
+            new=AsyncMock(side_effect=RuntimeError("fpl down")),
+        ),
+    ):
+        client.post("/fpl/ask", json={"question": "Is a Leeds defender worth owning?"})
+
+    # A failed pre-fetch is dropped; the rest still reach Claude.
+    assert mock_ask.call_args.kwargs["prefetched"] == {"standings": standings}

@@ -2,6 +2,13 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.90.0] — 2026-10-02
+
+### Added
+- **League standings are pre-fetched on every `/fpl/ask` request** alongside squad, chips and the gameweek schedule, and injected as a synthetic `get_standings` tool result. v0.89.0 told Claude not to describe clubs from memory; this gives it the current facts (rank, W/D/L, goals for/against) so there is no gap for memory to fill. `get_standings` is cached for 6 hours, so this adds no FPL API call on most requests.
+- **`new_to_league_this_season`** in the `get_standings` result — clubs in this season's FPL bootstrap that are not in last season's `teams` rows. Derived from data, never hardcoded. Omitted when it can't be worked out (no DB, last season's teams not stored, or more than three "new" clubs, which means names changed); the prompt tells Claude to mention promotion only for clubs in that list and not at all when the field is absent.
+- **`scripts/eval_stale_knowledge.py`** — a small trap-question eval run by hand after prompt, pre-fetch or model changes. Asks about clubs the model is likely to remember as newly promoted and about the current season, and exits 1 if an answer comes from stale memory. Makes real `/fpl/ask` requests, so it is not part of pytest.
+
 ## [0.89.0] — 2026-10-02
 
 ### Fixed
