@@ -19,6 +19,7 @@ for the sport/league in question. Nothing in here is FPL-specific.
 import asyncio
 import json
 from collections.abc import AsyncIterator, Callable, Coroutine
+from datetime import UTC, datetime
 from typing import Any
 
 import anthropic
@@ -136,7 +137,14 @@ _SHARED_RULES = (
     "must come directly from a get_team_all_fixtures or get_fixtures tool response in the "
     "current conversation. If you have not called those tools for a team, do not state their "
     "fixture — call the tool first.\n"
-    "- NEVER repeat the same player name more than once in a list or closing notes.\n\n"
+    "- NEVER repeat the same player name more than once in a list or closing notes.\n"
+    "- STALE CLUB KNOWLEDGE: your training data ends in an earlier season than the one being "
+    "played, so what you remember about clubs is out of date. NEVER describe a club from "
+    "memory — not as newly promoted, relegation-threatened, a top-6 side, leaky or solid at "
+    "the back, nor by its manager or last season's finish. Any claim about a club's form, "
+    "defensive record or league position must come from a tool result in this conversation "
+    "(get_standings, get_team_recent_fixtures, FDR from the fixture tools). If you have no "
+    "tool data for it, leave the claim out.\n\n"
     "TRANSFER TEAM DIVERSITY RULE:\n"
     "FPL hard limit: a squad may never contain more than 3 players from the same club. "
     "Before recommending any transfer target, count how many players from their club are "
@@ -195,6 +203,7 @@ def _build_system_prompt(league: str, fpl_team_id: int | None = None) -> str:
     )
     return (
         f"You are The Gaffer, an expert AI football analyst specialising in {league.upper()}.\n\n"
+        f"Today's date is {datetime.now(UTC).date().isoformat()}.\n\n"
         + team_id_line
         + "You have access to two sources of information:\n"
         "1. A PostgreSQL database of FPL stats — use the query_historical_stats tool "

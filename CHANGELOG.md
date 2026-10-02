@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.89.0] — 2026-10-02
+
+### Fixed
+- **Claude described clubs from stale training knowledge** — an answer called Leeds "a promoted side who have conceded goals freely", which was true of the season the model was trained on, not 2026/27. The system prompt gave it no date and no rule against it. It now states today's date and a STALE CLUB KNOWLEDGE rule: no describing a club from memory (promoted, top-6, leaky, manager, last season's finish) — form, defensive record and league position must come from a tool result in the conversation, or be left out.
+
 ## [0.88.0] — 2026-09-30
 
 ### Fixed

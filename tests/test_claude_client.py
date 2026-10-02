@@ -224,3 +224,14 @@ def test_system_prompt_requires_web_search_for_analysed_players():
     prompt = _build_system_prompt("fpl", 123)
     assert "web_search" in prompt
     assert "recommend bringing in" in prompt
+
+
+def test_system_prompt_forbids_club_claims_from_memory():
+    from datetime import UTC, datetime
+
+    from server.claude_client import _build_system_prompt
+
+    prompt = _build_system_prompt("fpl", 123)
+    assert "STALE CLUB KNOWLEDGE" in prompt
+    assert "newly promoted" in prompt
+    assert f"Today's date is {datetime.now(UTC).date().isoformat()}" in prompt
