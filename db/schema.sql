@@ -568,3 +568,12 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 CREATE INDEX IF NOT EXISTS idx_chat_messages_conversation_created
     ON chat_messages (conversation_id, created_at);
+
+-- Free-tier allowance for /fpl/ask — added by db/migrations/005_daily_question_counts.sql.
+-- usage_key is 'user:<users.id>' or 'ip:<salted hash>'. gaffer_app only.
+CREATE TABLE IF NOT EXISTS daily_question_counts (
+    usage_key       TEXT NOT NULL,
+    day             DATE NOT NULL,
+    question_count  INT  NOT NULL DEFAULT 0,
+    PRIMARY KEY (usage_key, day)
+);

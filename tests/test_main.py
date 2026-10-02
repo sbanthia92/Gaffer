@@ -260,3 +260,60 @@ def test_fpl_ask_prefetches_standings() -> None:
 
     # A failed pre-fetch is dropped; the rest still reach Claude.
     assert mock_ask.call_args.kwargs["prefetched"] == {"standings": standings}
+
+
+def _ask_with_question_count(count, **settings_overrides):
+    with (
+        patch(
+            "server.main.claude_client.ask",
+            new=AsyncMock(return_value=_mock_stream("Captain Salah this week.")),
+        ),
+        patch("server.main.app_db.count_question", new=count),
+        patch.multiple("server.main.settings", **settings_overrides),
+    ):
+        return client.post("/fpl/ask", json={"question": "Should I captain Salah?"})
+
+
+def test_fpl_ask_allows_question_within_daily_limit() -> None:
+    response = _ask_with_question_count(AsyncMock(return_value=5), daily_question_limit=5)
+    assert response.status_code == 200
+
+
+def test_fpl_ask_rejects_question_over_daily_limit() -> None:
+    count = AsyncMock(return_value=6)
+    response = _ask_with_question_count(count, daily_question_limit=5, google_client_id="")
+
+    assert response.status_code == 429
+    assert response.json()["detail"] == (
+        "Daily limit reached — 5 questions per day. Resets at 00:00 UTC."
+    )
+    # Anonymous callers are counted by hashed IP, never the raw address.
+    assert count.call_args.args[0].startswith("ip:")
+    assert "testclient" not in count.call_args.args[0]
+
+
+def test_fpl_ask_over_limit_suggests_sign_in_when_google_is_configured() -> None:
+    response = _ask_with_question_count(
+        AsyncMock(return_value=6), daily_question_limit=5, google_client_id="client-id"
+    )
+    assert response.status_code == 429
+    assert "Sign in with Google" in response.json()["detail"]
+
+
+def test_fpl_ask_daily_limit_fails_open_when_counter_errors() -> None:
+    # e.g. migration 005 not applied yet — the chat must keep working.
+    response = _ask_with_question_count(
+        AsyncMock(side_effect=RuntimeError("relation does not exist")), daily_question_limit=5
+    )
+    assert response.status_code == 200
+    assert _parse_sse(response.text) == "Captain Salah this week."
+
+
+def test_usage_key_prefers_signed_in_user() -> None:
+    from unittest.mock import MagicMock
+
+    from server.main import _usage_key
+
+    request = MagicMock()
+    request.session = {"user_id": 42}
+    assert _usage_key(request) == "user:42"

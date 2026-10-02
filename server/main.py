@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import hashlib
 import json
 import secrets
 import shutil
@@ -84,6 +85,36 @@ def _real_ip(request: Request) -> str:
     if forwarded:
         return forwarded.split(",")[-1].strip()
     return (request.client and request.client.host) or "unknown"
+
+
+def _usage_key(request: Request) -> str:
+    """Who a question counts against: the signed-in user, otherwise the client IP (hashed)."""
+    user_id = request.session.get("user_id")
+    if user_id:
+        return f"user:{user_id}"
+    salted = f"{settings.session_secret_key}:{_real_ip(request)}"
+    return f"ip:{hashlib.sha256(salted.encode()).hexdigest()[:32]}"
+
+
+async def _enforce_daily_limit(request: Request) -> None:
+    """
+    Free tier: daily_question_limit questions per UTC day. Fails open — a broken
+    counter must never take the chat down; the per-minute/hour limiter still applies.
+    """
+    try:
+        used = await app_db.count_question(_usage_key(request))
+    except Exception as exc:
+        log.warning("daily_limit.check_failed", error=str(exc))
+        return
+    if used is None or used <= settings.daily_question_limit:
+        return
+
+    detail = f"Daily limit reached — {settings.daily_question_limit} questions per day. "
+    if settings.google_client_id and "user_id" not in request.session:
+        detail += "Sign in with Google for your own allowance, or come back after 00:00 UTC."
+    else:
+        detail += "Resets at 00:00 UTC."
+    raise HTTPException(status_code=429, detail=detail)
 
 
 def _on_rate_limit_exceeded(request: Request, exc: RateLimitExceeded) -> JSONResponse:
@@ -525,6 +556,8 @@ async def admin_jobs(_: None = Depends(_admin_auth)) -> dict:
 async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:
     if not body.question.strip():
         raise HTTPException(status_code=422, detail="Question must not be empty.")
+
+    await _enforce_daily_limit(request)
 
     device_token = await app_db.get_or_create_device_token(request.cookies.get(DEVICE_COOKIE))
 
