@@ -32,6 +32,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from server.config import settings  # noqa: E402
 from server.tools import fpl  # noqa: E402
 
 TRAP_CLUBS = ["Leeds", "Burnley", "Sunderland"]  # promoted for 2025/26
@@ -84,7 +85,9 @@ async def main() -> int:
         print(f"skipping (not in the league this season): {', '.join(skipped)}")
 
     failures = 0
-    async with httpx.AsyncClient(timeout=300) as client:
+    # ADMIN_PASSWORD (local .env) exempts these requests from the 5-a-day free-tier limit.
+    auth = ("admin", settings.admin_password) if settings.admin_password else None
+    async with httpx.AsyncClient(timeout=300, auth=auth) as client:
         for club in clubs:
             answer = await ask(
                 client,

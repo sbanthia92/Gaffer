@@ -262,7 +262,7 @@ def test_fpl_ask_prefetches_standings() -> None:
     assert mock_ask.call_args.kwargs["prefetched"] == {"standings": standings}
 
 
-def _ask_with_question_count(count, **settings_overrides):
+def _ask_with_question_count(count, auth=None, **settings_overrides):
     with (
         patch(
             "server.main.claude_client.ask",
@@ -271,7 +271,7 @@ def _ask_with_question_count(count, **settings_overrides):
         patch("server.main.app_db.count_question", new=count),
         patch.multiple("server.main.settings", **settings_overrides),
     ):
-        return client.post("/fpl/ask", json={"question": "Should I captain Salah?"})
+        return client.post("/fpl/ask", json={"question": "Should I captain Salah?"}, auth=auth)
 
 
 def test_fpl_ask_allows_question_within_daily_limit() -> None:
@@ -317,3 +317,56 @@ def test_usage_key_prefers_signed_in_user() -> None:
     request = MagicMock()
     request.session = {"user_id": 42}
     assert _usage_key(request) == "user:42"
+
+
+def test_fpl_ask_admin_password_bypasses_daily_limit() -> None:
+    count = AsyncMock(return_value=99)
+    response = _ask_with_question_count(
+        count, auth=("admin", "s3cret"), daily_question_limit=5, admin_password="s3cret"
+    )
+    assert response.status_code == 200
+    count.assert_not_awaited()  # exempt requests are not counted at all
+
+
+def test_fpl_ask_wrong_admin_password_does_not_bypass_daily_limit() -> None:
+    response = _ask_with_question_count(
+        AsyncMock(return_value=99),
+        auth=("admin", "guess"),
+        daily_question_limit=5,
+        admin_password="s3cret",
+    )
+    assert response.status_code == 429
+
+
+def test_fpl_ask_no_admin_password_configured_does_not_bypass_daily_limit() -> None:
+    # /admin is open when no password is set (dev); the limit bypass must not be.
+    response = _ask_with_question_count(
+        AsyncMock(return_value=99), auth=("admin", ""), daily_question_limit=5, admin_password=""
+    )
+    assert response.status_code == 429
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("session", "expected"),
+    [
+        ({"email": "Owner@Example.com", "email_verified": True}, True),
+        ({"email": "owner@example.com", "email_verified": False}, False),
+        ({"email": "someone@example.com", "email_verified": True}, False),
+        ({}, False),
+    ],
+)
+async def test_daily_limit_exemption_by_signed_in_email(session, expected) -> None:
+    from unittest.mock import MagicMock
+
+    from server.main import _is_exempt_from_daily_limit
+
+    request = MagicMock()
+    request.session = session
+    request.headers = {}
+    with patch.multiple(
+        "server.main.settings",
+        daily_limit_exempt_emails="owner@example.com, other@example.com",
+        admin_password="",
+    ):
+        assert await _is_exempt_from_daily_limit(request) is expected
