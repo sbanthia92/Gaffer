@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useNavigate } from "react-router-dom";
-import { askGaffer, fetchPlayerCard, submitFeedback, submitThumbsDown, type PlayerCard as PlayerCardData } from "./api";
+import { askGaffer, deleteConversation, fetchConversations, fetchPlayerCard, submitFeedback, submitThumbsDown, type PlayerCard as PlayerCardData } from "./api";
 import AuthStatus from "./AuthStatus";
 import { PlayerLink } from "./PlayerCard";
 import {
@@ -10,9 +10,11 @@ import {
   deleteSession,
   loadActiveSessionId,
   loadSessions,
+  mergeServerSessions,
   newSession,
   saveActiveSessionId,
   saveSession,
+  saveSessions,
 } from "./storage";
 import type { ChatSession, Message } from "./types";
 import "./App.css";
@@ -394,6 +396,19 @@ export default function App() {
     saveActiveSessionId(activeId);
   }, [activeId]);
 
+  // Signed-in accounts: pull chat history from the server so it follows the user
+  // across devices. Signed out, this returns nothing and history stays local.
+  useEffect(() => {
+    fetchConversations().then((server) => {
+      if (server.length === 0) return;
+      setSessions((prev) => {
+        const merged = mergeServerSessions(prev, server);
+        saveSessions(merged);
+        return merged;
+      });
+    });
+  }, []);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const isNew = params.get("new") === "1";
@@ -441,6 +456,7 @@ export default function App() {
   function handleDeleteSession(e: React.MouseEvent, sessionId: string) {
     e.stopPropagation();
     deleteSession(sessionId);
+    deleteConversation(sessionId);
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     if (activeId === sessionId) {
       const remaining = sessions.filter((s) => s.id !== sessionId);

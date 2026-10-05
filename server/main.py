@@ -581,6 +581,27 @@ async def admin_jobs(_: None = Depends(_admin_auth)) -> dict:
     }
 
 
+def _require_user_id(request: Request) -> int:
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Sign in to see your chat history.")
+    return user_id
+
+
+@app.get("/fpl/conversations")
+async def fpl_conversations(request: Request) -> dict:
+    """The signed-in account's chat history. Anonymous history stays in the browser."""
+    return {"conversations": await app_db.list_conversations(_require_user_id(request))}
+
+
+@app.delete("/fpl/conversations/{client_session_id}")
+async def fpl_delete_conversation(request: Request, client_session_id: str) -> dict[str, str]:
+    deleted = await app_db.delete_conversation(_require_user_id(request), client_session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+    return {"status": "ok"}
+
+
 @app.post("/fpl/ask")
 @limiter.limit("10/minute;50/hour")
 async def fpl_ask(request: Request, body: AskRequest) -> StreamingResponse:

@@ -1,3 +1,4 @@
+import type { ServerConversation } from "./api";
 import type { ChatSession, Message } from "./types";
 
 const SESSIONS_KEY = "gaffer_sessions";
@@ -39,6 +40,44 @@ export function saveSession(session: ChatSession): void {
 
 export function deleteSession(sessionId: string): void {
   const sessions = loadSessions().filter((s) => s.id !== sessionId);
+  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+}
+
+/**
+ * Fold the signed-in account's server-side history into this browser's sessions.
+ * A thread only on the server is added; for a thread in both, whichever copy has
+ * more messages wins (the local copy can be ahead mid-stream, the server copy
+ * when the thread was continued on another device). Result is newest first.
+ */
+export function mergeServerSessions(
+  local: ChatSession[],
+  server: ServerConversation[]
+): ChatSession[] {
+  const merged = new Map(local.map((s) => [s.id, s]));
+  for (const conv of server) {
+    if (conv.messages.length === 0) continue;
+    const existing = merged.get(conv.id);
+    if (existing && existing.messages.length >= conv.messages.length) continue;
+    const messages: Message[] = conv.messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      timestamp: m.created_at,
+      league: "fpl",
+    }));
+    const firstQuestion = messages.find((m) => m.role === "user")?.content ?? "New chat";
+    merged.set(conv.id, {
+      id: conv.id,
+      title: existing?.title ?? deriveTitleFromMessage(firstQuestion),
+      messages,
+      createdAt: existing?.createdAt ?? conv.created_at,
+      updatedAt: Math.max(existing?.updatedAt ?? 0, conv.updated_at),
+    });
+  }
+  return [...merged.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export function saveSessions(sessions: ChatSession[]): void {
   localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
 }
 

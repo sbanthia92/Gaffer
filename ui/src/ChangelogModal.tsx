@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.94.0",
+    date: "5 Oct 2026",
+    added: [
+      "Sign in with Google and your chat history follows you — open The Gaffer on another device and your past chats are there.",
+    ],
+  },
+  {
     version: "0.93.0",
     date: "5 Oct 2026",
     changed: [
