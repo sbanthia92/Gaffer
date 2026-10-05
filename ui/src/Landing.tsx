@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AuthStatus from "./AuthStatus";
-import ChangelogModal, { RELEASES } from "./ChangelogModal";
+import ChangelogModal from "./ChangelogModal";
+import { RELEASES } from "./releases";
 import { loadSessions } from "./storage";
 import { submitContact } from "./api";
 import "./Landing.css";

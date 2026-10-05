@@ -69,7 +69,6 @@ export function PlayerLink({ card }: { card: PlayerCardData }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLSpanElement | null>(null);
   const popRef = useRef<HTMLSpanElement | null>(null);
-  const [offsetX, setOffsetX] = useState(0);
 
   useEffect(() => {
     if (!open) return;
@@ -100,7 +99,9 @@ export function PlayerLink({ card }: { card: PlayerCardData }) {
     if (rect.left + dx < margin) {
       dx = margin - rect.left;
     }
-    setOffsetX(dx);
+    // Nudge the popover back inside the viewport. Written straight to the node: it is a
+    // one-off measurement of a freshly mounted element, not state anything else renders from.
+    popRef.current.style.transform = dx ? `translateX(${dx}px)` : "";
   }, [open]);
 
   return (
@@ -119,7 +120,6 @@ export function PlayerLink({ card }: { card: PlayerCardData }) {
           className="player-link__popover"
           ref={popRef}
           role="dialog"
-          style={offsetX ? { transform: `translateX(${offsetX}px)` } : undefined}
         >
           <PlayerChip card={card} />
         </span>

@@ -50,6 +50,9 @@ ruff check . && ruff format .
 # Tests
 pytest tests/ -v
 
+# UI lint (not run in CI — keep it clean by hand)
+cd ui && npx eslint .
+
 # Run server locally
 uvicorn server.main:app --reload --port 8000
 
@@ -70,7 +73,7 @@ Every PR — no matter how small — must include all four of these:
 1. **Bump the minor version** (`0.x.0 → 0.x+1.0`) in `CHANGELOG.md`
 2. **Add a `CHANGELOG.md` entry** under the new version with what changed and why
 3. **Update `CLAUDE.md`** if the change affects conventions, architecture, domain knowledge, or known gotchas
-4. **Update the UI changelog** — add a new entry at the top of `RELEASES` in `ui/src/ChangelogModal.tsx`. `RELEASES` is exported and `Landing.tsx` reads `RELEASES[0].version` for the "What's new in vX.Y.Z →" button, so no separate version update in `Landing.tsx` is needed.
+4. **Update the UI changelog** — add a new entry at the top of `RELEASES` in `ui/src/releases.ts` (its own module, not `ChangelogModal.tsx` — a component file that also exports a constant fails `react-refresh/only-export-components`). `ChangelogModal.tsx` renders it and `Landing.tsx` reads `RELEASES[0].version` for the "What's new in vX.Y.Z →" button, so no separate version update is needed.
 
 ## Commit conventions (conventional commits)
 - `feat:` — new user-facing behaviour
