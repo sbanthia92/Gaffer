@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.93.0] — 2026-10-05
+
+### Added
+- **Accounts and chat history are now backed up.** The nightly `backup_db` job only dumped FPL data: it runs as `gaffer_readonly`, which has no grant on `users`, `device_tokens`, `conversations`, `chat_messages` or `daily_question_counts`, so those were excluded and would have been lost on an instance replacement. The job now makes a second `pg_dump` as `gaffer_app` (`DATABASE_APP_URL`) of just those tables and uploads it to the same bucket as `db-backups/gaffer-auth-<timestamp>.sql.gz`. Skipped with a warning when `DATABASE_APP_URL` is unset; a failure of the second dump fails the job so it shows up in `job_runs`.
+
 ## [0.92.0] — 2026-10-05
 
 ### Changed

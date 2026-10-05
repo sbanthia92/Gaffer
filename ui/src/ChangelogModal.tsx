@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.93.0",
+    date: "5 Oct 2026",
+    changed: [
+      "Internal: accounts and chat history are now included in the nightly backup.",
+    ],
+  },
+  {
     version: "0.92.0",
     date: "5 Oct 2026",
     changed: [
