@@ -2,6 +2,12 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.92.0] — 2026-10-05
+
+### Changed
+- **Signed-in account control is now a dropdown** — `AuthStatus` showed the user's name next to a bare "Sign out" button, in mismatched sizes. It now shows the name with a caret; clicking opens a menu containing "Sign out" (closes on outside click or Escape). In the chat sidebar footer the menu opens upwards.
+- **Removed the "Continue →" button from the landing top bar** — it crowded the account control, and returning users still have the "Continue →" call to action in the hero.
+
 ## [0.91.0] — 2026-10-02
 
 ### Added

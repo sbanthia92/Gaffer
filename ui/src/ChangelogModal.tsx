@@ -9,6 +9,13 @@ interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.92.0",
+    date: "5 Oct 2026",
+    changed: [
+      "Your name in the top bar is now a menu — click it to sign out. The extra Continue button in the top bar is gone.",
+    ],
+  },
+  {
     version: "0.91.0",
     date: "2 Oct 2026",
     changed: [

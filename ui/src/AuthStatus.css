@@ -1,16 +1,16 @@
 .auth-status {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
+  font-size: 12px;
 }
 
 .auth-status-name {
-  font-size: 11px;
-  opacity: 0.65;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 120px;
+  max-width: 160px;
 }
 
 .auth-status-btn {
@@ -25,12 +25,70 @@
   transition: opacity 0.12s;
 }
 
-.auth-status-btn:hover {
+.auth-status-btn:hover,
+.auth-status-trigger[aria-expanded="true"] {
   opacity: 1;
 }
 
-/* Sidebar footer context — match the full-width, padded look of the other footer buttons */
+.auth-status-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.auth-status-caret {
+  font-size: 10px;
+  transition: transform 0.12s;
+}
+
+.auth-status-trigger[aria-expanded="true"] .auth-status-caret {
+  transform: rotate(180deg);
+}
+
+.auth-status-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 140px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  box-shadow: 3px 3px 0 var(--red);
+  z-index: 60;
+}
+
+.auth-status-menu-item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  padding: 8px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.auth-status-menu-item:hover {
+  background: var(--gold);
+}
+
+/* Sidebar footer context — match the full-width, padded look of the other footer buttons.
+   The footer sits at the bottom of the sidebar, so the menu opens upwards. */
 .sidebar-footer .auth-status {
   padding: 7px 10px;
+}
+
+.sidebar-footer .auth-status-trigger {
+  width: 100%;
   justify-content: space-between;
+}
+
+.sidebar-footer .auth-status-menu {
+  top: auto;
+  bottom: calc(100% + 4px);
+  left: 10px;
+  right: 10px;
 }

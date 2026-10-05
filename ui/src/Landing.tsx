@@ -348,11 +348,6 @@ export default function Landing() {
           </nav>
         </div>
         <div className="landing-topbar-right">
-          {isReturning && (
-            <button className="landing-continue-btn" onClick={() => navigate("/chat")}>
-              Continue →
-            </button>
-          )}
           <AuthStatus />
         </div>
       </div>
