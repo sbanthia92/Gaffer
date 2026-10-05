@@ -370,3 +370,111 @@ async def test_daily_limit_exemption_by_signed_in_email(session, expected) -> No
         admin_password="",
     ):
         assert await _is_exempt_from_daily_limit(request) is expected
+
+
+def _signed_in_client(user_id: int = 42) -> TestClient:
+    signed_in = TestClient(app)
+    mock_token = {"userinfo": {"sub": "google-123", "email": "p@example.com", "name": "P"}}
+    with (
+        patch(
+            "server.main.oauth.google.authorize_access_token",
+            new=AsyncMock(return_value=mock_token),
+        ),
+        patch("server.main.app_db.get_or_create_user", new=AsyncMock(return_value=user_id)),
+        patch("server.main.app_db.merge_device_into_user", new=AsyncMock()),
+    ):
+        signed_in.get("/auth/google/callback", follow_redirects=False)
+    return signed_in
+
+
+def test_conversations_require_sign_in() -> None:
+    anonymous = TestClient(app)
+    with patch("server.main.app_db.list_conversations", new=AsyncMock()) as mock_list:
+        assert anonymous.get("/fpl/conversations").status_code == 401
+        assert anonymous.delete("/fpl/conversations/thread-1").status_code == 401
+    mock_list.assert_not_awaited()
+
+
+def test_conversations_lists_only_the_signed_in_users_history() -> None:
+    history = [{"id": "thread-1", "created_at": 1, "updated_at": 2, "messages": []}]
+    with patch(
+        "server.main.app_db.list_conversations", new=AsyncMock(return_value=history)
+    ) as mock_list:
+        response = _signed_in_client(user_id=42).get("/fpl/conversations")
+
+    assert response.json() == {"conversations": history}
+    mock_list.assert_awaited_once_with(42)
+
+
+def test_delete_conversation_is_scoped_to_the_signed_in_user() -> None:
+    with patch(
+        "server.main.app_db.delete_conversation", new=AsyncMock(return_value=True)
+    ) as mock_delete:
+        response = _signed_in_client(user_id=42).delete("/fpl/conversations/thread-1")
+
+    assert response.json() == {"status": "ok"}
+    mock_delete.assert_awaited_once_with(42, "thread-1")
+
+
+def test_delete_conversation_returns_404_when_not_owned() -> None:
+    with patch("server.main.app_db.delete_conversation", new=AsyncMock(return_value=False)):
+        response = _signed_in_client().delete("/fpl/conversations/someone-elses")
+    assert response.status_code == 404
+
+
+def test_fpl_ask_skips_saving_messages_when_conversation_is_not_owned() -> None:
+    # upsert_conversation returns None when the session id belongs to someone else
+    with (
+        patch(
+            "server.main.claude_client.ask",
+            new=AsyncMock(return_value=_mock_stream("Captain Salah this week.")),
+        ),
+        patch("server.main.app_db.upsert_conversation", new=AsyncMock(return_value=None)),
+        patch("server.main.app_db.save_chat_messages", new=AsyncMock()) as mock_save,
+    ):
+        response = client.post(
+            "/fpl/ask", json={"question": "Should I captain Salah?", "session_id": "not-mine"}
+        )
+
+    assert response.status_code == 200
+    mock_save.assert_not_awaited()
+
+
+def test_group_conversation_rows_folds_messages_into_threads() -> None:
+    from datetime import UTC, datetime
+
+    from server.app_db import group_conversation_rows
+
+    t = datetime(2026, 10, 5, 12, 0, tzinfo=UTC)
+    ms = int(t.timestamp() * 1000)
+
+    def row(session, message_id, role, content):
+        return {
+            "client_session_id": session,
+            "created_at": t,
+            "updated_at": t,
+            "message_id": message_id,
+            "role": role,
+            "content": content,
+            "message_created_at": t,
+        }
+
+    grouped = group_conversation_rows(
+        [
+            row("thread-b", 3, "user", "Captain?"),
+            row("thread-b", 4, "assistant", "Salah."),
+            row("thread-a", 1, "user", "Wildcard?"),
+        ]
+    )
+
+    assert [c["id"] for c in grouped] == ["thread-b", "thread-a"]  # query order preserved
+    assert grouped[0] == {
+        "id": "thread-b",
+        "created_at": ms,
+        "updated_at": ms,
+        "messages": [
+            {"id": "srv-3", "role": "user", "content": "Captain?", "created_at": ms},
+            {"id": "srv-4", "role": "assistant", "content": "Salah.", "created_at": ms},
+        ],
+    }
+    assert len(grouped[1]["messages"]) == 1

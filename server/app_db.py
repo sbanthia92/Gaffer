@@ -1,5 +1,6 @@
 """
-DB access for the auth tables (users, device_tokens) via the gaffer_app role
+DB access for the app-owned tables (users, device_tokens, conversations, chat_messages,
+daily_question_counts) via the gaffer_app role
 (DATABASE_APP_URL) — kept separate from the read-only FPL data pool in
 server/tools/db.py.
 """
@@ -79,6 +80,21 @@ async def merge_device_into_user(device_token: str, user_id: int) -> None:
         await conn.execute(
             "UPDATE device_tokens SET user_id = $1 WHERE token = $2", user_id, device_token
         )
+        # Chats started on this device before sign-in now belong to the account, so they
+        # show up in the account's history on other devices.
+        await conn.execute(
+            "UPDATE conversations SET user_id = $1 WHERE device_token = $2 AND user_id IS NULL",
+            user_id,
+            device_token,
+        )
+
+
+# Conversations an account owns: its own, plus any still attributed only to a device
+# linked to it (rows written before merge_device_into_user started backfilling user_id).
+_OWNED_BY_USER = """
+    (c.user_id = $1
+     OR c.device_token IN (SELECT token FROM device_tokens WHERE user_id = $1))
+"""
 
 
 async def upsert_conversation(
@@ -91,11 +107,10 @@ async def upsert_conversation(
     Best-effort — returns None if DATABASE_APP_URL isn't configured, so callers
     can skip persistence instead of crashing the chat response over it.
 
-    NOTE: client_session_id is not scoped to device_token/user_id here — a
-    client that already knew another session's UUID could in theory append to
-    it. Not exploitable today since there's no read endpoint to leak IDs
-    through, but a future read path must add that scoping before trusting
-    this table for anything sensitive.
+    Also returns None when client_session_id already exists but belongs to a
+    different device and a different (or no) account: the id comes from the
+    client, so without this check anyone who learned another thread's UUID could
+    append messages to it, and they would then show up in the owner's history.
     """
     if _pool is None:
         return None
@@ -108,6 +123,8 @@ async def upsert_conversation(
             ON CONFLICT (client_session_id) DO UPDATE
                 SET updated_at = NOW(),
                     user_id = COALESCE(conversations.user_id, EXCLUDED.user_id)
+                WHERE conversations.device_token = EXCLUDED.device_token
+                   OR conversations.user_id = EXCLUDED.user_id
             RETURNING id
             """,
             client_session_id,
@@ -115,7 +132,7 @@ async def upsert_conversation(
             user_id,
             fpl_team_id,
         )
-        return row["id"]
+        return row["id"] if row else None
 
 
 async def save_chat_messages(conversation_id: int, question: str, answer: str) -> None:
@@ -150,3 +167,72 @@ async def count_question(usage_key: str) -> int | None:
             """,
             usage_key,
         )
+
+
+def group_conversation_rows(rows: list) -> list[dict]:
+    """Fold conversation⋈message rows (ordered by conversation, then message) into threads."""
+    conversations: dict[str, dict] = {}
+    for row in rows:
+        conversation = conversations.setdefault(
+            row["client_session_id"],
+            {
+                "id": row["client_session_id"],
+                "created_at": int(row["created_at"].timestamp() * 1000),
+                "updated_at": int(row["updated_at"].timestamp() * 1000),
+                "messages": [],
+            },
+        )
+        conversation["messages"].append(
+            {
+                "id": f"srv-{row['message_id']}",
+                "role": row["role"],
+                "content": row["content"],
+                "created_at": int(row["message_created_at"].timestamp() * 1000),
+            }
+        )
+    return list(conversations.values())
+
+
+async def list_conversations(user_id: int, limit: int = 50) -> list[dict]:
+    """The account's most recently updated threads with their messages, newest thread first."""
+    if _pool is None:
+        return []
+
+    async with _pool.acquire() as conn:
+        rows = await conn.fetch(
+            f"""
+            WITH recent AS (
+                SELECT c.id, c.client_session_id, c.created_at, c.updated_at
+                FROM conversations c
+                WHERE c.client_session_id IS NOT NULL AND {_OWNED_BY_USER}
+                ORDER BY c.updated_at DESC
+                LIMIT $2
+            )
+            SELECT r.client_session_id, r.created_at, r.updated_at,
+                   m.id AS message_id, m.role, m.content, m.created_at AS message_created_at
+            FROM recent r
+            JOIN chat_messages m ON m.conversation_id = r.id
+            ORDER BY r.updated_at DESC, r.id, m.id
+            """,
+            user_id,
+            limit,
+        )
+    return group_conversation_rows(rows)
+
+
+async def delete_conversation(user_id: int, client_session_id: str) -> bool:
+    """Delete one of the account's threads (messages cascade). False if it isn't theirs."""
+    if _pool is None:
+        return False
+
+    async with _pool.acquire() as conn:
+        deleted = await conn.fetchval(
+            f"""
+            DELETE FROM conversations c
+            WHERE c.client_session_id = $2 AND {_OWNED_BY_USER}
+            RETURNING c.id
+            """,
+            user_id,
+            client_session_id,
+        )
+    return deleted is not None

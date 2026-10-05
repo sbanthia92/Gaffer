@@ -2,6 +2,15 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.94.0] — 2026-10-05
+
+### Added
+- **Chat history follows a signed-in account across devices.** Chats have been saved server-side since v0.84.0 but nothing read them back, so signing in gave the user nothing. New `GET /fpl/conversations` returns the signed-in account's 50 most recent threads with their messages; the chat UI fetches it on load and merges it into the browser's local sessions (a thread only on the server is added; for a thread in both, the copy with more messages wins). `DELETE /fpl/conversations/{id}` removes a thread from the account when it is deleted in the sidebar. Both return 401 when signed out — anonymous history stays in the browser only.
+- Chats started on a device before signing in are attributed to the account at sign-in (`merge_device_into_user` now sets `conversations.user_id`), so they appear on the user's other devices.
+
+### Fixed
+- **Closed the `client_session_id` ownership gap** flagged in v0.84.0. The id comes from the client, and the upsert used to accept a write to any existing thread. It now only touches a thread whose device or account matches the caller; otherwise nothing is saved. Reads and deletes are scoped to the signed-in account.
+
 ## [0.93.0] — 2026-10-05
 
 ### Added

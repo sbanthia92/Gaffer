@@ -152,6 +152,34 @@ export async function getAuthStatus(): Promise<AuthStatus> {
   return res.json();
 }
 
+export interface ServerConversation {
+  id: string;
+  created_at: number;
+  updated_at: number;
+  messages: { id: string; role: "user" | "assistant"; content: string; created_at: number }[];
+}
+
+/** The signed-in account's chat history. Empty when signed out or on any failure. */
+export async function fetchConversations(): Promise<ServerConversation[]> {
+  try {
+    const res = await fetch(`${BASE_URL}/api/fpl/conversations`, {
+      credentials: "include",
+    });
+    if (!res.ok) return [];
+    return (await res.json()).conversations ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** Best-effort: removes the thread from the account's history (no-op when signed out). */
+export async function deleteConversation(sessionId: string): Promise<void> {
+  await fetch(`${BASE_URL}/api/fpl/conversations/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
+    credentials: "include",
+  }).catch(() => {});
+}
+
 export async function logout(): Promise<void> {
   await fetch(`${BASE_URL}/api/auth/logout`, {
     method: "POST",
