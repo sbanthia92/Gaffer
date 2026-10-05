@@ -2,6 +2,14 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.95.0] — 2026-10-05
+
+### Changed
+- **`eslint .` in `ui/` is clean again** (3 errors, no behaviour change):
+  - `RELEASES` moved out of `ChangelogModal.tsx` into its own `ui/src/releases.ts` — a component file exporting a constant breaks React fast refresh (`react-refresh/only-export-components`). **The per-PR UI changelog entry now goes in `releases.ts`.**
+  - `GafferMarkdown` (`App.tsx`) no longer calls `setState` synchronously in an effect: player names are derived with `useMemo`, the displayed text is derived from the last lookup result, and a stale lookup can no longer overwrite a newer one.
+  - `PlayerLink` (`PlayerCard.tsx`) writes its keep-in-viewport nudge straight to the popover node in the layout effect instead of round-tripping through state.
+
 ## [0.94.0] — 2026-10-05
 
 ### Added

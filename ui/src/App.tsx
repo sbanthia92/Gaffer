@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useNavigate } from "react-router-dom";
@@ -287,22 +287,20 @@ function toTokenKey(name: string): string {
 }
 
 function GafferMarkdown({ content }: { content: string }) {
-  const [text, setText] = useState(content);
-  const [tooltips, setTooltips] = useState<TooltipMap>({});
+  // Result of the last player-card lookup: content with [[Name]] tags swapped for tokens
+  const [resolved, setResolved] = useState<{ text: string; tooltips: TooltipMap } | null>(null);
+
+  const names = useMemo(
+    () => [...new Set([...content.matchAll(PLAYER_TAG)].map((m) => m[1]))],
+    [content]
+  );
 
   useEffect(() => {
-    const names: string[] = [];
-    let m;
-    PLAYER_TAG.lastIndex = 0;
-    while ((m = PLAYER_TAG.exec(content)) !== null) {
-      if (!names.includes(m[1])) names.push(m[1]);
-    }
-    if (names.length === 0) {
-      setText(content);
-      return;
-    }
+    if (names.length === 0) return;
+    let cancelled = false;
     Promise.all(names.map((n) => fetchPlayerCard(n).then((c) => ({ name: n, card: c })))).then(
       (results) => {
+        if (cancelled) return;
         const map: TooltipMap = {};
         let processed = content;
         for (const { name, card } of results) {
@@ -310,11 +308,18 @@ function GafferMarkdown({ content }: { content: string }) {
           map[key] = { display: card?.name ?? name, card };
           processed = processed.replaceAll(`[[${name}]]`, key);
         }
-        setText(processed);
-        setTooltips(map);
+        setResolved({ text: processed, tooltips: map });
       }
     );
-  }, [content]);
+    return () => {
+      cancelled = true;
+    };
+  }, [content, names]);
+
+  // Until a lookup lands (and while streaming, between lookups) keep showing the last
+  // resolved text rather than flashing raw [[Name]] tags.
+  const text = names.length === 0 || !resolved ? content : resolved.text;
+  const tooltips = resolved?.tooltips ?? {};
 
   const wrap = (children: React.ReactNode) => renderWithTooltips(children, tooltips);
 
