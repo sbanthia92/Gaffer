@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.97.0] — 2026-10-20
+
+### Fixed
+- **Admin dashboard returned 503** ("CloudWatch Insights unavailable"). `/admin/dashboard` runs CloudWatch Logs Insights queries, which need `logs:StartQuery` and `logs:GetQueryResults` on the EC2 role. Those two permissions had been added by hand in the AWS console, never in terraform, so the 2026-07-30 `terraform apply` (v0.74.0/v0.75.0) removed them as drift and the dashboard has been broken since. They are now in `terraform/main.tf` (`StartQuery` scoped to `/gaffer/*` log groups; `GetQueryResults` is `*` because it has no resource-level permissions). Applied to prod; the dashboard returns 200 again.
+
 ## [0.96.0] — 2026-10-20
 
 ### Changed
