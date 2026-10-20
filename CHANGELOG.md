@@ -2,6 +2,13 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.96.0] — 2026-10-20
+
+### Changed
+- **Landing page no longer advertises the press-conference pipeline** removed in v0.85.0. The "Press conference context" feature card (Guardian/BBC coverage "ingested twice daily") is now "Injuries & player news", describing what the app actually does: FPL's own availability flags and chance-of-playing figures plus a live web search for players Claude is giving a verdict on. Its sample answer cites FPL status and web search instead of BBC/Guardian coverage, and the nav anchor id moved from `press` to `player-news`.
+- **"24/7 Press coverage" stat → "5 Free questions a day"**, matching the daily limit shipped in v0.91.0.
+- **Admin dashboard job labels** — dropped the dead `press_ingest` label and added `etl_snapshot` and `db_backup`, which write to `job_runs` but were shown under their raw names.
+
 ## [0.95.0] — 2026-10-05
 
 ### Changed
