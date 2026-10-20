@@ -103,8 +103,15 @@ resource "aws_iam_role_policy" "gaffer_cloudwatch" {
           "logs:CreateLogStream",
           "logs:PutLogEvents",
           "logs:DescribeLogStreams",
+          "logs:StartQuery", # admin dashboard (Logs Insights)
         ]
         Resource = "arn:aws:logs:${var.aws_region}:*:log-group:/gaffer/*"
+      },
+      {
+        # GetQueryResults has no resource-level permissions, so "*" is required.
+        Effect   = "Allow"
+        Action   = ["logs:GetQueryResults"]
+        Resource = "*"
       },
       {
         Effect   = "Allow"

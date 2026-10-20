@@ -8,6 +8,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.97.0",
+    date: "20 Oct 2026",
+    changed: [
+      "Internal: restored the admin dashboard, which was failing with a 503 because of a missing log-query permission.",
+    ],
+  },
+  {
     version: "0.96.0",
     date: "20 Oct 2026",
     changed: [
