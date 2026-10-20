@@ -61,13 +61,13 @@ const FEATURES = [
     ],
   },
   {
-    id: "press",
-    icon: "📰",
-    title: "Press conference context",
-    desc: "The Guardian's Premier League coverage and FPL bootstrap player news ingested twice daily — so The Gaffer flags injury status, doubts, and rotation hints from official sources.",
+    id: "player-news",
+    icon: "🩹",
+    title: "Injuries & player news",
+    desc: "FPL's own availability flags and chance-of-playing figures, plus a live web search for the players it's giving a verdict on — so The Gaffer flags injuries, doubts, and rotation hints before you commit a transfer.",
     chat: [
       { role: "user", text: "Any injury or rotation concerns for Saka this week?" },
-      { role: "assistant", text: `**VERDICT: No flagged injury — monitor minutes.**\n\n**DATA:**\n• FPL bootstrap status: 100% (no news)\n• Saka minutes last 4 GWs: 90, 87, 90, 90\n• Arsenal fixture density: 3 games in 8 days post-weekend\n• No injury mention in latest BBC / Guardian coverage\n\n**REASONING:** Clean status but heavy recent minutes. Start him, keep a bench fallback ready in case of a late rotation call.`, truncated: true },
+      { role: "assistant", text: `**VERDICT: No flagged injury — monitor minutes.**\n\n**DATA:**\n• FPL status: available, 100% chance of playing (no news)\n• Saka minutes last 4 GWs: 90, 87, 90, 90\n• Arsenal fixture density: 3 games in 8 days post-weekend\n• Live web search: no new injury or rotation reports\n\n**REASONING:** Clean status but heavy recent minutes. Start him, keep a bench fallback ready in case of a late rotation call.`, truncated: true },
     ],
   },
 ];
@@ -410,8 +410,8 @@ export default function Landing() {
           <div className="stat-label">Response time</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">24/7</div>
-          <div className="stat-label">Press coverage</div>
+          <div className="stat-value">5</div>
+          <div className="stat-label">Free questions a day</div>
         </div>
       </div>
 

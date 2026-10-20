@@ -8,6 +8,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.96.0",
+    date: "20 Oct 2026",
+    changed: [
+      "Landing page updated: the press-conference feature is now \"Injuries & player news\" (FPL availability data plus live web search), and the free daily question limit is shown.",
+    ],
+  },
+  {
     version: "0.95.0",
     date: "5 Oct 2026",
     changed: [

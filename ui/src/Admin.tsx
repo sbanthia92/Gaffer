@@ -199,8 +199,9 @@ export default function Admin() {
   const periodLabel = hours === 1 ? "1h" : hours === 24 ? "24h" : "7d";
 
   const JOB_LABELS: Record<string, string> = {
-    press_ingest: "Press Ingest",
+    etl_snapshot: "ETL Snapshot",
     gw_check: "GW Check",
+    db_backup: "DB Backup",
   };
 
   return (
