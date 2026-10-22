@@ -29,7 +29,15 @@ from server.logger import log
 
 _MODEL = "claude-sonnet-4-6"
 _MAX_TOKENS = 4096
-_MAX_TURNS = 5
+_MAX_TURNS = 8
+
+# Appended to the system prompt for the final, tool-less answer when the tool loop ran out
+# of turns. Without it the model says "let me fetch X" and stops, since it can't call tools.
+_TURN_LIMIT_NOTE = (
+    "You have used all your tool calls and can no longer call tools. Answer now with the "
+    "data you already have. If something you wanted is missing, say plainly which data is "
+    "missing and what that limits — never say you will fetch or check it."
+)
 
 # Anthropic server-side web search — runs on Anthropic's side, results come back
 # inline as server_tool_use / web_search_tool_result blocks. Nothing is stored.
@@ -338,6 +346,7 @@ async def ask(
         in_tok = out_tok = cache_read = cache_write = web_searches = 0
         turns = 0
         final_text: str | None = None
+        turn_limit_hit = False
 
         yield "status", "Thinking…"
         while turns < _MAX_TURNS:
@@ -381,6 +390,7 @@ async def ask(
             messages.append({"role": "user", "content": tool_results})
             yield "status", "Analysing…"
         else:
+            turn_limit_hit = True
             log.warning("claude.turn_limit_reached", turns=turns, model=_MODEL)
 
         if final_text is not None:
@@ -393,7 +403,10 @@ async def ask(
         async with client.messages.stream(
             model=_MODEL,
             max_tokens=_MAX_TOKENS,
-            system=system,
+            # Extra block goes after the cached one so the cached prefix still hits.
+            system=[*system, {"type": "text", "text": _TURN_LIMIT_NOTE}]
+            if turn_limit_hit
+            else system,
             tools=tool_definitions,
             tool_choice={"type": "none"},
             messages=messages,

@@ -8,6 +8,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.99.0",
+    date: "22 Oct 2026",
+    changed: [
+      "Fixed long analyses sometimes stopping mid-answer. Gaffer now gets more research steps and, if it still runs out, tells you what data is missing instead of trailing off.",
+    ],
+  },
+  {
     version: "0.98.0",
     date: "22 Oct 2026",
     changed: [

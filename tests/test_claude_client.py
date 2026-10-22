@@ -267,3 +267,50 @@ def test_system_prompt_ties_promotion_claims_to_standings_data():
     prompt = _build_system_prompt("fpl", 123)
     assert "new_to_league_this_season" in prompt
     assert "get_standings again" in prompt
+
+
+@pytest.mark.asyncio
+async def test_ask_turn_limit_adds_answer_now_note_to_final_call():
+    from server.claude_client import _MAX_TURNS, _TURN_LIMIT_NOTE
+
+    tool_responses = [
+        _make_tool_use_response("get_fixtures", {}, f"tool_{i}") for i in range(_MAX_TURNS)
+    ]
+
+    with patch("server.claude_client.anthropic.AsyncAnthropic") as mock_anthropic:
+        mock_client = AsyncMock()
+        mock_anthropic.return_value = mock_client
+        mock_client.messages.create = AsyncMock(side_effect=tool_responses)
+        mock_client.messages.stream = MagicMock(return_value=_make_stream_context(["Partial."]))
+
+        stream = await ask(
+            question="q",
+            tool_definitions=[{"name": "get_fixtures"}],
+            tool_handler=AsyncMock(return_value={}),
+            league="fpl",
+        )
+        await _collect(stream)
+
+    assert mock_client.messages.create.await_count == _MAX_TURNS
+    final_system = mock_client.messages.stream.call_args.kwargs["system"]
+    assert final_system[-1]["text"] == _TURN_LIMIT_NOTE
+    assert "cache_control" in final_system[0]
+
+
+@pytest.mark.asyncio
+async def test_ask_no_turn_limit_note_when_loop_finishes_normally():
+    with patch("server.claude_client.anthropic.AsyncAnthropic") as mock_anthropic:
+        mock_client = AsyncMock()
+        mock_anthropic.return_value = mock_client
+        mock_client.messages.create = AsyncMock(return_value=_make_end_turn_response())
+        mock_client.messages.stream = MagicMock(return_value=_make_stream_context(["ok"]))
+
+        stream = await ask(
+            question="q",
+            tool_definitions=[],
+            tool_handler=AsyncMock(return_value={}),
+            league="fpl",
+        )
+        await _collect(stream)
+
+    assert len(mock_client.messages.stream.call_args.kwargs["system"]) == 1

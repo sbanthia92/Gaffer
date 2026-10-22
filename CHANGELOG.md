@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.99.0] — 2026-10-22
+
+### Fixed
+- **Answers could end mid-thought ("Let me grab those separately", then nothing).** When the tool loop hit its turn cap, the final answer was streamed with tools disabled, so a model that still wanted data announced a fetch it could not make and stopped. The cap goes from 5 to 8 turns, and when it is still hit the final call now carries a note telling the model to answer with what it has and say plainly which data is missing.
+
 ## [0.98.0] — 2026-10-22
 
 ### Fixed
