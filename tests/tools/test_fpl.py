@@ -835,6 +835,73 @@ async def test_get_captain_options_returns_ranked_candidates():
     assert result["not_found"] == []
 
 
+def _xpts_row(name: str) -> dict:
+    return {
+        "web_name": name,
+        "position": "MID",
+        "team_name": "Arsenal",
+        "price": 7.0,
+        "xpts": 5.0,
+        "xpts_goals": 1.0,
+        "xpts_assists": 1.0,
+        "xpts_cs": 0.5,
+        "xpts_saves": 0,
+        "xpts_bonus": 0.5,
+        "xpts_minutes": 2.0,
+        "status": "a",
+        "chance_of_playing_next_round": None,
+        "opponents": ["Spurs"],
+        "fdrs": [3],
+        "home_flags": [True],
+        "gw_number": 10,
+        "sample_gws": 5,
+        "avg_xg_per_start": 0.2,
+        "avg_xa_per_start": 0.1,
+        "avg_minutes_per_start": 85,
+    }
+
+
+@pytest.mark.asyncio
+async def test_get_player_xpts_limit_covers_all_named_players():
+    from unittest.mock import AsyncMock, patch
+
+    from server.tools.fpl import get_player_xpts
+
+    names = [f"P{i}" for i in range(15)]
+    mock = AsyncMock(return_value={"rows": [_xpts_row("P0")]})
+    with patch("server.tools.db.execute", new=mock):
+        await get_player_xpts(player_names=names)
+
+    assert mock.call_args.args[1][-1] == 30  # not the default top_n of 10
+
+
+@pytest.mark.asyncio
+async def test_get_player_xpts_reports_not_found():
+    from unittest.mock import AsyncMock, patch
+
+    from server.tools.fpl import get_player_xpts
+
+    mock = AsyncMock(return_value={"rows": [_xpts_row("Saka")]})
+    with patch("server.tools.db.execute", new=mock):
+        result = await get_player_xpts(player_names=["Saka", "Delap"])
+
+    assert result["not_found"] == ["Delap"]
+    assert [p["name"] for p in result["players"]] == ["Saka"]
+
+
+@pytest.mark.asyncio
+async def test_get_player_xpts_no_not_found_key_when_all_match():
+    from unittest.mock import AsyncMock, patch
+
+    from server.tools.fpl import get_player_xpts
+
+    mock = AsyncMock(return_value={"rows": [_xpts_row("Saka")]})
+    with patch("server.tools.db.execute", new=mock):
+        result = await get_player_xpts(player_names=["saka"])
+
+    assert "not_found" not in result
+
+
 def test_tool_definitions_structure():
     names = {t["name"] for t in TOOL_DEFINITIONS}
     assert names == {

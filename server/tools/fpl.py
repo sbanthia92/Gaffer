@@ -1089,7 +1089,10 @@ async def get_player_xpts(
         params.append(position.upper())
         where_parts.append(f"position = ${len(params)}")
 
-    params.append(top_n)
+    # Named lookups must not be cut off by top_n: a 15-man squad would lose players past
+    # the 10th. Leave headroom for names that match more than one player.
+    limit = max(top_n, len(player_names) * 2) if player_names else top_n
+    params.append(limit)
     limit_ph = f"${len(params)}"
     where_sql = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
 
@@ -1149,9 +1152,23 @@ async def get_player_xpts(
             }
         )
 
+    returned = [p["name"].lower() for p in players]
+    not_found = [n for n in player_names or [] if not any(n.lower() in r for r in returned)]
+
     return {
         "gameweek": result["rows"][0]["gw_number"] if result["rows"] else None,
         "players": players,
+        **(
+            {
+                "not_found": not_found,
+                "not_found_note": (
+                    "No xPts row — usually no starts in the last 5 GWs, or unavailable. "
+                    "Say so rather than retrying."
+                ),
+            }
+            if not_found
+            else {}
+        ),
         "note": (
             "xpts = expected FPL points based on last-5-GW xG/xA rates + FDR-derived CS "
             "probability + avg bonus. DGW players reflect both fixtures."
