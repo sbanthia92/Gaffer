@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.98.0] — 2026-10-22
+
+### Fixed
+- **`get_player_xpts` dropped players when asked for a whole squad.** Named lookups were still capped by `top_n` (default 10), so a 15-man squad lost its last few players and Claude reported "didn't return xPts data". The limit is now at least twice the number of names asked for. The result also carries a `not_found` list (omitted when empty) for names with no xPts row — typically players with no starts in the last 5 GWs — so Claude says so instead of retrying.
+
 ## [0.97.0] — 2026-10-20
 
 ### Fixed

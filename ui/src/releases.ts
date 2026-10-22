@@ -8,6 +8,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.98.0",
+    date: "22 Oct 2026",
+    changed: [
+      "Fixed expected-points lookups skipping some players when you ask about a full squad.",
+    ],
+  },
+  {
     version: "0.97.0",
     date: "20 Oct 2026",
     changed: [
