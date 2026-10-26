@@ -6,6 +6,7 @@ import respx
 
 from server.tools.fpl import (
     TOOL_DEFINITIONS,
+    analyse_mini_league,
     get_captain_options,
     get_fixtures,
     get_gameweek_schedule,
@@ -910,6 +911,7 @@ def test_tool_definitions_structure():
         "get_my_fpl_team",
         "get_chip_status",
         "plan_chips",
+        "analyse_mini_league",
         "get_price_changes",
         "get_gameweek_schedule",
         "get_fixtures",
@@ -1132,3 +1134,98 @@ async def test_get_price_changes_direction_and_named_lookup():
     assert named["players"][0]["name"] == "Big"
     assert named["players"][0]["price_change_this_gw"] == 0.1
     assert named["not_found"] == ["Nobody"]
+
+
+def _picks(starters, captain, bench=(), chip=None):
+    """starters: 11 element ids; captain must be one of them."""
+    picks = [
+        {"element": e, "position": i + 1, "is_captain": e == captain, "is_vice_captain": False}
+        for i, e in enumerate(starters)
+    ]
+    picks += [
+        {"element": e, "position": 12 + i, "is_captain": False, "is_vice_captain": False}
+        for i, e in enumerate(bench)
+    ]
+    return {"picks": picks, "active_chip": chip}
+
+
+async def _run_mini_league(rival_picks, **kwargs):
+    from server.tools import fpl as fpl_mod
+
+    names = {i: f"P{i}" for i in range(1, 40)}
+    bootstrap = {
+        "events": [{"id": 9, "is_current": True, "is_next": False}],
+        "teams": [],
+        "elements": [{"id": i, "web_name": n} for i, n in names.items()],
+    }
+    standings = {
+        "league": {"name": "Pals"},
+        "standings": {
+            "results": [
+                {"entry": 100, "rank": 1, "player_name": "Ann", "entry_name": "A", "total": 500},
+                {"entry": 1, "rank": 2, "player_name": "Me", "entry_name": "M", "total": 480},
+                {"entry": 200, "rank": 3, "player_name": "Bob", "entry_name": "B", "total": 470},
+                {"entry": 300, "rank": 9, "player_name": "Far", "entry_name": "F", "total": 300},
+            ]
+        },
+    }
+    mine = _picks(list(range(1, 12)), captain=1, bench=[12, 13, 14, 15])
+    fpl_mod._bootstrap_cache = None
+    with respx.mock:
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=bootstrap)
+        )
+        respx.get(f"{_FPL_BASE}/leagues-classic/7/standings/").mock(
+            return_value=httpx.Response(200, json=standings)
+        )
+        respx.get(f"{_FPL_BASE}/entry/1/event/9/picks/").mock(
+            return_value=httpx.Response(200, json=mine)
+        )
+        for entry, picks in rival_picks.items():
+            respx.get(f"{_FPL_BASE}/entry/{entry}/event/9/picks/").mock(
+                return_value=picks
+                if isinstance(picks, httpx.Response)
+                else httpx.Response(200, json=picks)
+            )
+        return await analyse_mini_league(7, team_id_override=1, **kwargs)
+
+
+@pytest.mark.asyncio
+async def test_analyse_mini_league_finds_differentials_and_captain_overlap():
+    ann = _picks([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20], captain=1, chip="3xc")  # same captain
+    bob = _picks([2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 21], captain=20)
+    result = await _run_mini_league({100: ann, 200: bob}, rival_count=2)
+
+    assert result["league_name"] == "Pals"
+    assert result["your_rank"] == 2
+    assert [r["manager"] for r in result["rivals"]] == ["Ann", "Bob"]
+    ann_r, bob_r = result["rivals"]
+    assert ann_r["points_vs_you"] == 20 and bob_r["points_vs_you"] == -10
+    assert ann_r["same_captain_as_you"] and not bob_r["same_captain_as_you"]
+    assert ann_r["active_chip"] == "3xc"
+    assert ann_r["their_differentials"] == ["P20"]
+    assert ann_r["your_differentials"] == ["P11"]
+    assert bob_r["captain"] == "P20"
+    assert result["rivals_with_same_captain"] == 1
+    # P20 is a starter for both rivals and not owned by me
+    assert result["owned_by_most_rivals_not_you"] == ["P20"]
+    assert result["your_unique_starters"] == ["P11"]
+
+
+@pytest.mark.asyncio
+async def test_analyse_mini_league_picks_nearest_rivals_and_reports_unavailable():
+    ann = _picks(list(range(1, 12)), captain=1)
+    # Bob (rank 3) is nearer than Far (rank 9); his picks 404 so he is listed unavailable
+    result = await _run_mini_league({100: ann, 200: httpx.Response(404)}, rival_count=2)
+
+    assert [r["manager"] for r in result["rivals"]] == ["Ann"]
+    assert result["unavailable"] == ["Bob"]
+    assert "Far" not in str(result)
+
+
+@pytest.mark.asyncio
+async def test_analyse_mini_league_requires_team_id():
+    with patch("server.tools.fpl.settings") as mock_settings:
+        mock_settings.fpl_team_id = None
+        result = await analyse_mini_league(7)
+    assert "error" in result

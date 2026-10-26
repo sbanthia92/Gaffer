@@ -8,6 +8,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.105.0",
+    date: "26 Oct 2026",
+    added: [
+      "Mini-league rival analysis: ask how to catch or hold off the managers around you in your league. Gaffer compares your squad with your closest rivals' — who shares your captain, their differentials, yours, and the points gap.",
+    ],
+  },
+  {
     version: "0.104.0",
     date: "26 Oct 2026",
     added: [
