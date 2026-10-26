@@ -81,6 +81,16 @@ export function saveSessions(sessions: ChatSession[]): void {
   localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
 }
 
+/** Remove every locally stored chat. Called on sign-out so a shared computer keeps nothing. */
+export function clearLocalChats(): void {
+  try {
+    localStorage.removeItem(SESSIONS_KEY);
+    localStorage.removeItem(ACTIVE_SESSION_KEY);
+  } catch {
+    // storage unavailable — nothing to clear
+  }
+}
+
 export function loadActiveSessionId(): string | null {
   return localStorage.getItem(ACTIVE_SESSION_KEY);
 }
