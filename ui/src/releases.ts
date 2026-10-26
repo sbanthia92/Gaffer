@@ -15,6 +15,13 @@ export const RELEASES: Release[] = [
     ],
   },
   {
+    version: "0.102.0",
+    date: "26 Oct 2026",
+    changed: [
+      "Signing out now clears your chats from the browser, so nobody else on a shared computer can read them. They're still saved on your account and return when you sign in again.",
+    ],
+  },
+  {
     version: "0.101.0",
     date: "26 Oct 2026",
     changed: [

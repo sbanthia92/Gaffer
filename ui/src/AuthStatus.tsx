@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getAuthStatus, logout, type AuthStatus as AuthStatusData } from "./api";
+import { clearLocalChats } from "./storage";
 import "./AuthStatus.css";
 
 export default function AuthStatus() {
@@ -58,8 +59,10 @@ export default function AuthStatus() {
             role="menuitem"
             onClick={async () => {
               await logout();
-              setOpen(false);
-              setStatus({ authenticated: false });
+              // Chats merged in from the account live in localStorage too; wipe them
+              // and reload so no signed-in history stays on screen.
+              clearLocalChats();
+              window.location.reload();
             }}
           >
             Sign out

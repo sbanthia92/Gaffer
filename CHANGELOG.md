@@ -6,6 +6,10 @@ All notable changes to The Gaffer are documented here.
 
 ### Added
 - **Chip planner (`plan_chips` tool).** Answers "when should I play my Bench Boost / Triple Captain / Free Hit?" with a ranking instead of Claude eyeballing the schedule. For each chip the user still has, it scores every remaining gameweek in the current chip window (to GW19 in the first half, GW38 after the reset, so it reports `must_use_by_gw`) from the current squad's fixtures: points-per-game x fixture count x fixture ease (FDR) x availability. Bench Boost sums the current bench, Triple Captain is the best single player, Free Hit counts starters with no fixture. Returns the best 3 gameweeks per chip plus a per-gameweek breakdown (double-GW players, blank-GW starters, TC pick). Chips already spent in the window are reported as used. Wildcard timing is not covered. The scores use the current squad only and miss fixtures the FPL API holds at `event=null`, so the tool's `method` note and description tell Claude to cross-check the top gameweeks with `get_team_all_fixtures`.
+## [0.102.0] — 2026-10-26
+
+### Fixed
+- **Signing out left the account's chats on screen.** Server history is merged into the browser's `localStorage` for display, and sign-out only cleared the session cookie, so on a shared computer the next person could read the previous user's chats. Sign-out now clears the locally stored chats and reloads the page. Chats stay safe on the account and come back at the next sign-in. The same sign-out also drops any chats started anonymously in that browser that never reached the server.
 
 ## [0.101.0] — 2026-10-26
 
