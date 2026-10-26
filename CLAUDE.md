@@ -119,6 +119,12 @@ Schema laid down in `db/migrations/002_auth_tables.sql` (also appended to `db/sc
 
 **Still to come**: encrypted BYOK API-key storage gated on sign-in (Phase 3).
 
+## Roadmap (potential next features)
+Ordered roughly by effort-to-value. Not commitments — pick, then build as its own PR.
+- **Planned / half-built**: Google OAuth app + `public_base_url` (sign-in is non-functional in prod without them); BYOK encrypted API-key storage (Phase 3, see Auth); server-side `fpl_team_id` persistence on the `users` row (still `localStorage`-only); World Cup 2026 tools (`server/tools/` is FPL-only today).
+- **New features**: chip planner (best GW for BB/TC/FH using fixtures + the chip-reset rule); price-change predictor (transfer momentum from the hourly snapshots); mini-league rival analysis (differentials, captain overlap, from pre-fetched standings); injury/availability alerts for signed-in users (FPL `news` + `chance_of_playing_next_round`); multi-GW transfer planner with hit-cost; shareable read-only conversation links; paid tier raising `daily_question_limit` (`count_question` would need to read a plan).
+- **Quality / ops**: web-search spend and per-user question counts in `/admin`; run `scripts/eval_stale_knowledge.py` nightly against staging; run UI lint (`npx eslint .`) in CI.
+
 ## Streaming / X-Ray gotcha
 The FastAPI middleware ends the X-Ray segment as soon as `StreamingResponse` is returned — **before** the async generator starts yielding SSE events. Never put `xray_recorder.in_subsegment()` calls inside `_generate()` — they throw "Already ended segment" errors.
 
