@@ -15,6 +15,7 @@ from server.tools.fpl import (
     get_player_recent_form,
     get_player_stats,
     get_player_vs_opponent,
+    get_price_changes,
     get_standings,
     get_team_all_fixtures,
     get_team_recent_fixtures,
@@ -909,6 +910,7 @@ def test_tool_definitions_structure():
         "get_my_fpl_team",
         "get_chip_status",
         "plan_chips",
+        "get_price_changes",
         "get_gameweek_schedule",
         "get_fixtures",
         "get_standings",
@@ -1059,3 +1061,74 @@ async def test_plan_chips_returns_error_when_no_team_id():
         result = await plan_chips()
 
     assert "error" in result
+
+
+def _price_player(pid, name, tin, tout, owned, **extra):
+    return {
+        "id": pid,
+        "web_name": name,
+        "first_name": name,
+        "second_name": name,
+        "team": 1,
+        "element_type": 3,
+        "now_cost": 85,
+        "transfers_in_event": tin,
+        "transfers_out_event": tout,
+        "selected_by_percent": owned,
+        "status": "a",
+        **extra,
+    }
+
+
+async def _run_price_changes(elements, **kwargs):
+    from server.tools import fpl as fpl_mod
+
+    bootstrap = {
+        "events": [],
+        "teams": [{"id": 1, "name": "Arsenal", "short_name": "ARS"}],
+        "elements": elements,
+        "total_players": 10_000_000,
+    }
+    fpl_mod._bootstrap_cache = None
+    with respx.mock:
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=bootstrap)
+        )
+        return await get_price_changes(**kwargs)
+
+
+@pytest.mark.asyncio
+async def test_get_price_changes_ranks_by_share_of_owners_and_skips_low_volume():
+    elements = [
+        # 100k net on 10% owners (1M) = 10%
+        _price_player(1, "Big", 150_000, 50_000, "10.0"),
+        # 100k net on 50% owners (5M) = 2%: same volume, smaller share, ranks lower
+        _price_player(2, "Template", 120_000, 20_000, "50.0"),
+        # 400k out on 20% owners (2M) = -20%
+        _price_player(3, "Dumped", 0, 400_000, "20.0"),
+        # Below the volume floor: ignored in rankings despite a huge share
+        _price_player(4, "Tiny", 5_000, 0, "0.1"),
+        # Unavailable players are ignored
+        _price_player(5, "Gone", 900_000, 0, "5.0", status="u"),
+    ]
+    result = await _run_price_changes(elements)
+
+    assert [p["name"] for p in result["likely_risers"]] == ["Big", "Template"]
+    assert [p["name"] for p in result["likely_fallers"]] == ["Dumped"]
+    assert result["likely_risers"][0]["net_pct_of_owners"] == 10.0
+    assert result["likely_fallers"][0]["net_pct_of_owners"] == -20.0
+
+
+@pytest.mark.asyncio
+async def test_get_price_changes_direction_and_named_lookup():
+    elements = [
+        _price_player(1, "Big", 150_000, 50_000, "10.0", cost_change_event=1),
+        _price_player(3, "Dumped", 0, 400_000, "20.0"),
+    ]
+    rise = await _run_price_changes(elements, direction="rise")
+    assert "likely_fallers" not in rise
+
+    named = await _run_price_changes(elements, player_names=["Big", "Nobody"])
+    assert named["players"][0]["name"] == "Big"
+    assert named["players"][0]["price_change_this_gw"] == 0.1
+    assert named["not_found"] == ["Nobody"]

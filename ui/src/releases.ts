@@ -8,6 +8,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.104.0",
+    date: "26 Oct 2026",
+    added: [
+      "Price-change predictor: ask who's about to rise or fall in price, or whether to buy a player before he rises. Gaffer ranks players by how many managers are buying or selling them since the last deadline. It's momentum, not a guarantee, and prices only change overnight.",
+    ],
+  },
+  {
     version: "0.103.0",
     date: "26 Oct 2026",
     added: [
