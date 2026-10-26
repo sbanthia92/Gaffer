@@ -761,6 +761,11 @@ async def _fpl_tool_handler(
         "get_my_fpl_team": lambda i: fpl.get_my_fpl_team(team_id_override=fpl_team_id),
         "get_chip_status": lambda i: fpl.get_chip_status(team_id_override=fpl_team_id),
         "plan_chips": lambda i: fpl.plan_chips(team_id_override=fpl_team_id),
+        "analyse_mini_league": lambda i: fpl.analyse_mini_league(
+            league_id=i["league_id"],
+            rival_count=i.get("rival_count", 5),
+            team_id_override=fpl_team_id,
+        ),
         "get_price_changes": lambda i: fpl.get_price_changes(
             direction=i.get("direction", "both"),
             top_n=i.get("top_n", 10),

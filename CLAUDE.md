@@ -19,7 +19,7 @@ server/
   fpl_cache.py         # In-memory FPL bootstrap cache (player cards)
   logger.py            # Structured logging
   tools/
-    fpl.py             # All 17 FPL tool implementations
+    fpl.py             # All 18 FPL tool implementations
     db.py              # Internal DB utility (asyncpg pool + execute); NOT a Claude tool
 ui/                    # React + Vite + TypeScript frontend
 tests/                 # pytest; asyncio_mode = auto
@@ -104,6 +104,7 @@ Be accurate — don't use `feat:` for a bug fix just because it involves new cod
 - **Transfer rules**: position must be like-for-like (MID→MID only); always pass `position=` to `search_players_by_criteria` when finding replacements
 - **Chip planner**: `plan_chips` ranks the remaining GWs in the current chip window (to GW19 before the reset, GW38 after) for each available TC/BB/FH from the *current* squad's fixtures (`_gw_chip_metrics`: ppg x fixtures x FDR ease x availability). It is a heuristic ranking, not a prediction — it misses `event=null` rearranged fixtures and ignores future squad changes, so Claude must cross-check its top GWs with `get_team_all_fixtures`. Wildcard timing is deliberately out of scope. Not pre-fetched.
 - **Price changes**: `get_price_changes` ranks transfer momentum (net transfers since the deadline, and as a % of owners) from the live bootstrap, refetched when older than 5 min (`_get_bootstrap(max_age=)`). It is NOT a prediction — FPL's algorithm is undisclosed — and the prompt/tool description tell Claude never to state a move as fact. There is no transfer history: the hourly snapshot overwrites `players`, so trend-over-time or "progress to threshold" would need a new snapshot table first.
+- **Mini-league rivals**: `analyse_mini_league(league_id)` picks the managers ranked nearest the user in `/leagues-classic/{id}/standings/` (page 1 only, i.e. top 50), fetches current-GW picks for them and the user in one `asyncio.gather` (so at most 9 FPL requests, hence `_MAX_RIVALS = 8`), and diffs the starting XIs (`_compare_squads`). Compared squads are *current GW*, not next GW — it ignores transfers still to be made. Failed rival fetches go to `unavailable`, never an error. Not pre-fetched.
 - **Fixture source of truth**: `get_team_all_fixtures` wins over `get_gameweek_schedule` when they conflict
 - **Player search**: `search_players_by_criteria` returns `team` so Claude can disambiguate players sharing a surname
 - **Stale club knowledge**: the model's training data ends a season or more behind the live one, so it will describe clubs from memory (e.g. calling a side "newly promoted" a year late). The system prompt states today's date and a STALE CLUB KNOWLEDGE rule — club form/defence/league-position claims must come from tool results. Keep that rule when editing the prompt, and never hardcode club facts (promoted teams, managers) into it. Two things back the rule up: standings are pre-fetched so the model has current club facts in context, and `get_standings` returns `new_to_league_this_season` (this season's teams minus last season's `teams` rows; omitted when unknown) — the only basis on which Claude may call a club promoted. Run `python scripts/eval_stale_knowledge.py` (real `/fpl/ask` requests, costs tokens) after changing the prompt, the pre-fetch or `_MODEL`, and refresh its `TRAP_CLUBS` when the model's training cutoff moves.
@@ -127,7 +128,7 @@ Schema laid down in `db/migrations/002_auth_tables.sql` (also appended to `db/sc
 ## Roadmap (potential next features)
 Ordered roughly by effort-to-value. Not commitments — pick, then build as its own PR.
 - **Planned / half-built**: Google OAuth app + `public_base_url` (sign-in is non-functional in prod without them); BYOK encrypted API-key storage (Phase 3, see Auth); World Cup 2026 tools (`server/tools/` is FPL-only today).
-- **New features**: mini-league rival analysis (differentials, captain overlap, from pre-fetched standings); injury/availability alerts for signed-in users (FPL `news` + `chance_of_playing_next_round`); multi-GW transfer planner with hit-cost; shareable read-only conversation links; paid tier raising `daily_question_limit` (`count_question` would need to read a plan).
+- **New features**: injury/availability alerts for signed-in users (FPL `news` + `chance_of_playing_next_round`); multi-GW transfer planner with hit-cost; shareable read-only conversation links; paid tier raising `daily_question_limit` (`count_question` would need to read a plan).
 - **Quality / ops**: web-search spend and per-user question counts in `/admin`; run `scripts/eval_stale_knowledge.py` nightly against staging; run UI lint (`npx eslint .`) in CI.
 
 ## Streaming / X-Ray gotcha

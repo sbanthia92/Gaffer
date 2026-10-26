@@ -1159,6 +1159,137 @@ async def get_price_changes(
     return result
 
 
+_MAX_RIVALS = 8
+_LIST_CAP = 6
+
+
+def _compare_squads(mine: dict, rival: dict, names: dict[int, str]) -> dict:
+    """Starters each side owns that the other doesn't, plus captain/chip, for one rival."""
+
+    def starters(picks: dict) -> set[int]:
+        return {p["element"] for p in picks["picks"] if p["position"] <= 11}
+
+    def owned(picks: dict) -> set[int]:
+        return {p["element"] for p in picks["picks"]}
+
+    def captain(picks: dict) -> int | None:
+        return next((p["element"] for p in picks["picks"] if p["is_captain"]), None)
+
+    cap = captain(rival)
+    return {
+        "captain": names.get(cap),
+        "same_captain_as_you": cap is not None and cap == captain(mine),
+        "active_chip": rival.get("active_chip"),
+        "their_differentials": sorted(names[e] for e in starters(rival) - owned(mine))[:_LIST_CAP],
+        "your_differentials": sorted(names[e] for e in starters(mine) - owned(rival))[:_LIST_CAP],
+    }
+
+
+async def analyse_mini_league(
+    league_id: int, rival_count: int = 5, team_id_override: int | None = None
+) -> dict:
+    """
+    Compare the user's current gameweek squad with their closest mini-league rivals:
+    captain overlap, each rival's differentials, players the whole group owns that the
+    user doesn't, and the user's own unique picks.
+    """
+    team_id = team_id_override or settings.fpl_team_id
+    if not team_id:
+        return {"error": "FPL_TEAM_ID is not set in config."}
+    rival_count = min(max(rival_count, 1), _MAX_RIVALS)
+
+    client = _get_fpl_client()
+    bootstrap, standings_resp = await asyncio.gather(
+        _get_bootstrap(), client.get(f"/leagues-classic/{league_id}/standings/")
+    )
+    standings_resp.raise_for_status()
+    standings = standings_resp.json()
+
+    events = bootstrap["events"]
+    gw = next(
+        (e["id"] for e in events if e["is_current"]),
+        next((e["id"] for e in events if e["is_next"]), 1),
+    )
+    names = {p["id"]: p["web_name"] for p in bootstrap["elements"]}
+
+    results = standings.get("standings", {}).get("results", [])
+    me = next((r for r in results if r["entry"] == team_id), None)
+    others = [r for r in results if r["entry"] != team_id]
+    if me:
+        # The fight that matters is the managers just above and below you.
+        others.sort(key=lambda r: abs(r["rank"] - me["rank"]))
+    rivals = sorted(others[:rival_count], key=lambda r: r["rank"])
+    if not rivals:
+        return {"error": "No other managers found in that league."}
+
+    entries = [team_id, *(r["entry"] for r in rivals)]
+    responses = await asyncio.gather(
+        *(client.get(f"/entry/{e}/event/{gw}/picks/") for e in entries),
+        return_exceptions=True,
+    )
+    picks: dict[int, dict] = {}
+    for entry, resp in zip(entries, responses, strict=True):
+        if isinstance(resp, httpx.Response) and resp.status_code == 200:
+            picks[entry] = resp.json()
+    if team_id not in picks:
+        return {"error": f"Could not fetch your GW{gw} picks."}
+
+    mine = picks[team_id]
+    compared = []
+    unavailable = []
+    for r in rivals:
+        if r["entry"] not in picks:
+            unavailable.append(r.get("player_name"))
+            continue
+        compared.append(
+            {
+                "manager": r.get("player_name"),
+                "team_name": r.get("entry_name"),
+                "rank": r.get("rank"),
+                "points_vs_you": (r.get("total") or 0) - (me.get("total") or 0) if me else None,
+                **_compare_squads(mine, picks[r["entry"]], names),
+            }
+        )
+
+    rival_picks = [picks[r["entry"]] for r in rivals if r["entry"] in picks]
+    my_starters = {p["element"] for p in mine["picks"] if p["position"] <= 11}
+    my_owned = {p["element"] for p in mine["picks"]}
+    owners: dict[int, int] = {}
+    for rp in rival_picks:
+        for el in {p["element"] for p in rp["picks"] if p["position"] <= 11}:
+            owners[el] = owners.get(el, 0) + 1
+    majority = len(rival_picks) / 2
+    rival_squads = [{p["element"] for p in rp["picks"]} for rp in rival_picks]
+
+    return {
+        "league_name": standings.get("league", {}).get("name"),
+        "gameweek": gw,
+        "your_rank": me.get("rank") if me else None,
+        "your_captain": names.get(
+            next((p["element"] for p in mine["picks"] if p["is_captain"]), None)
+        ),
+        "rivals": compared,
+        "rivals_with_same_captain": sum(1 for c in compared if c["same_captain_as_you"]),
+        "owned_by_most_rivals_not_you": sorted(
+            names[e] for e, n in owners.items() if n > majority and e not in my_owned
+        )[:_LIST_CAP],
+        "your_unique_starters": sorted(
+            names[e] for e in my_starters if not any(e in sq for sq in rival_squads)
+        )[:_LIST_CAP],
+        **({"unavailable": unavailable} if unavailable else {}),
+        "note": (
+            "Compared on current-gameweek squads; the top 50 of the league table is the "
+            "most that is checked. A differential is a starter one side owns and the other "
+            "doesn't. When ahead protect with shared picks, when chasing back differentials."
+            + (
+                ""
+                if me
+                else " You were not in the checked part of the table, so rivals are the leaders."
+            )
+        ),
+    }
+
+
 # Tool definitions in Anthropic tool-use format.
 async def get_mini_league_standings(league_id: int, top_n: int = 20) -> dict:
     """Fetch standings for a classic FPL mini-league by ID."""
@@ -1635,6 +1766,33 @@ TOOL_DEFINITIONS = [
                 },
             },
             "required": [],
+        },
+    },
+    {
+        "name": "analyse_mini_league",
+        "description": (
+            "Compare the user's squad with their closest rivals in a classic mini-league: "
+            "who shares their captain, each rival's differentials (starters the user lacks), "
+            "the user's own differentials, players most rivals own that the user doesn't, "
+            "and the points gap to each rival. Call for 'how do I catch / hold off my "
+            "rivals', 'differentials in my league' or captain choice in a league context. "
+            "The league_id comes from my_leagues in get_my_fpl_team. Rivals are the managers "
+            "ranked nearest the user."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "league_id": {
+                    "type": "integer",
+                    "description": "Classic league id (my_leagues[].id from get_my_fpl_team).",
+                },
+                "rival_count": {
+                    "type": "integer",
+                    "description": "Rivals to compare against (1-8). Defaults to 5.",
+                    "default": 5,
+                },
+            },
+            "required": ["league_id"],
         },
     },
     {

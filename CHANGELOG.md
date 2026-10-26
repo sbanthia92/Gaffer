@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.107.0] — 2026-10-26
+
+### Added
+- **Mini-league rival analysis (`analyse_mini_league` tool).** Answers "how do I catch / hold off my rivals?" and "what are my differentials?". Given a classic league id (from `my_leagues` in `get_my_fpl_team`), it takes the managers ranked nearest the user (`rival_count`, default 5, max 8; the league leaders when the user isn't in the top 50 of the table), fetches everyone's current-GW picks concurrently, and returns per rival: rank, points gap to the user, captain, whether it matches the user's captain, active chip, and each side's differentials (starters the other doesn't own, capped at 6). Group-level it adds `rivals_with_same_captain`, `owned_by_most_rivals_not_you` and `your_unique_starters`. A rival whose picks can't be fetched (private or not yet published) is listed under `unavailable` instead of failing the call. No new tables or settings.
+
 ## [0.106.0] — 2026-10-26
 
 ### Added
