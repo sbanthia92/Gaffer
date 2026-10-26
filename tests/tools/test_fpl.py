@@ -18,6 +18,7 @@ from server.tools.fpl import (
     get_standings,
     get_team_all_fixtures,
     get_team_recent_fixtures,
+    plan_chips,
     search_players_by_criteria,
 )
 
@@ -907,6 +908,7 @@ def test_tool_definitions_structure():
     assert names == {
         "get_my_fpl_team",
         "get_chip_status",
+        "plan_chips",
         "get_gameweek_schedule",
         "get_fixtures",
         "get_standings",
@@ -925,3 +927,135 @@ def test_tool_definitions_structure():
         assert "name" in tool
         assert "description" in tool
         assert "input_schema" in tool
+
+
+def _chip_squad() -> list[dict]:
+    def p(name, team, mult, ppg="5.0", status="a"):
+        return {
+            "web_name": name,
+            "name": name,
+            "team": team,
+            "multiplier": mult,
+            "points_per_game": ppg,
+            "status": status,
+        }
+
+    return [
+        p("Salah", "Liverpool", 2, "8.0"),
+        p("Saka", "Arsenal", 1, "6.0"),
+        p("Benchy", "Arsenal", 0, "4.0"),
+        p("Spare", "Chelsea", 0, "3.0"),
+        p("Hurt", "Chelsea", 1, "9.0", status="i"),
+    ]
+
+
+def _chip_status_result(current_gw: int, tc=True, bb=True, fh=True) -> dict:
+    def chip(avail):
+        return {"available": avail, "used_in_gw": None if avail else 5}
+
+    return {
+        "current_gameweek": current_gw,
+        "chips": {
+            "triple_captain": chip(tc),
+            "bench_boost": chip(bb),
+            "free_hit": chip(fh),
+        },
+    }
+
+
+async def _run_plan_chips(events, fixtures, chip_status):
+    from server.tools import fpl as fpl_mod
+
+    bootstrap = {
+        "events": events,
+        "teams": [
+            {"id": 1, "name": "Arsenal", "short_name": "ARS"},
+            {"id": 2, "name": "Chelsea", "short_name": "CHE"},
+            {"id": 3, "name": "Liverpool", "short_name": "LIV"},
+        ],
+        "elements": [],
+    }
+    fpl_mod._bootstrap_cache = None
+    with (
+        respx.mock,
+        patch(
+            "server.tools.fpl.get_my_fpl_team",
+            new=AsyncMock(return_value={"squad": _chip_squad()}),
+        ),
+        patch("server.tools.fpl.get_chip_status", new=AsyncMock(return_value=chip_status)),
+    ):
+        respx.get(f"{_FPL_BASE}/bootstrap-static/").mock(
+            return_value=httpx.Response(200, json=bootstrap)
+        )
+        respx.get(f"{_FPL_BASE}/fixtures/").mock(return_value=httpx.Response(200, json=fixtures))
+        return await plan_chips()
+
+
+def _fx(gw, h, a, hd=3, ad=3):
+    return {"event": gw, "team_h": h, "team_a": a, "team_h_difficulty": hd, "team_a_difficulty": ad}
+
+
+@pytest.mark.asyncio
+async def test_plan_chips_ranks_double_gw_for_bench_boost_and_blank_for_free_hit():
+    events = [{"id": gw, "finished": gw < 10} for gw in range(8, 13)]
+    fixtures = [
+        # GW10: Arsenal plays twice (bench player Benchy doubles), Chelsea blanks
+        _fx(10, 1, 3),
+        _fx(10, 3, 1),
+        # GW11: Arsenal and Chelsea play once each
+        _fx(11, 1, 2),
+    ]
+    result = await _run_plan_chips(events, fixtures, _chip_status_result(10))
+
+    assert result["window"] == {"from": 10, "to": 19}
+    bb = result["chips"]["bench_boost"]["best_gameweeks"]
+    assert bb[0]["gameweek"] == 10
+    fh = result["chips"]["free_hit"]["best_gameweeks"]
+    # GW10: Chelsea blank -> injured Hurt is a non-benched starter with no fixture
+    assert fh[0]["gameweek"] == 10 and fh[0]["score"] == 1
+    gw10 = next(g for g in result["gameweeks"] if g["gameweek"] == 10)
+    assert "Benchy" in gw10["double_gw_players"]
+    assert "Hurt" in gw10["blank_gw_starters"]
+    # GW12 has no fixtures yet, so it is not scored
+    assert all(g["gameweek"] != 12 for g in result["gameweeks"])
+    assert result["chips"]["triple_captain"]["must_use_by_gw"] == 19
+
+
+@pytest.mark.asyncio
+async def test_plan_chips_triple_captain_ignores_injured_and_picks_best_player():
+    events = [{"id": 10, "finished": False}]
+    fixtures = [_fx(10, 3, 2), _fx(10, 1, 2)]
+    result = await _run_plan_chips(events, fixtures, _chip_status_result(10))
+
+    gw = result["gameweeks"][0]
+    # Hurt has the highest ppg but is injured, so Salah is the pick
+    assert gw["triple_captain_pick"] == "Salah"
+
+
+@pytest.mark.asyncio
+async def test_plan_chips_second_half_window_and_used_chips():
+    events = [{"id": gw, "finished": gw < 25} for gw in range(24, 30)]
+    fixtures = [_fx(26, 1, 2)]
+    status = _chip_status_result(25, tc=False)
+    result = await _run_plan_chips(events, fixtures, status)
+
+    assert result["window"] == {"from": 25, "to": 38}
+    assert result["chips"]["triple_captain"] == {"available": False, "used_in_gw": 5}
+    assert result["chips"]["bench_boost"]["must_use_by_gw"] == 38
+
+
+@pytest.mark.asyncio
+async def test_plan_chips_returns_error_when_no_team_id():
+    with (
+        patch(
+            "server.tools.fpl.get_my_fpl_team",
+            new=AsyncMock(return_value={"error": "FPL_TEAM_ID is not set in config."}),
+        ),
+        patch(
+            "server.tools.fpl.get_chip_status",
+            new=AsyncMock(return_value={"error": "FPL_TEAM_ID is not set in config."}),
+        ),
+    ):
+        result = await plan_chips()
+
+    assert "error" in result
