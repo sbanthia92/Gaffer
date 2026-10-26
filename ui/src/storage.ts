@@ -1,8 +1,9 @@
-import type { ServerConversation } from "./api";
+import { getAuthStatus, saveServerFplTeamId, type ServerConversation } from "./api";
 import type { ChatSession, Message } from "./types";
 
 const SESSIONS_KEY = "gaffer_sessions";
 const ACTIVE_SESSION_KEY = "gaffer_active_session";
+const FPL_TEAM_ID_KEY = "gaffer_fpl_team_id";
 
 function cleanSession(session: ChatSession): ChatSession {
   let msgs = session.messages;
@@ -81,11 +82,41 @@ export function saveSessions(sessions: ChatSession[]): void {
   localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
 }
 
-/** Remove every locally stored chat. Called on sign-out so a shared computer keeps nothing. */
+export function loadFplTeamId(): number | null {
+  const raw = localStorage.getItem(FPL_TEAM_ID_KEY);
+  const n = raw ? parseInt(raw, 10) : NaN;
+  return isNaN(n) ? null : n;
+}
+
+/** Remember the team ID in this browser and, when signed in, on the account. */
+export function saveFplTeamId(id: number): void {
+  localStorage.setItem(FPL_TEAM_ID_KEY, String(id));
+  void saveServerFplTeamId(id);
+}
+
+/**
+ * Reconcile this browser's team ID with the signed-in account's. The account wins when
+ * it has one (so a new device picks it up); otherwise a locally stored ID is pushed up
+ * so existing users keep theirs. Signed out, the local value is returned untouched.
+ */
+export async function syncFplTeamId(): Promise<number | null> {
+  const local = loadFplTeamId();
+  const status = await getAuthStatus().catch(() => null);
+  if (!status?.authenticated) return local;
+  if (status.fpl_team_id) {
+    if (status.fpl_team_id !== local) localStorage.setItem(FPL_TEAM_ID_KEY, String(status.fpl_team_id));
+    return status.fpl_team_id;
+  }
+  if (local) await saveServerFplTeamId(local);
+  return local;
+}
+
+/** Remove the chats and team ID stored in this browser. Called on sign-out so a shared computer keeps nothing; both come back from the account at the next sign-in. */
 export function clearLocalChats(): void {
   try {
     localStorage.removeItem(SESSIONS_KEY);
     localStorage.removeItem(ACTIVE_SESSION_KEY);
+    localStorage.removeItem(FPL_TEAM_ID_KEY);
   } catch {
     // storage unavailable — nothing to clear
   }

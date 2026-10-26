@@ -142,6 +142,7 @@ export interface AuthStatus {
   authenticated: boolean;
   email?: string;
   name?: string;
+  fpl_team_id?: number;
 }
 
 export async function getAuthStatus(): Promise<AuthStatus> {
@@ -150,6 +151,16 @@ export async function getAuthStatus(): Promise<AuthStatus> {
   });
   if (!res.ok) return { authenticated: false };
   return res.json();
+}
+
+/** Best-effort: stores the team ID on the signed-in account (401 and failures are ignored). */
+export async function saveServerFplTeamId(fplTeamId: number): Promise<void> {
+  await fetch(`${BASE_URL}/api/fpl/team-id`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fpl_team_id: fplTeamId }),
+  }).catch(() => {});
 }
 
 export interface ServerConversation {

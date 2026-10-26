@@ -532,7 +532,8 @@ CREATE TABLE IF NOT EXISTS users (
     email          TEXT NOT NULL,
     name           TEXT,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    last_login_at  TIMESTAMPTZ
+    last_login_at  TIMESTAMPTZ,
+    fpl_team_id    INT
 );
 
 CREATE TABLE IF NOT EXISTS device_tokens (

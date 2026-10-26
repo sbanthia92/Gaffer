@@ -71,6 +71,20 @@ async def get_or_create_user(google_sub: str, email: str, name: str) -> int:
         return row["id"]
 
 
+async def get_user_fpl_team_id(user_id: int) -> int | None:
+    if _pool is None:
+        return None
+    async with _pool.acquire() as conn:
+        return await conn.fetchval("SELECT fpl_team_id FROM users WHERE id = $1", user_id)
+
+
+async def set_user_fpl_team_id(user_id: int, fpl_team_id: int) -> None:
+    if _pool is None:
+        raise RuntimeError("DATABASE_APP_URL is not configured — saving a team ID requires it.")
+    async with _pool.acquire() as conn:
+        await conn.execute("UPDATE users SET fpl_team_id = $1 WHERE id = $2", fpl_team_id, user_id)
+
+
 async def merge_device_into_user(device_token: str, user_id: int) -> None:
     """Link an anonymous device to the account it just signed into."""
     if _pool is None:
