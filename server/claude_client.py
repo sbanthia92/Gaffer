@@ -52,6 +52,7 @@ _TOOL_LABELS: dict[str, str] = {
     "get_my_fpl_team": "Fetching your FPL squad…",
     "get_chip_status": "Checking your chip availability…",
     "plan_chips": "Planning your chips…",
+    "get_price_changes": "Checking price-change momentum…",
     "get_gameweek_schedule": "Loading gameweek schedule…",
     "get_fixtures": "Checking upcoming fixtures…",
     "get_standings": "Fetching league standings…",
@@ -231,6 +232,7 @@ def _build_system_prompt(league: str, fpl_team_id: int | None = None) -> str:
         "- Recent GW points, CS, bonus, minutes per GW → get_player_recent_form (live FPL data)\n"
         "- Your FPL squad, chips, free transfers → get_my_fpl_team, get_chip_status (live)\n"
         "- When to play Triple Captain / Bench Boost / Free Hit → plan_chips (live)\n"
+        "- Who is about to rise or fall in price → get_price_changes (live)\n"
         "- Next fixtures → get_fixtures (live)\n"
         "- Expected points for next GW, transfer ranking, start/bench decisions → get_player_xpts\n"
         "- Anything needing both: call live tools first, then query_historical_stats for history\n\n"  # noqa: E501

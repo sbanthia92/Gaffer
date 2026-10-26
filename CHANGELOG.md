@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.104.0] — 2026-10-26
+
+### Added
+- **Price-change predictor (`get_price_changes` tool).** Answers "who is about to rise or fall?" and "should I buy X before he rises?". Ranks players by transfer pressure since the last deadline: net transfers (in minus out) and that net as a % of the player's owners (from `selected_by_percent` x `total_players`). Returns `likely_risers` / `likely_fallers` (each side `top_n`, default 10, skipping unavailable players and anything under 10,000 net transfers so a tiny ownership base can't top the list), or the named players' figures when `player_names` is passed, with `not_found` for unknown names. Each entry carries the price change already made this GW and this season. FPL's price algorithm is undisclosed, so the tool's `note` and description frame it as momentum, not a prediction. It reads the live bootstrap with a 5-minute freshness window (`_get_bootstrap(max_age=...)`) instead of the 1-hour cache, because transfer counts move fast. No history is stored: the hourly snapshot overwrites the `players` row, so the tool cannot yet say how far a player is along a trend.
+
 ## [0.103.0] — 2026-10-26
 
 ### Added

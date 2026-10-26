@@ -730,9 +730,9 @@ _bootstrap_ts: float = 0
 _BOOTSTRAP_TTL = 3600  # 1 hour
 
 
-async def _get_bootstrap() -> dict:
+async def _get_bootstrap(max_age: float = _BOOTSTRAP_TTL) -> dict:
     global _bootstrap_cache, _bootstrap_ts
-    if _bootstrap_cache is None or _time.monotonic() - _bootstrap_ts > _BOOTSTRAP_TTL:
+    if _bootstrap_cache is None or _time.monotonic() - _bootstrap_ts > max_age:
         r = await _get_fpl_client().get("/bootstrap-static/")
         r.raise_for_status()
         _bootstrap_cache = r.json()
@@ -1084,6 +1084,79 @@ async def plan_chips(team_id_override: int | None = None) -> dict:
             "gameweek shift the numbers."
         ),
     }
+
+
+# Price moves need real volume: below this net transfer count a % of a tiny ownership base
+# is noise, so unnamed rankings skip the player.
+_MIN_NET_TRANSFERS = 10_000
+_PRICE_DATA_MAX_AGE = 300  # transfer counts move fast; refetch rather than use the 1h cache
+
+
+async def get_price_changes(
+    direction: str = "both", top_n: int = 10, player_names: list[str] | None = None
+) -> dict:
+    """
+    Rank players by transfer pressure behind a price move since the last deadline.
+    FPL's price algorithm is not public, so this is momentum (net transfers, absolute and
+    as a share of owners), not a prediction of exactly who moves tonight.
+    """
+    data = await _get_bootstrap(max_age=_PRICE_DATA_MAX_AGE)
+    elements = data.get("elements", [])
+    teams = {t["id"]: t["short_name"] for t in data.get("teams", [])}
+    total_players = data.get("total_players") or 0
+
+    def summarise(p: dict) -> dict:
+        net = (p.get("transfers_in_event") or 0) - (p.get("transfers_out_event") or 0)
+        owners = float(p.get("selected_by_percent") or 0) / 100 * total_players
+        entry = {
+            "name": p["web_name"],
+            "team": teams.get(p["team"], ""),
+            "position": _POSITION_MAP.get(p.get("element_type"), ""),
+            "price": p["now_cost"] / 10,
+            "ownership_pct": float(p.get("selected_by_percent") or 0),
+            "transfers_in": p.get("transfers_in_event") or 0,
+            "transfers_out": p.get("transfers_out_event") or 0,
+            "net_transfers": net,
+            "price_change_this_gw": (p.get("cost_change_event") or 0) / 10,
+            "price_change_this_season": (p.get("cost_change_start") or 0) / 10,
+            "status": p.get("status"),
+        }
+        if owners:
+            entry["net_pct_of_owners"] = round(net / owners * 100, 2)
+        return entry
+
+    note = (
+        "Net transfers since the last deadline, from FPL's live data. FPL's price "
+        "algorithm is undisclosed and prices change once overnight, so treat this as "
+        "momentum, not a guarantee. Bigger net_transfers and net_pct_of_owners = more "
+        "pressure; a player already moved today (price_change_this_gw != 0) has "
+        "partly released it."
+    )
+
+    if player_names:
+        found, not_found = [], []
+        for name in player_names:
+            el = _find_player(elements, name)
+            (found if el else not_found).append(summarise(el) if el else name)
+        result: dict = {"players": found, "note": note}
+        if not_found:
+            result["not_found"] = not_found
+        return result
+
+    movers = [summarise(p) for p in elements if p.get("status") != "u"]
+    movers = [m for m in movers if abs(m["net_transfers"]) >= _MIN_NET_TRANSFERS]
+
+    def top(rising: bool) -> list[dict]:
+        side = [m for m in movers if (m["net_transfers"] > 0) == rising]
+        side.sort(key=lambda m: abs(m.get("net_pct_of_owners", 0)), reverse=True)
+        return side[:top_n]
+
+    result = {"note": note}
+    if direction in ("rise", "both"):
+        result["likely_risers"] = top(True)
+    if direction in ("fall", "both"):
+        result["likely_fallers"] = top(False)
+    return result
 
 
 # Tool definitions in Anthropic tool-use format.
@@ -1530,6 +1603,39 @@ TOOL_DEFINITIONS = [
             "top gameweeks with get_team_all_fixtures. Wildcard timing is not covered."
         ),
         "input_schema": {"type": "object", "properties": {}, "required": []},
+    },
+    {
+        "name": "get_price_changes",
+        "description": (
+            "Get FPL price-change momentum: which players have the most net transfers in or "
+            "out since the last deadline (absolute and as a % of owners) and so are most "
+            "likely to rise or fall in price overnight. Call for 'who is about to rise/fall', "
+            "'should I buy X before he rises', or to time a transfer. Pass player_names to "
+            "check specific players (e.g. the user's squad or targets). This is a momentum "
+            "ranking, not a certain prediction — say so, and never state a price move as fact."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "direction": {
+                    "type": "string",
+                    "enum": ["rise", "fall", "both"],
+                    "description": "Which side to rank. Defaults to both.",
+                    "default": "both",
+                },
+                "top_n": {
+                    "type": "integer",
+                    "description": "Players per side. Defaults to 10.",
+                    "default": 10,
+                },
+                "player_names": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Check these players instead of ranking the whole game.",
+                },
+            },
+            "required": [],
+        },
     },
     {
         "name": "get_gameweek_schedule",
