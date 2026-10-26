@@ -957,6 +957,135 @@ async def get_gameweek_schedule(next_n: int = 8) -> dict:
         return result
 
 
+# Last gameweek of the first chip half; TC/BB/FH unused by then are lost at the reset.
+_CHIP_RESET_GW = 19
+_LAST_GW = 38
+
+
+def _fixture_ease(difficulty: int | None) -> float:
+    """FDR 3 = 1.0; easier fixtures weigh more, harder less."""
+    return (6 - difficulty) / 3 if difficulty else 1.0
+
+
+def _availability(player: dict, first_gw: bool) -> float:
+    status = player.get("status")
+    if status in ("i", "s", "u"):
+        return 0.0
+    chance = player.get("chance_of_playing_this_round")
+    if status == "d" and first_gw and chance is not None:
+        return chance / 100
+    return 1.0
+
+
+def _gw_chip_metrics(
+    squad: list[dict], team_ids: dict[str, int], gw_fixtures: list[dict], first_gw: bool
+) -> dict:
+    """Score one gameweek for TC / BB / FH from the squad's fixtures that week."""
+    difficulties: dict[int, list] = {}
+    for f in gw_fixtures:
+        difficulties.setdefault(f["team_h"], []).append(f.get("team_h_difficulty"))
+        difficulties.setdefault(f["team_a"], []).append(f.get("team_a_difficulty"))
+
+    rows = []
+    for p in squad:
+        diffs = difficulties.get(team_ids.get(p.get("team") or ""), [])
+        ppg = float(p.get("points_per_game") or 0)
+        score = ppg * sum(_fixture_ease(d) for d in diffs) * _availability(p, first_gw)
+        rows.append(
+            {
+                "name": p.get("web_name") or p.get("name"),
+                "fixtures": len(diffs),
+                "benched": p.get("multiplier") == 0,
+                "score": round(score, 2),
+            }
+        )
+
+    best = max(rows, key=lambda r: r["score"], default=None)
+    return {
+        "bench_boost_score": round(sum(r["score"] for r in rows if r["benched"]), 2),
+        "triple_captain_score": best["score"] if best else 0,
+        "triple_captain_pick": best["name"] if best else None,
+        "free_hit_score": sum(1 for r in rows if not r["benched"] and r["fixtures"] == 0),
+        "double_gw_players": [r["name"] for r in rows if r["fixtures"] >= 2],
+        "blank_gw_starters": [r["name"] for r in rows if not r["benched"] and r["fixtures"] == 0],
+    }
+
+
+async def plan_chips(team_id_override: int | None = None) -> dict:
+    """
+    Rank the remaining gameweeks in the current chip window for the user's available
+    Triple Captain, Bench Boost and Free Hit, from their current squad's fixtures.
+    """
+    squad_data, chip_data = await asyncio.gather(
+        get_my_fpl_team(team_id_override), get_chip_status(team_id_override)
+    )
+    for data in (squad_data, chip_data):
+        if "error" in data:
+            return data
+
+    bootstrap = await _get_bootstrap()
+    events = bootstrap["events"]
+    team_ids = {t["name"]: t["id"] for t in bootstrap["teams"]}
+    upcoming = [e["id"] for e in events if not e.get("finished")]
+    if not upcoming:
+        return {"error": "No gameweeks left this season."}
+    window_end = _CHIP_RESET_GW if upcoming[0] <= _CHIP_RESET_GW else _LAST_GW
+    horizon = [gw for gw in upcoming if gw <= window_end]
+
+    fixtures_resp = await _get_fpl_client().get("/fixtures/")
+    fixtures_resp.raise_for_status()
+    fixtures_by_gw: dict[int, list] = {}
+    for f in fixtures_resp.json():
+        if f.get("event") is not None:
+            fixtures_by_gw.setdefault(f["event"], []).append(f)
+
+    # Free Hit active: the visible squad is temporary, plan from the one that returns.
+    squad = squad_data.get("original_squad") or squad_data["squad"]
+    gameweeks = {
+        gw: {
+            "gameweek": gw,
+            **_gw_chip_metrics(squad, team_ids, fixtures_by_gw[gw], gw == horizon[0]),
+        }
+        for gw in horizon
+        if gw in fixtures_by_gw
+    }
+
+    chips_in = chip_data["chips"]
+    score_keys = {
+        "triple_captain": "triple_captain_score",
+        "bench_boost": "bench_boost_score",
+        "free_hit": "free_hit_score",
+    }
+    chips: dict[str, dict] = {}
+    for chip, key in score_keys.items():
+        status = chips_in[chip]
+        if not status["available"]:
+            chips[chip] = {"available": False, "used_in_gw": status["used_in_gw"]}
+            continue
+        ranked = sorted(gameweeks.values(), key=lambda g: g[key], reverse=True)
+        chips[chip] = {
+            "available": True,
+            "must_use_by_gw": window_end,
+            "best_gameweeks": [{"gameweek": g["gameweek"], "score": g[key]} for g in ranked[:3]],
+        }
+
+    return {
+        "current_gameweek": chip_data["current_gameweek"],
+        "window": {"from": horizon[0], "to": window_end},
+        "chips": chips,
+        "gameweeks": list(gameweeks.values()),
+        "method": (
+            "Scores use the CURRENT squad only: points-per-game x number of fixtures x "
+            "fixture ease x availability. Bench Boost sums the current bench; Triple "
+            "Captain is the best single player; Free Hit counts starters with no fixture. "
+            "Higher is better. Fixtures the FPL API holds at event=null (rearranged) are "
+            "missing, so verify any double or blank with get_team_all_fixtures. Treat as "
+            "a ranking to sanity-check, not a guarantee: squad changes before the chosen "
+            "gameweek shift the numbers."
+        ),
+    }
+
+
 # Tool definitions in Anthropic tool-use format.
 async def get_mini_league_standings(league_id: int, top_n: int = 20) -> dict:
     """Fetch standings for a classic FPL mini-league by ID."""
@@ -1388,6 +1517,19 @@ TOOL_DEFINITIONS = [
             "properties": {},
             "required": [],
         },
+    },
+    {
+        "name": "plan_chips",
+        "description": (
+            "Rank the remaining gameweeks in the current chip window for the user's available "
+            "Triple Captain, Bench Boost and Free Hit chips, based on their squad's double and "
+            "blank gameweeks and fixture difficulty. Returns the best 3 gameweeks per chip, "
+            "a per-gameweek breakdown and the GW by which each chip must be used. "
+            "Call this for 'when should I use my chip', 'best gameweek for Bench Boost / "
+            "Triple Captain / Free Hit' or chip-strategy questions, then cross-check the "
+            "top gameweeks with get_team_all_fixtures. Wildcard timing is not covered."
+        ),
+        "input_schema": {"type": "object", "properties": {}, "required": []},
     },
     {
         "name": "get_gameweek_schedule",

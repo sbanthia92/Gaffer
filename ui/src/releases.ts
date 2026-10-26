@@ -8,6 +8,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.103.0",
+    date: "26 Oct 2026",
+    added: [
+      "Chip planner: ask when to play your Bench Boost, Triple Captain or Free Hit and Gaffer ranks the best gameweeks for each chip you still have, based on your squad's double and blank gameweeks and fixture difficulty.",
+    ],
+  },
+  {
     version: "0.101.0",
     date: "26 Oct 2026",
     changed: [
