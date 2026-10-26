@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.102.0] — 2026-10-26
+
+### Fixed
+- **Signing out left the account's chats on screen.** Server history is merged into the browser's `localStorage` for display, and sign-out only cleared the session cookie, so on a shared computer the next person could read the previous user's chats. Sign-out now clears the locally stored chats and reloads the page. Chats stay safe on the account and come back at the next sign-in. The same sign-out also drops any chats started anonymously in that browser that never reached the server.
+
 ## [0.101.0] — 2026-10-26
 
 ### Fixed
