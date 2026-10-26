@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [1.0.0] — 2026-10-26
+
+### Changed
+- **`CLAUDE.md` gains a Roadmap section** listing potential next features (planned work, new features, quality/ops) so future sessions can pick from a shared list. Docs only, no behaviour change.
+
 ## [0.99.0] — 2026-10-22
 
 ### Fixed
