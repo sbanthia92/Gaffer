@@ -481,3 +481,45 @@ def test_group_conversation_rows_folds_messages_into_threads() -> None:
         ],
     }
     assert len(grouped[1]["messages"]) == 1
+
+
+def test_auth_me_includes_saved_fpl_team_id() -> None:
+    with patch("server.main.app_db.get_user_fpl_team_id", new=AsyncMock(return_value=4321)):
+        body = _signed_in_client(user_id=42).get("/auth/me").json()
+    assert body["authenticated"] is True
+    assert body["fpl_team_id"] == 4321
+
+
+def test_auth_me_omits_team_id_when_unset_or_read_fails() -> None:
+    with patch("server.main.app_db.get_user_fpl_team_id", new=AsyncMock(return_value=None)):
+        assert "fpl_team_id" not in _signed_in_client().get("/auth/me").json()
+
+    # The column may not exist yet (migration 006) — sign-in status must still work.
+    with patch(
+        "server.main.app_db.get_user_fpl_team_id", new=AsyncMock(side_effect=RuntimeError("boom"))
+    ):
+        body = _signed_in_client().get("/auth/me").json()
+    assert body["authenticated"] is True
+    assert "fpl_team_id" not in body
+
+
+def test_save_team_id_requires_sign_in() -> None:
+    with patch("server.main.app_db.set_user_fpl_team_id", new=AsyncMock()) as mock_set:
+        response = TestClient(app).put("/fpl/team-id", json={"fpl_team_id": 4321})
+    assert response.status_code == 401
+    mock_set.assert_not_awaited()
+
+
+def test_save_team_id_stores_it_for_the_signed_in_user() -> None:
+    with patch("server.main.app_db.set_user_fpl_team_id", new=AsyncMock()) as mock_set:
+        response = _signed_in_client(user_id=42).put("/fpl/team-id", json={"fpl_team_id": 4321})
+    assert response.json() == {"status": "ok"}
+    mock_set.assert_awaited_once_with(42, 4321)
+
+
+@pytest.mark.parametrize("bad", [0, -5, "abc"])
+def test_save_team_id_rejects_invalid_ids(bad) -> None:
+    with patch("server.main.app_db.set_user_fpl_team_id", new=AsyncMock()) as mock_set:
+        response = _signed_in_client().put("/fpl/team-id", json={"fpl_team_id": bad})
+    assert response.status_code == 422
+    mock_set.assert_not_awaited()
