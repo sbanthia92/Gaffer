@@ -85,6 +85,7 @@ Every PR — no matter how small — must include all four of these:
 Be accurate — don't use `feat:` for a bug fix just because it involves new code.
 
 ## Code rules
+- Tests: `tests/test_main.py` shares one module-level `TestClient`, so its cookie jar persists across tests — `client.cookies.clear()` before setting a cookie by hand. Dependencies are unpinned (`fastapi>=`), so CI can resolve newer Starlette than a local venv; a test that passes locally and fails in CI → rebuild a fresh venv to reproduce.
 - Line length: 100 chars (`ruff` enforces this)
 - Config via `settings` only — never `os.environ` directly, never hardcode keys
 - Mock all external calls in tests — never hit real APIs

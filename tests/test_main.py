@@ -78,6 +78,9 @@ def test_fpl_ask_sets_device_cookie() -> None:
 
 
 def test_fpl_ask_reuses_existing_device_cookie() -> None:
+    # The shared client's jar still holds the cookie an earlier test received; a second
+    # gaffer_device cookie would make the request ambiguous.
+    client.cookies.clear()
     client.cookies.set("gaffer_device", "existing-token-value")
     try:
         with patch(

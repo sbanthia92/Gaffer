@@ -8,6 +8,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.101.0",
+    date: "26 Oct 2026",
+    changed: [
+      "Internal: fixed a test that failed in CI. No change to how Gaffer behaves.",
+    ],
+  },
+  {
     version: "0.100.0",
     date: "26 Oct 2026",
     changed: [
