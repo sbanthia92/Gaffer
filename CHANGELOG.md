@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.101.0] — 2026-10-26
+
+### Fixed
+- **`test_fpl_ask_reuses_existing_device_cookie` failed in CI.** The module-level `TestClient` keeps the cookie `test_fpl_ask_sets_device_cookie` received, so the reuse test sent two `gaffer_device` cookies. Starlette 0.x/1.0 used the test's value, 1.10 (pulled in by the unpinned `fastapi>=0.115.0`) uses the server-set one, so the test failed deterministically in CI while passing on an older local venv. The test now clears the jar first. Test-only, no behaviour change.
+
 ## [0.100.0] — 2026-10-26
 
 ### Changed
