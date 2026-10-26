@@ -8,6 +8,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.106.0",
+    date: "26 Oct 2026",
+    added: [
+      "Your FPL Team ID now follows your account. Sign in on a new device and Gaffer already knows your team, with no need to enter the ID again.",
+    ],
+    changed: [
+      "Signing out now also clears your Team ID from the browser. It comes back when you sign in.",
+    ],
+  },
+  {
     version: "0.104.0",
     date: "26 Oct 2026",
     added: [

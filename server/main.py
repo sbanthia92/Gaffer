@@ -18,7 +18,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.types import TextContent
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.sessions import SessionMiddleware
@@ -195,6 +195,10 @@ class AskRequest(BaseModel):
     session_id: str | None = None  # frontend's ChatSession.id — enables server-side persistence
 
 
+class TeamIdRequest(BaseModel):
+    fpl_team_id: int = Field(gt=0)
+
+
 class FeedbackRequest(BaseModel):
     message: str
     email: str = ""
@@ -327,11 +331,20 @@ async def google_callback(request: Request):
 async def auth_me(request: Request) -> dict:
     if "user_id" not in request.session:
         return {"authenticated": False}
-    return {
+    response = {
         "authenticated": True,
         "email": request.session.get("email"),
         "name": request.session.get("name"),
     }
+    # Best-effort: sign-in status must not depend on the team-ID column (migration 006).
+    try:
+        fpl_team_id = await app_db.get_user_fpl_team_id(request.session["user_id"])
+    except Exception as exc:
+        log.warning("auth.fpl_team_id_read_failed", error=str(exc))
+    else:
+        if fpl_team_id:
+            response["fpl_team_id"] = fpl_team_id
+    return response
 
 
 @app.post("/auth/logout")
@@ -584,8 +597,15 @@ async def admin_jobs(_: None = Depends(_admin_auth)) -> dict:
 def _require_user_id(request: Request) -> int:
     user_id = request.session.get("user_id")
     if not user_id:
-        raise HTTPException(status_code=401, detail="Sign in to see your chat history.")
+        raise HTTPException(status_code=401, detail="Sign in required.")
     return user_id
+
+
+@app.put("/fpl/team-id")
+async def fpl_save_team_id(request: Request, body: TeamIdRequest) -> dict[str, str]:
+    """Save the signed-in account's FPL team ID so it follows them across devices."""
+    await app_db.set_user_fpl_team_id(_require_user_id(request), body.fpl_team_id)
+    return {"status": "ok"}
 
 
 @app.get("/fpl/conversations")

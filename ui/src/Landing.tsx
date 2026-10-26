@@ -3,21 +3,9 @@ import { useNavigate } from "react-router-dom";
 import AuthStatus from "./AuthStatus";
 import ChangelogModal from "./ChangelogModal";
 import { RELEASES } from "./releases";
-import { loadSessions } from "./storage";
+import { loadFplTeamId, loadSessions, saveFplTeamId, syncFplTeamId } from "./storage";
 import { submitContact } from "./api";
 import "./Landing.css";
-
-const FPL_TEAM_ID_KEY = "gaffer_fpl_team_id";
-
-function loadFplTeamId(): number | null {
-  const raw = localStorage.getItem(FPL_TEAM_ID_KEY);
-  const n = raw ? parseInt(raw, 10) : NaN;
-  return isNaN(n) ? null : n;
-}
-
-function saveFplTeamId(id: number): void {
-  localStorage.setItem(FPL_TEAM_ID_KEY, String(id));
-}
 
 const FEATURES = [
   {
@@ -220,7 +208,13 @@ function ContactSection() {
 
 export default function Landing() {
   const navigate = useNavigate();
-  const isReturning = loadSessions().length > 0 || loadFplTeamId() !== null;
+  // A signed-in account's saved team ID counts as returning even on a fresh device.
+  const [syncedTeamId, setSyncedTeamId] = useState<number | null>(null);
+  useEffect(() => {
+    syncFplTeamId().then(setSyncedTeamId);
+  }, []);
+  const isReturning =
+    loadSessions().length > 0 || (syncedTeamId ?? loadFplTeamId()) !== null;
 
   const [showChangelog, setShowChangelog] = useState(false);
   const [showFplStep, setShowFplStep] = useState(false);

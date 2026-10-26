@@ -2,6 +2,14 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.106.0] — 2026-10-26
+
+### Added
+- **A signed-in account keeps its FPL team ID, so it follows the user to other devices.** It was `localStorage`-only, so every new browser asked for it again. New `users.fpl_team_id` column (`db/migrations/006_users_fpl_team_id.sql` — **apply on EC2 as `postgres`**, like 001–005), `PUT /fpl/team-id` (401 when signed out, 422 for a non-positive id), and `GET /auth/me` now returns `fpl_team_id` when set. The read is best-effort: if the column doesn't exist yet, `/auth/me` still reports the sign-in without it. On load, the chat page and the landing page call `syncFplTeamId` — the account's ID wins when it has one, otherwise a team ID already stored in the browser is pushed up so existing users keep theirs. Saving a team ID in the modal or on the landing page also saves it to the account when signed in.
+
+### Changed
+- **Signing out also clears the team ID from the browser** (alongside the chats), since it now lives on the account and returns at the next sign-in. The `loadFplTeamId`/`saveFplTeamId` helpers, previously duplicated in `App.tsx` and `Landing.tsx`, now live in `ui/src/storage.ts`.
+
 ## [0.104.0] — 2026-10-26
 
 ### Added

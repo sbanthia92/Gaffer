@@ -9,26 +9,18 @@ import {
   appendMessage,
   deleteSession,
   loadActiveSessionId,
+  loadFplTeamId,
   loadSessions,
   mergeServerSessions,
   newSession,
   saveActiveSessionId,
+  saveFplTeamId,
   saveSession,
   saveSessions,
+  syncFplTeamId,
 } from "./storage";
 import type { ChatSession, Message } from "./types";
 import "./App.css";
-
-const FPL_TEAM_ID_KEY = "gaffer_fpl_team_id";
-function loadFplTeamId(): number | null {
-  const raw = localStorage.getItem(FPL_TEAM_ID_KEY);
-  const n = raw ? parseInt(raw, 10) : NaN;
-  return isNaN(n) ? null : n;
-}
-
-function saveFplTeamId(id: number): void {
-  localStorage.setItem(FPL_TEAM_ID_KEY, String(id));
-}
 
 // ── Onboarding modal ──────────────────────────────────────────────────────────
 
@@ -400,6 +392,13 @@ export default function App() {
   useEffect(() => {
     saveActiveSessionId(activeId);
   }, [activeId]);
+
+  // Signed-in accounts: the team ID saved on the account follows them to this device.
+  useEffect(() => {
+    syncFplTeamId().then((id) => {
+      if (id) setFplTeamId(id);
+    });
+  }, []);
 
   // Signed-in accounts: pull chat history from the server so it follows the user
   // across devices. Signed out, this returns nothing and history stays local.
