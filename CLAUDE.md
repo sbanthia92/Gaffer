@@ -1,5 +1,7 @@
 # The Gaffer
 
+Full system design, decisions and trade-offs: `docs/ARCHITECTURE.md` (update it when the architecture changes).
+
 AI-powered Fantasy Premier League analyst web app. Provides natural language analysis over FPL and World Cup 2026 data via a React chat UI backed by FastAPI and Claude tool-use.
 
 ## Stack
