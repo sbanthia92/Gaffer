@@ -2,6 +2,11 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.108.0] — 2026-10-28
+
+### Added
+- **`docs/ARCHITECTURE.md`** — system context, components, request lifecycle, data model and roles, auth, cost controls, security model, infrastructure and delivery, observability, 16 design decisions with their trade-offs, and a list of known gaps. Docs only, no behaviour change.
+
 ## [0.107.0] — 2026-10-26
 
 ### Added

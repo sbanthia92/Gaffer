@@ -8,6 +8,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.108.0",
+    date: "28 Oct 2026",
+    changed: [
+      "Internal: added an architecture document. No change to how Gaffer behaves.",
+    ],
+  },
+  {
     version: "0.107.0",
     date: "26 Oct 2026",
     added: [
