@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import { useNavigate } from "react-router-dom";
 import { askGaffer, deleteConversation, fetchConversations, fetchPlayerCard, submitFeedback, submitThumbsDown, type PlayerCard as PlayerCardData } from "./api";
 import AuthStatus from "./AuthStatus";
+import { Icon } from "./icons";
 import { PlayerLink } from "./PlayerCard";
 import {
   appendMessage,
@@ -613,7 +614,7 @@ export default function App() {
               <div className="sidebar-avatar" onClick={() => navigate("/")}>G</div>
               <button className="sidebar-name" onClick={() => navigate("/")}>the-gaffer.io</button>
             </div>
-            <span className="sidebar-tag">Terrace zine</span>
+            <span className="sidebar-tag">FPL analyst</span>
           </div>
           <button className="new-chat-btn" onClick={startNewSession}>＋ New chat</button>
         </div>
@@ -671,7 +672,7 @@ export default function App() {
 
         {!activeSession || activeSession.messages.length === 0 ? (
           <div className="empty-state">
-            <h1 className="empty-state-headline">ASK THE<br />GAFFER.</h1>
+            <h1 className="empty-state-headline">Ask the Gaffer</h1>
             <p className="empty-state-sub">
               Your AI-powered FPL analyst. Ask anything about your squad,
               transfers, or captaincy.
@@ -734,7 +735,7 @@ export default function App() {
                                 });
                               }}
                             >
-                              👎
+                              <Icon name="thumbsDown" size={15} />
                             </button>
                           </div>
                         </>
@@ -768,10 +769,10 @@ export default function App() {
             onClick={handleSend}
             disabled={loading || !input.trim()}
           >
-            {loading ? "…" : "Send ⚽"}
+            {loading ? "…" : "Send"}
           </button>
         </div>
-        <div className="input-footer">THE GAFFER TALKS LIVE · FPL ANALYST · POWERED BY CLAUDE</div>
+        <div className="input-footer">Live FPL data · Powered by Claude</div>
       </main>
     </div>
   );

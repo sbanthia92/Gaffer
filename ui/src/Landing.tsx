@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AuthStatus from "./AuthStatus";
 import ChangelogModal from "./ChangelogModal";
+import { Icon } from "./icons";
 import { RELEASES } from "./releases";
 import { loadFplTeamId, loadSessions, saveFplTeamId, syncFplTeamId } from "./storage";
 import { submitContact } from "./api";
@@ -10,7 +11,7 @@ import "./Landing.css";
 const FEATURES = [
   {
     id: "live-data",
-    icon: "⚡",
+    icon: "zap",
     title: "Live data",
     desc: "Real-time fixtures, standings, player prices, ownership, and form pulled from the FPL API. Every answer is backed by data from the current gameweek — never stale.",
     chat: [
@@ -20,7 +21,7 @@ const FEATURES = [
   },
   {
     id: "ai-powered",
-    icon: "🧠",
+    icon: "sparkles",
     title: "AI-powered verdicts",
     desc: "Claude analyses your question, pulls the relevant data, and delivers a clear VERDICT with full reasoning — not just a data dump. It thinks like an experienced FPL manager.",
     chat: [
@@ -30,7 +31,7 @@ const FEATURES = [
   },
   {
     id: "your-squad",
-    icon: "👥",
+    icon: "users",
     title: "Your squad",
     desc: "Enter your FPL Team ID and get advice tailored to your actual 15 players — transfer targets, captain picks, and chip timing based on what you already own.",
     chat: [
@@ -40,7 +41,7 @@ const FEATURES = [
   },
   {
     id: "historical",
-    icon: "📈",
+    icon: "trending",
     title: "Historical context",
     desc: "GW-by-GW stats for the current season plus 3 seasons of historical totals — goals, assists, xG, minutes, clean sheets. Ask about reverse fixtures, recent form against a team, or seasonal trends.",
     chat: [
@@ -50,7 +51,7 @@ const FEATURES = [
   },
   {
     id: "player-news",
-    icon: "🩹",
+    icon: "activity",
     title: "Injuries & player news",
     desc: "FPL's own availability flags and chance-of-playing figures, plus a live web search for the players it's giving a verdict on — so The Gaffer flags injuries, doubts, and rotation hints before you commit a transfer.",
     chat: [
@@ -327,7 +328,7 @@ export default function Landing() {
     <div className="landing">
       {showChangelog && <ChangelogModal onClose={() => setShowChangelog(false)} />}
 
-      {/* Gold top bar */}
+      {/* Top bar */}
       <div className="landing-topbar">
         <div className="landing-topbar-left">
           <nav className="landing-topbar-nav">
@@ -350,7 +351,7 @@ export default function Landing() {
       {/* Hero */}
       <section id="home" ref={(el) => { sectionRefs.current["home"] = el; }} className="landing-hero">
         <div className="landing-hero-content">
-          <h1 className="landing-title">THE GAFFER<span className="landing-title-period">.</span></h1>
+          <h1 className="landing-title">The Gaffer<span className="landing-title-period">.</span></h1>
           <p className="landing-sub">
             Ask anything about your Fantasy Premier League squad. Get a clear
             verdict backed by live data, stats, and AI reasoning.
@@ -367,7 +368,7 @@ export default function Landing() {
           </div>
         </div>
         <div className="hero-teamsheet" aria-hidden="true">
-          <p className="hero-teamsheet-title">STARTING XI</p>
+          <p className="hero-teamsheet-title">Starting XI</p>
           {[
             ["GKP", "Flekken"],
             ["DEF", "Alexander-Arnold"],
@@ -428,7 +429,7 @@ export default function Landing() {
                       className={`nav-item nav-item--child ${activeSection === "features" && activeFeature === child.id ? "active" : ""}`}
                       onClick={() => scrollTo(child.id)}
                     >
-                      <span className="nav-child-icon">{child.icon}</span>
+                      <span className="nav-child-icon"><Icon name={child.icon} size={14} /></span>
                       {child.label}
                     </button>
                   ))}
@@ -449,10 +450,10 @@ export default function Landing() {
                   ref={(el) => { featureRefs.current[f.id] = el; }}
                   className="feature-panel"
                 >
-                  <div className="feature-index">№{String(idx + 1).padStart(2, "0")}</div>
+                  <div className="feature-index">{String(idx + 1).padStart(2, "0")}</div>
                   <div className="feature-panel-text">
                     <div className="feature-panel-heading">
-                      <span className="feature-panel-icon">{f.icon}</span>
+                      <span className="feature-panel-icon"><Icon name={f.icon} size={20} /></span>
                       <h3>{f.title}</h3>
                     </div>
                     <p>{f.desc}</p>
@@ -464,7 +465,7 @@ export default function Landing() {
           </section>
 
           <section id="how-it-works" ref={(el) => { sectionRefs.current["how-it-works"] = el; }} className="landing-how">
-            <h2>HOW IT WORKS</h2>
+            <h2>How it works</h2>
             <div className="steps">
               <div className="step">
                 <div className="step-num">01</div>
@@ -490,7 +491,7 @@ export default function Landing() {
 
       {/* Full-width CTA band */}
       <div className="landing-cta-band">
-        <h2 className="cta-band-headline">READY TO GET<br />THE EDGE?</h2>
+        <h2 className="cta-band-headline">Ready to get the edge?</h2>
         <button
           className="landing-cta"
           onClick={() => isReturning ? navigate("/chat") : setShowFplStep(true)}
@@ -502,11 +503,11 @@ export default function Landing() {
       {/* Footer */}
       <footer className="landing-footer">
         <div className="landing-footer-col">
-          <p className="landing-footer-heading">THE GAFFER</p>
+          <p className="landing-footer-heading">The Gaffer</p>
           <p>AI-powered FPL analyst.<br />Built for managers who want an edge.</p>
         </div>
         <div className="landing-footer-col">
-          <p className="landing-footer-heading">NAVIGATE</p>
+          <p className="landing-footer-heading">Navigate</p>
           {NAV_SECTIONS.map((s) => (
             <button key={s.id} className="landing-changelog-btn" onClick={() => scrollTo(s.id === "features" ? FEATURES[0].id : s.id)}>
               {s.label}
@@ -514,7 +515,7 @@ export default function Landing() {
           ))}
         </div>
         <div className="landing-footer-col">
-          <p className="landing-footer-heading">UPDATES</p>
+          <p className="landing-footer-heading">Updates</p>
           <button className="landing-changelog-btn" onClick={() => setShowChangelog(true)}>
             What's new in v{RELEASES[0].version} →
           </button>

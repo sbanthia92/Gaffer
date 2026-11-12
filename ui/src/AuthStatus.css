@@ -51,10 +51,12 @@
   top: calc(100% + 8px);
   right: 0;
   min-width: 140px;
-  background: var(--paper);
-  color: var(--ink);
-  border: 2px solid var(--ink);
-  box-shadow: 3px 3px 0 var(--red);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  overflow: hidden;
   z-index: 60;
 }
 
@@ -72,7 +74,7 @@
 }
 
 .auth-status-menu-item:hover {
-  background: var(--gold);
+  background: var(--surface-2);
 }
 
 /* Sidebar footer context — match the full-width, padded look of the other footer buttons.
