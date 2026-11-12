@@ -65,6 +65,7 @@ React + TypeScript + Vite single-page app. Routes (`ui/src/main.tsx`): `/` landi
   team ID. For signed-in users it also reconciles with the server (`mergeServerSessions`,
   `syncFplTeamId`) and wipes itself on sign-out (`clearLocalChats`).
 - `releases.ts` — the in-app "What's new" changelog, updated on every PR.
+- Theme: warm-black palette with one gold accent, defined as CSS custom properties in `index.css`; line icons in `icons.tsx` (no icon dependency).
 - Player names in answers are wrapped by the model as `[[Name]]` and rendered as hoverable
   player cards (`PlayerCard.tsx`, `GET /fpl/player-card`).
 

@@ -2,6 +2,14 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.109.0] — 2026-11-12
+
+### Changed
+- **UI redesign: from the loud "terrace zine" look to a calm warm-black theme.** The old style — cream halftone background, Anton all-caps headlines, 3px black outlines, hard coloured offset shadows, tilted cards and emoji icons — is replaced by a dark warm-black palette (`#121110` page, `#1e1c1a` surfaces), a single gold accent, Inter throughout, 1px hairline borders, soft shadows and small line icons. Assistant answers are now plain text in a centred reading column (max 752px) instead of boxed bubbles; section labels (`h1–h3`) render as small uppercase captions; the "Send ⚽" button and the 👎 emoji are replaced with plain text and an SVG icon. No behaviour change.
+- Palette and radii live as CSS custom properties in `ui/src/index.css` (`--bg`, `--surface`, `--line`, `--text`, `--text-muted`, `--accent`, ...). The old token names (`--paper`, `--ink`, `--gold`, `--red`, ...) remain as aliases so `Admin.css`, `PlayerCard.css` and `ChangelogModal.css` pick up the new theme without edits — note `--ink` is now the *light text* colour, not a dark fill.
+- New `ui/src/icons.tsx` (five Lucide-style line icons) replaces the emoji on the landing page. Anton is dropped from the Google Fonts request.
+- Fixed the landing page's stat strip collapsing to zero height inside the scrolling container (`flex-shrink: 0`).
+
 ## [0.108.0] — 2026-10-28
 
 ### Added

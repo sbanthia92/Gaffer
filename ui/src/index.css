@@ -3,39 +3,57 @@
 }
 
 :root {
-  --sans: 'Inter', system-ui, sans-serif;
-  --headline: 'Anton', sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  color-scheme: dark;
 
-  --paper: #fff3df;
-  --paper-dim: rgba(17, 20, 15, 0.6);
-  --ink: #11140f;
-  --gold: #ffd23f;
-  --red: #ff3b1c;
-  --green: #3aa54a;
-  --blue: #1f7ae0;
+  --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Consolas, monospace;
+
+  /* Warm-black palette */
+  --bg: #121110;
+  --bg-sidebar: #171514;
+  --surface: #1e1c1a;
+  --surface-2: #272422;
+  --line: #272422;
+  --line-strong: #3b3632;
+  --text: #efebe6;
+  --text-muted: #a29b92;
+  --accent: #e0b84a;
+  --accent-ink: #121110;
+  --accent-dim: rgba(224, 184, 74, 0.14);
+  --bubble: #2a2623;
+  --danger: #f0735c;
+  --ok: #6cc08b;
+  --info: #7aa7e0;
+
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25);
 
   /* Legacy token aliases so existing component CSS still resolves */
-  --bg: var(--paper);
-  --sidebar-bg: var(--ink);
-  --surface: var(--paper);
-  --border: var(--ink);
-  --text: var(--ink);
-  --text-muted: var(--paper-dim);
-  --text-heading: var(--ink);
-  --accent: var(--gold);
-  --accent-dim: rgba(255, 210, 63, 0.18);
-  --user-bubble: var(--blue);
-  --error: var(--red);
+  --headline: var(--sans);
+  --paper: var(--bg);
+  --paper-dim: var(--text-muted);
+  --ink: var(--text);
+  --gold: var(--accent);
+  --red: var(--danger);
+  --green: var(--ok);
+  --blue: var(--info);
+  --border: var(--line-strong);
+  --sidebar-bg: var(--bg-sidebar);
+  --text-heading: var(--text);
+  --user-bubble: var(--bubble);
+  --error: var(--danger);
 
   font: 15px/1.5 var(--sans);
-  color: var(--ink);
-  background: var(--paper);
+  color: var(--text);
+  background: var(--bg);
   -webkit-font-smoothing: antialiased;
 }
 
 body {
   margin: 0;
+  background: var(--bg);
 }
 
 #root {
@@ -44,9 +62,23 @@ body {
   display: flex;
 }
 
-/* ── Halftone utility ────────────────────────────────────────────────────── */
+::selection {
+  background: var(--accent-dim);
+}
 
-.halftone {
-  background-image: radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.18) 1px, transparent 0);
-  background-size: 5px 5px;
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Text fields draw their own accent border + glow on focus */
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+}
+
+/* Quiet, dark scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
 }

@@ -8,6 +8,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.109.0",
+    date: "12 Nov 2026",
+    changed: [
+      "A calmer new look: a warm dark theme with a single gold accent, cleaner type, and simple line icons in place of the old comic-book style. Answers now read as clean text in a centred column.",
+    ],
+  },
+  {
     version: "0.108.0",
     date: "28 Oct 2026",
     changed: [

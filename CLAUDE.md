@@ -86,6 +86,9 @@ Every PR — no matter how small — must include all four of these:
 
 Be accurate — don't use `feat:` for a bug fix just because it involves new code.
 
+## UI theme
+Warm-black, single gold accent, Inter only. Colours/radii are CSS custom properties in `ui/src/index.css` (`--bg`, `--surface`, `--line`, `--text`, `--text-muted`, `--accent`, ...) — use them, never hard-code hex in component CSS. The legacy names (`--paper`, `--ink`, `--gold`, ...) are aliases kept so older CSS resolves; **`--ink` is now the light text colour**, so never use it as a dark fill. Style: 1px hairline borders, soft shadows, no hard offset shadows, no halftone, no all-caps display type, line icons from `ui/src/icons.tsx` instead of emoji.
+
 ## Code rules
 - Tests: `tests/test_main.py` shares one module-level `TestClient`, so its cookie jar persists across tests — `client.cookies.clear()` before setting a cookie by hand. Dependencies are unpinned (`fastapi>=`), so CI can resolve newer Starlette than a local venv; a test that passes locally and fails in CI → rebuild a fresh venv to reproduce.
 - Line length: 100 chars (`ruff` enforces this)
