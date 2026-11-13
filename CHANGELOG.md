@@ -2,6 +2,13 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.110.0] — 2026-11-13
+
+### Fixed
+- **Landing page claimed numbers that nothing measures.** The stat strip showed "12,400+ managers helped", "81% captain hit rate" and "<2s response time". None of them is computed anywhere (the strip was in the repo's first commit as literal text) and a chat answer takes several seconds, so they are removed. The strip now states only things the code does: live FPL data on every answer, an hourly stats refresh (the snapshot cron), and the 5 free questions a day.
+- **Sample content named players who have left the game.** The hero lineup and the five example chats used Flekken, Alexander-Arnold and Salah (no longer in FPL), Watkins (unavailable), Sheffield Utd (long relegated) and "2025/26". They are rewritten from the live FPL API as of GW10: a current top-scorers XI, an Arsenal v Newcastle preview, a Haaland v Isak captaincy call, a Konsa + Evanilson transfer, a Saka injury check, and a season-over-season Haaland comparison. Each mock chat now carries an "Example answer · figures from GW10" label so it can't be read as live output. Refresh these figures when they go stale (the comment above `FEATURES` in `Landing.tsx` says when they were checked).
+- **"Historical context" overstated what we store.** It promised "3 seasons of historical totals — goals, assists, xG…" and reverse-fixture lookups for past seasons. The backfill (`etl_v2.run_backfill`) keeps season totals only for points, minutes, goals, assists, clean sheets, goals conceded, cards and bonus; it does **not** save xG (FPL returns it in `history_past`, the insert just omits it), per-fixture rows exist for the current season only, and the number of past seasons is whatever FPL's `history_past` returned, not a fixed three. The feature is now "Season-by-season history" and the copy and example say exactly that.
+
 ## [0.109.0] — 2026-11-12
 
 ### Changed

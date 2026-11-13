@@ -8,6 +8,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.110.0",
+    date: "13 Nov 2026",
+    changed: [
+      "Removed unverified claims from the landing page (the manager count, captain hit rate and response-time figures) and replaced them with facts about how Gaffer works.",
+      "Refreshed the example questions and answers with current players and fixtures, and labelled them as examples.",
+      "Clarified what historical data Gaffer holds: season totals for past seasons, with gameweek-by-gameweek detail for this season.",
+    ],
+  },
+  {
     version: "0.109.0",
     date: "12 Nov 2026",
     changed: [
