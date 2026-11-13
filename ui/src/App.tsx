@@ -679,7 +679,7 @@ export default function App() {
             </p>
             <div className="suggestions">
               {[
-                "Should I captain Salah this week?",
+                "Should I captain Haaland this week?",
                 "If I can make 2 transfers, who should I bring in?",
                 "What's the best differential pick right now?",
                 "Which premium midfielder is worth the price?",

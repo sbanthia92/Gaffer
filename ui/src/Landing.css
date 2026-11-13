@@ -393,6 +393,12 @@
   gap: 16px;
 }
 
+.mockup-note {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-bottom: -4px;
+}
+
 .mockup-msg {
   display: flex;
   flex-direction: column;

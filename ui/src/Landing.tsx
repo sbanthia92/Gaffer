@@ -8,6 +8,10 @@ import { loadFplTeamId, loadSessions, saveFplTeamId, syncFplTeamId } from "./sto
 import { submitContact } from "./api";
 import "./Landing.css";
 
+// Illustrative answers. Every figure comes from the live FPL API as of GW10 of the current
+// season (checked 2026-11-13), so refresh them if players move or the numbers go stale.
+const EXAMPLE_NOTE = "Example answer · figures from GW10";
+
 const FEATURES = [
   {
     id: "live-data",
@@ -15,8 +19,8 @@ const FEATURES = [
     title: "Live data",
     desc: "Real-time fixtures, standings, player prices, ownership, and form pulled from the FPL API. Every answer is backed by data from the current gameweek — never stale.",
     chat: [
-      { role: "user", text: "Preview Arsenal vs Chelsea this weekend" },
-      { role: "assistant", text: `**VERDICT: Lean Arsenal at home.**\n\n**DATA:**\n• Arsenal home form (last 5): W4 D1 L0, 12 GF / 3 GA\n• Chelsea away form (last 5): W2 D2 L1, conceding 1.4/game\n• Fixture FDR: ARS 2 vs CHE 4\n• xG over last 5: Arsenal 10.2 for / 4.1 against\n\n**REASONING:** Arsenal's home record and underlying numbers outweigh Chelsea's softer away xG profile. Saka and Saliba both nailed for 90.`, truncated: true },
+      { role: "user", text: "Preview Newcastle vs Arsenal this weekend" },
+      { role: "assistant", text: `**VERDICT: Lean Arsenal, even away.**\n\n**DATA:**\n• Arsenal last 5: W5 D0 L0, 7 scored / 1 conceded, 4 clean sheets\n• Newcastle last 5: W1 D1 L3, 4 scored / 7 conceded\n• League position: Arsenal 1st, Newcastle 12th\n• Fixture FDR: NEW 4 vs ARS 3 (lower is easier)\n\n**REASONING:** Arsenal have won all five of their recent games and barely conceded, while Newcastle have lost three of five. Raya and Gabriel are the clean-sheet picks.`, truncated: true },
     ],
   },
   {
@@ -25,8 +29,8 @@ const FEATURES = [
     title: "AI-powered verdicts",
     desc: "Claude analyses your question, pulls the relevant data, and delivers a clear VERDICT with full reasoning — not just a data dump. It thinks like an experienced FPL manager.",
     chat: [
-      { role: "user", text: "Should I captain Salah or Haaland this GW?" },
-      { role: "assistant", text: `**VERDICT: Captain Salah.**\n\n**DATA:**\n• Salah: 87 season pts · last 5 GWs avg 7.4 · xGI 1.3/game\n• Haaland: 79 season pts · last 5 GWs avg 5.8 · xGI 1.0/game\n• Salah fixture: LIV (H) vs Sheffield Utd — FDR 2\n• Haaland fixture: MCI (A) vs Man Utd — FDR 4\n\n**REASONING:** Salah's form, xGI, and a soft home fixture outweigh Haaland's tougher derby trip. Higher floor and ceiling this week.`, truncated: true },
+      { role: "user", text: "Should I captain Haaland or Isak this GW?" },
+      { role: "assistant", text: `**VERDICT: Captain Haaland.**\n\n**DATA:**\n• Haaland: 70 pts · 7.0 pts/game · xGI 7.93 · £15.8m · 78.9% owned\n• Isak: 61 pts · 6.8 pts/game · xGI 5.16 · £9.3m · 25.1% owned\n• Haaland GW11: MCI (H) vs FUL — FDR 2\n• Isak GW11: LIV (H) vs MUN — FDR 3\n• Form: Haaland 6.2, Isak 7.0\n\n**REASONING:** Haaland has the stronger underlying numbers and the easier home fixture, so he is the higher-floor armband. Isak is in slightly better form and owned by only a quarter of managers, which makes him the differential if you need to gain ground.`, truncated: true },
     ],
   },
   {
@@ -36,17 +40,17 @@ const FEATURES = [
     desc: "Enter your FPL Team ID and get advice tailored to your actual 15 players — transfer targets, captain picks, and chip timing based on what you already own.",
     chat: [
       { role: "user", text: "Who should I bring in with my 2 free transfers?" },
-      { role: "assistant", text: `**VERDICT: Palmer (MID) + Gabriel (DEF).**\n\n**DATA:**\n• Palmer £6.0m · 142 pts · last 5 avg 7.8 · xGI 1.4/game\n• Gabriel £6.2m · 118 pts · 11 CS · 4 attacking returns\n• Your weakest MID by PPG: 3.2 — like-for-like swap\n• Next 5 FDR: Chelsea 2.4, Arsenal 2.0\n\n**REASONING:** Both upgrades hold price value and improve your fixture run through GW38. Captaincy options expand too.`, truncated: true },
+      { role: "assistant", text: `**VERDICT: Konsa (DEF) + Evanilson (FWD).**\n\n**DATA:**\n• Konsa (ARS) £4.8m · 57 pts · form 10.2 · 24.6% owned\n• Evanilson (BOU) £6.5m · 61 pts · form 9.0 · xGI 5.50\n• Evanilson is the second most-bought player this gameweek\n• GW11: ARS (A) vs NEW — FDR 3 · BOU (H) vs NFO — FDR 3\n\n**REASONING:** Both are in strong form on modest prices with FDR 3 fixtures next week, and each is a like-for-like swap. Check your club count before committing: Konsa would be another Arsenal player, and you can only hold three.`, truncated: true },
     ],
   },
   {
     id: "historical",
     icon: "trending",
-    title: "Historical context",
-    desc: "GW-by-GW stats for the current season plus 3 seasons of historical totals — goals, assists, xG, minutes, clean sheets. Ask about reverse fixtures, recent form against a team, or seasonal trends.",
+    title: "Season-by-season history",
+    desc: "GW-by-GW stats for the current season, plus season totals for previous seasons — points, goals, assists, minutes, and clean sheets. Ask how a player's output compares with last year, or how they have done in recent gameweeks.",
     chat: [
-      { role: "user", text: "How did Haaland perform against Arsenal in the reverse fixture?" },
-      { role: "assistant", text: `**Haaland vs Arsenal — GW14 (H), 2025/26:**\n\n**DATA:**\n• 90 mins · 0G 0A · 2 FPL pts\n• xG: 0.38 · shots: 3 (1 on target)\n• Arsenal held City to 0 — clean sheet for Raya\n• Haaland blanked in both fixtures vs Arsenal last season too\n\n**REASONING:** Arsenal's low block has consistently neutralised Haaland — he's averaging 2.5 pts in his last 4 appearances against them. Avoid the armband if City draw Arsenal again.`, truncated: true },
+      { role: "user", text: "How does Haaland's season compare with last year?" },
+      { role: "assistant", text: `**Haaland: this season vs 2025/26**\n\n**DATA:**\n| Season | Pts | Goals | Assists | Minutes | Pts/90 |\n|---|---|---|---|---|---|\n| 2025/26 | 239 | 27 | 8 | 2,953 | 7.3 |\n| This season (10 GWs) | 70 | 9 | 0 | 889 | 7.1 |\n\n**REASONING:** He is scoring a little more per 90 (0.91 goals vs 0.82) but has no assists yet, so his points rate is slightly below last year's. Ten gameweeks is a small sample. Previous seasons are season totals, so per-gameweek detail is only available for this season.`, truncated: true },
     ],
   },
   {
@@ -56,7 +60,7 @@ const FEATURES = [
     desc: "FPL's own availability flags and chance-of-playing figures, plus a live web search for the players it's giving a verdict on — so The Gaffer flags injuries, doubts, and rotation hints before you commit a transfer.",
     chat: [
       { role: "user", text: "Any injury or rotation concerns for Saka this week?" },
-      { role: "assistant", text: `**VERDICT: No flagged injury — monitor minutes.**\n\n**DATA:**\n• FPL status: available, 100% chance of playing (no news)\n• Saka minutes last 4 GWs: 90, 87, 90, 90\n• Arsenal fixture density: 3 games in 8 days post-weekend\n• Live web search: no new injury or rotation reports\n\n**REASONING:** Clean status but heavy recent minutes. Start him, keep a bench fallback ready in case of a late rotation call.`, truncated: true },
+      { role: "assistant", text: `**VERDICT: Yes, Saka is injured. Don't start him.**\n\n**DATA:**\n• FPL status: injured — "Thigh injury - Unknown return date"\n• Chance of playing next round: 0%\n• 30,669 managers sold him this gameweek, 161 bought\n• Season so far: 37 pts · £9.4m · 5.5% owned\n\n**REASONING:** With no return date, a transfer is better than carrying him on your bench. Replace him with another midfielder, such as Ødegaard (£6.7m, form 5.0), but check your Arsenal count first.`, truncated: true },
     ],
   },
 ];
@@ -127,6 +131,7 @@ function renderMockupText(text: string) {
 function ChatMockup({ messages }: { messages: { role: string; text: string; truncated?: boolean }[] }) {
   return (
     <div className="feature-chat-mockup">
+      <div className="mockup-note">{EXAMPLE_NOTE}</div>
       {messages.map((m, i) => (
         <div key={i} className={`mockup-msg mockup-msg--${m.role}`}>
           {m.role === "assistant" && <div className="mockup-label">The Gaffer · FPL</div>}
@@ -368,19 +373,19 @@ export default function Landing() {
           </div>
         </div>
         <div className="hero-teamsheet" aria-hidden="true">
-          <p className="hero-teamsheet-title">Starting XI</p>
+          <p className="hero-teamsheet-title">Sample starting XI</p>
           {[
-            ["GKP", "Flekken"],
-            ["DEF", "Alexander-Arnold"],
-            ["DEF", "Saliba"],
-            ["DEF", "Van Dijk"],
-            ["DEF", "Pedro Porro"],
-            ["MID", "Salah"],
-            ["MID", "Palmer"],
-            ["MID", "Saka"],
+            ["GKP", "Raya"],
+            ["DEF", "De Cuyper"],
+            ["DEF", "Vuskovic"],
+            ["DEF", "Gabriel"],
+            ["DEF", "Calafiori"],
+            ["MID", "Groß"],
+            ["MID", "Rogers"],
+            ["MID", "Cherki"],
             ["FWD", "Haaland"],
             ["FWD", "Isak"],
-            ["FWD", "Watkins"],
+            ["FWD", "Evanilson"],
           ].map(([pos, name]) => (
             <div key={name} className="hero-teamsheet-row">
               <span className="hero-teamsheet-pos">{pos}</span>
@@ -393,16 +398,12 @@ export default function Landing() {
       {/* Stat strip */}
       <div className="stat-strip">
         <div className="stat-card">
-          <div className="stat-value">12,400+</div>
-          <div className="stat-label">Managers helped</div>
+          <div className="stat-value">Live</div>
+          <div className="stat-label">FPL data on every answer</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">81%</div>
-          <div className="stat-label">Captain hit rate</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">&lt;2s</div>
-          <div className="stat-label">Response time</div>
+          <div className="stat-value">Hourly</div>
+          <div className="stat-label">Player stats refresh</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">5</div>
