@@ -1,0 +1,336 @@
+# The Gaffer eval questions. See eval/README.md for how to add one.
+#
+# id        stable, never reused — results are compared by id across runs
+# tier      must_pass: zero tolerance (past bugs, rule breaks, traps, edge cases)
+#           scored:    counts towards the overall score
+# manager   synthetic manager (eval/managers.py) whose team ID is sent; omit for none
+# vars      placeholders in `question`, computed from the snapshot: {key: <keys.py fn>, args}
+# checks    list of eval/checks.py checks; any argument can be {key: ...} or {var: ...}
+# source    why the question exists (CHANGELOG version for regressions)
+#
+# Every question also runs the always-on checks: no_error, loop (no turn-cap hit, no
+# identical repeat calls, no re-calling pre-fetched tools) and grounding (report-only).
+
+# ── Stale knowledge (folds in scripts/eval_stale_knowledge.py) ────────────────
+
+- id: stale-promoted-leeds
+  category: stale_knowledge
+  tier: must_pass
+  source: v0.89.0 — Leeds called "a promoted side" a season late
+  question: "Are Leeds' defenders worth owning in FPL right now? Describe Leeds' situation this season."
+  checks:
+    - {type: promotion, clubs: [Leeds], new: {key: new_to_league}}
+
+- id: stale-promoted-sunderland
+  category: stale_knowledge
+  tier: must_pass
+  source: v0.89.0 (same trap, second club promoted last season)
+  question: "Is it worth getting a Sunderland attacker? How are Sunderland doing this season?"
+  checks:
+    - {type: promotion, clubs: [Sunderland], new: {key: new_to_league}}
+
+- id: stale-season
+  category: stale_knowledge
+  tier: must_pass
+  source: scripts/eval_stale_knowledge.py date trap
+  question: "Which Premier League season is being played right now?"
+  checks:
+    - {type: mentions, mode: any, values: [{key: season_label}]}
+
+- id: stale-departed-salah
+  category: stale_knowledge
+  tier: must_pass
+  source: v0.110.0 — sample content still named players who have left the game
+  question: "Should I captain Salah this week?"
+  checks:
+    - type: regex_any
+      patterns:
+        - 'not (in|listed|available|part of|found)'
+        - "(isn't|is not|no longer) (in|listed|available|playing|at)"
+        - "(couldn't|could not|can't|cannot) find"
+        - 'left (the|Liverpool|the Premier League)'
+
+- id: stale-departed-trent
+  category: stale_knowledge
+  tier: must_pass
+  source: v0.110.0 — departed players
+  question: "Is Trent Alexander-Arnold a good Liverpool defender to own?"
+  checks:
+    - type: regex_any
+      patterns:
+        - 'not (in|listed|available|part of|found)'
+        - "(isn't|is not|no longer) (in|listed|available|playing|at)"
+        - "(couldn't|could not|can't|cannot) find"
+        - 'left (the|Liverpool|the Premier League)|Real Madrid'
+
+# ── Regressions from CHANGELOG fixes ──────────────────────────────────────────
+
+- id: reg-three-per-club
+  category: transfers
+  tier: must_pass
+  source: v0.73.0 — a 4th player from one club was suggested
+  manager: THREE_CLUB
+  vars: {out: {key: weakest_mid, args: {manager: THREE_CLUB}}}
+  question: "I want to sell {out}. Who should I bring in?"
+  checks:
+    - {type: transfer_rules, manager: THREE_CLUB, out_position: MID}
+    - type: tools
+      args: [{tool: search_players_by_criteria, equals: {position: MID}}]
+
+- id: reg-position-filter
+  category: transfers
+  tier: must_pass
+  source: v0.30-era fix — replacements searched without a position filter
+  manager: BALANCED
+  question: "My worst defender is underperforming. Who should I replace him with?"
+  checks:
+    - {type: transfer_rules, manager: BALANCED, out_position: DEF}
+    - type: tools
+      args: [{tool: search_players_by_criteria, equals: {position: DEF}}]
+
+- id: reg-fdr5-warning
+  category: transfers
+  tier: must_pass
+  source: v0.73.0 — FDR 5 next fixture not flagged
+  vars: {player: {key: fdr5_player}}
+  question: "Should I bring in {player} for next gameweek?"
+  checks:
+    - type: regex_any
+      patterns: ['(FDR|difficulty)[^.\n]{0,25}\b5\b', '\b5/5\b', 'toughest|hardest|most difficult']
+
+- id: reg-fixtures-from-tools
+  category: fixtures
+  tier: must_pass
+  source: v0.42.0 — fixtures cited from memory
+  question: "What are Arsenal's next three fixtures?"
+  checks:
+    - {type: mentions, values: {key: next_opponents, args: {team: Arsenal, n: 3}}}
+    - {type: tools, expect_any: [get_team_all_fixtures, get_fixtures]}
+
+- id: reg-xpts-whole-squad
+  category: player_stats
+  tier: must_pass
+  source: v0.101.0 — get_player_xpts dropped players for a 15-man squad
+  manager: BALANCED
+  question: "Show me the expected points for every player in my squad."
+  checks:
+    - {type: tools, expect_any: [get_player_xpts]}
+    - {type: mentions, values: {key: squad_names, args: {manager: BALANCED}}}
+
+- id: reg-turn-cap-ending
+  category: transfers
+  tier: must_pass
+  source: v0.102.0 — answers ended with "let me grab those separately"
+  manager: BALANCED
+  allow_turn_limit: true
+  question: "Give me a full plan for the next three gameweeks: transfers, my captain each week, and when to play my chips."
+  checks:
+    - {type: ends_cleanly}
+
+- id: reg-free-hit-squad
+  category: chips
+  tier: must_pass
+  source: v0.18-era fix — Free Hit squads with 6 MID / 2 FWD
+  question: "Build me the best possible Free Hit squad for next gameweek with a £100m budget."
+  checks:
+    - {type: squad_rules}
+
+- id: reg-chips-used
+  category: chips
+  tier: must_pass
+  source: transfer-analysis fix — chips reported wrongly; chip data must come from the pre-fetch
+  manager: CHIPS_USED
+  question: "Which chips do I still have available?"
+  checks:
+    - {type: chips, manager: CHIPS_USED}
+
+- id: reg-past-xg-not-stored
+  category: player_stats
+  tier: must_pass
+  source: v0.110.0 — past-season xG is not stored; never invent it
+  question: "What was Haaland's xG in the 2024/25 season?"
+  checks:
+    - type: unavailable_or_grounded
+      patterns:
+        - "(not|isn't|aren't) (stored|available|recorded|included|tracked)"
+        - "(don't|do not|doesn't) have[^.\n]{0,40}(xG|expected goals)"
+        - 'no (xG|expected goals) data'
+        - 'only (for|covers?) the current season'
+
+- id: reg-zero-points-not-dnp
+  category: player_stats
+  tier: must_pass
+  source: transfer-analysis fix — 0 points read as "did not play"
+  vars: {player: {key: zero_point_starter}}
+  question: "How did {player} do last gameweek?"
+  checks:
+    - type: regex_none
+      patterns: ["did(n't| not) play", '\bDNP\b', "did(n't| not) feature", 'unused sub']
+
+# ── Edge cases ────────────────────────────────────────────────────────────────
+
+- id: edge-unknown-player
+  category: edge_case
+  tier: must_pass
+  question: "Is Lionel Messi worth buying in FPL?"
+  checks:
+    - type: regex_any
+      patterns:
+        - 'not (in|listed|available|part of|found|a Premier League)'
+        - "(isn't|is not|doesn't|does not) (in|listed|available|play)"
+        - "(couldn't|could not|can't|cannot) find"
+        - 'MLS|Inter Miami'
+
+- id: edge-ambiguous-name
+  category: edge_case
+  tier: must_pass
+  source: player-search fix — players sharing a surname
+  vars: {name: {key: ambiguous_surname}}
+  question: "Is {name} worth buying?"
+  checks:
+    - type: regex_any
+      patterns: ['which (one|player)', 'two players', 'both', 'did you mean', 'assuming you mean', 'there are (two|2)']
+    - {type: mentions, mode: any, values: {key: ambiguous_clubs, args: {name: {var: name}}}}
+
+- id: edge-invalid-team-id
+  category: edge_case
+  tier: must_pass
+  manager: INVALID
+  question: "Who should I captain this week?"
+  checks:
+    - type: regex_any
+      patterns:
+        - "(couldn't|could not|unable to|wasn't able to|can't|cannot)[^.\n]{0,40}(team|squad|load|fetch|find|access|retrieve)"
+        - '(check|verify|confirm)[^.\n]{0,30}(team )?ID'
+        - 'invalid'
+
+- id: edge-off-topic
+  category: edge_case
+  tier: must_pass
+  question: "What's a good recipe for lasagne?"
+  checks:
+    - {type: regex_none, patterns: ['preheat', 'béchamel|bechamel', 'oven', 'lasagne sheets']}
+
+# ── Typical questions (scored) ────────────────────────────────────────────────
+
+- id: cap-who
+  category: captaincy
+  tier: scored
+  manager: BALANCED
+  question: "Who should I captain this gameweek?"
+  checks:
+    - {type: tools, expect_any: [get_captain_options, get_player_xpts]}
+    - {type: first_player, allowed: {key: squad_names, args: {manager: BALANCED}}}
+
+- id: cap-head-to-head
+  category: captaincy
+  tier: scored
+  manager: BALANCED
+  vars:
+    a: {key: squad_attackers, args: {manager: BALANCED}}
+  question: "Should I captain {a[0]} or {a[1]} this week?"
+  checks:
+    - {type: tools, expect_any: [get_captain_options, get_player_xpts, get_player_recent_form]}
+    - {type: mentions, values: {var: a}}
+    - {type: first_player, allowed: {var: a}}
+
+- id: tr-one-free-transfer
+  category: transfers
+  tier: scored
+  manager: BALANCED
+  question: "I've got one free transfer this week. What transfer should I make?"
+  checks:
+    - {type: transfer_rules, manager: BALANCED}
+    - {type: tools, expect_any: [search_players_by_criteria, get_player_xpts]}
+
+- id: tr-best-mid-under-price
+  category: transfers
+  tier: scored
+  question: "Who's the best midfielder under £8m right now?"
+  checks:
+    - type: tools
+      expect_any: [search_players_by_criteria, get_player_xpts]
+      args: [{tool: search_players_by_criteria, equals: {position: MID}}]
+
+- id: chips-bench-boost
+  category: chips
+  tier: scored
+  manager: BALANCED
+  question: "When should I play my Bench Boost?"
+  checks:
+    - {type: tools, expect_any: [plan_chips]}
+    - {type: regex_any, patterns: ['GW ?(1[1-9])\b', 'gameweek (1[1-9])\b']}
+
+- id: fix-easiest-runs
+  category: fixtures
+  tier: scored
+  question: "Which teams have the easiest fixtures over the next five gameweeks?"
+  checks:
+    - {type: mentions, mode: at_least, at_least: 2, values: {key: easiest_fixture_runs}}
+
+- id: fix-next-opponent
+  category: fixtures
+  tier: scored
+  question: "Who do Man City play next?"
+  checks:
+    - {type: mentions, values: {key: next_opponents, args: {team: Man City}}}
+
+- id: stats-form-compare
+  category: player_stats
+  tier: scored
+  question: "Compare Haaland and Isak's form over the last five gameweeks."
+  checks:
+    - {type: tools, expect_any: [get_player_recent_form, get_captain_options]}
+    - {type: mentions, values: [Haaland, Isak]}
+
+- id: stats-top-defenders
+  category: player_stats
+  tier: scored
+  question: "Who are the three highest-scoring defenders in FPL this season?"
+  checks:
+    - {type: mentions, values: {key: top_players, args: {position: DEF, n: 3}}}
+
+- id: stats-injury-status
+  category: player_stats
+  tier: scored
+  vars: {player: {key: injured_player}}
+  question: "Is {player} fit to play this weekend?"
+  checks:
+    - {type: regex_any, patterns: ['injur', 'doubt', 'knock', 'ruled out', 'chance of playing', '\d+%']}
+
+- id: league-table-position
+  category: league
+  tier: scored
+  question: "Where are Sunderland in the Premier League table?"
+  checks:
+    - {type: mentions, mode: any, values: [{key: table_rank_spellings, args: {team: Sunderland}}]}
+
+- id: league-mini-league-explicit
+  category: league
+  tier: scored
+  manager: BALANCED
+  question: "How do I compare with my mini-league rivals? My league ID is 800001."
+  checks:
+    - type: tools
+      args: [{tool: analyse_mini_league, equals: {league_id: 800001}, required: true}]
+
+- id: league-mini-league-implicit
+  category: league
+  tier: scored
+  manager: BALANCED
+  source: >-
+    Expected to fail until get_my_fpl_team keeps private leagues: real FPL marks them
+    league_type "x", the code keeps only "c", so my_leagues is always empty.
+  question: "How am I doing against my mini-league rivals?"
+  checks:
+    - type: tools
+      args: [{tool: analyse_mini_league, equals: {league_id: 800001}, required: true}]
+
+- id: price-risers
+  category: prices
+  tier: scored
+  question: "Which players are about to rise in price?"
+  checks:
+    - {type: tools, expect_any: [get_price_changes]}
+    - {type: mentions, mode: at_least, at_least: 2, values: {key: price_risers}}
+    - {type: regex_none, patterns: ['\bwill (definitely |certainly )?(rise|go up)\b']}

@@ -90,3 +90,6 @@ logs/
 # Data
 data/raw/
 data/processed/
+
+# Eval run output (eval/run.py)
+eval/results/

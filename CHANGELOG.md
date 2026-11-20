@@ -2,6 +2,23 @@
 
 All notable changes to The Gaffer are documented here.
 
+## [0.111.0] — 2026-11-20
+
+### Added
+- **Answer-quality eval suite (`eval/`), run by hand.** The unit tests mock the model, so nothing measured whether answers were right. `python -m eval.run` sends 33 questions (plus 3 hold-out) through the real app in-process — the `/fpl/ask` route, pre-fetch, tool handlers, MCP subprocess and Claude tool loop — and grades each answer in code. Why each piece exists is in `eval/README.md`; in short:
+  - **A frozen world, so scores only move when code does.** FPL responses are recorded once (`eval/record.py`, snapshot `2026-27-gw10`, 770 KB) and replayed; the stats database is rebuilt from the same snapshot by running the production ETL against it (`eval/build_db.py`); managers and the mini-league are synthetic squads built by fixed rules (`eval/managers.py`), so no real manager data is stored; the prompt's date is the recording date; web search (server-side, not replayable) becomes a stub that finds nothing.
+  - **Questions from known failures first.** Every answer-affecting bug in this changelog is a must_pass question (stale "promoted" clubs, a 4th player from one club, fixtures from memory, no FDR 5 warning, xPts dropping squad players, answers ending in "let me fetch…", illegal Free Hit squads, misreported chips, invented past-season xG, 0 points read as "didn't play"), plus edge cases and 14 typical scored questions.
+  - **Answer keys computed from the snapshot, never typed** (`eval/keys.py`). Transfer and squad advice is checked against FPL rules in code (position, 3 per club, budget); a small model only extracts which players were recommended.
+  - Reports pass rates per tier, cost, tokens, cache hit rate, p50/p95 latency and numbers that no tool returned; `--compare` lists what flipped since an earlier run, `--repeats` measures noise. No CI gate yet — thresholds come after measuring run-to-run noise.
+- `tests/test_eval.py` — unit tests for the eval's machinery (replay, synthetic squads, keys, checks, question loading); no model calls.
+
+### Removed
+- `scripts/eval_stale_knowledge.py` — its promotion and season traps are now must_pass questions in the eval.
+
+### Notes
+- Temperature 0 isn't possible: the installed `anthropic` SDK (2.x, API version `2026-10-21`) no longer accepts `temperature`, so answers vary between runs.
+- Found while building it, not fixed here (this PR changes no agent behaviour): `get_my_fpl_team` keeps only `league_type == "c"` leagues, but FPL marks private leagues `"x"`, so `my_leagues` is always empty; and `db/schema.sql` creates `pg_trgm` after the index that needs it.
+
 ## [0.110.0] — 2026-11-13
 
 ### Fixed

@@ -394,8 +394,9 @@ transfer rules.
   blanks (rearranged fixtures sit at `event=null`).
 - **Trade-off:** a long system prompt is costly (mitigated by caching) and rules compete. Where
   possible, back a rule with data (`new_to_league_this_season`, pre-fetched standings).
-  Prompts can't be unit-tested, so `scripts/eval_stale_knowledge.py` exists and is run by
-  hand after prompt changes.
+  Prompts can't be unit-tested, so the eval suite (`eval/`) runs real questions against a
+  frozen copy of the FPL data and checks the answers in code; it is run by hand after
+  prompt, tool or model changes.
 
 ### D14. Deploy by `git pull` on the box, no containers
 - **Why:** fastest path for one server; no registry, no image build.
@@ -429,7 +430,8 @@ transfer rules.
 5. **Row caps differ:** the in-app executor caps at 50, the MCP tool at 100.
 6. **Per-worker caches** mean each uvicorn worker fetches the FPL bootstrap separately.
 7. **UI lint is not in CI** and the UI has no tests.
-8. **No staging environment;** the stale-knowledge eval hits whatever URL you point it at.
+8. **No staging environment.** The eval (`eval/`) runs in-process against a frozen snapshot,
+   so nothing exercises a deployed instance end to end.
 9. **Google sign-in is not live in production** until the OAuth client and secrets exist.
 10. **Cost visibility:** token and web-search counts are logged but spend is not on the admin
     dashboard.
@@ -440,12 +442,18 @@ transfer rules.
 13. **`/admin` fails open.** If `ADMIN_PASSWORD` is ever missing from Secrets Manager in
     production, the dashboard and job status pages are publicly readable. It should fail
     closed when `ENVIRONMENT=production`.
+14. **`my_leagues` is always empty.** `get_my_fpl_team` keeps classic leagues with
+    `league_type == "c"`, but FPL marks private leagues `"x"` (found while building the
+    eval), so the model never learns the user's mini-league IDs unless told.
+15. **`db/schema.sql` orders `pg_trgm` after the index that uses it,** so it fails on a fresh
+    database; production works only because the extension already existed.
 
 ## 13. Where to change what
 
 | To change… | Look at |
 |---|---|
-| The assistant's behaviour or rules | `_SHARED_RULES` / `_build_system_prompt` in `claude_client.py` (then run the eval script) |
+| The assistant's behaviour or rules | `_SHARED_RULES` / `_build_system_prompt` in `claude_client.py` (then run `python -m eval.run`) |
+| Eval questions or checks | `eval/questions.yaml`, `eval/keys.py`, `eval/checks.py` — see `eval/README.md` |
 | Add a tool | `fpl.py` (function + `TOOL_DEFINITIONS`), handler map in `main.py::_fpl_tool_handler`, label in `_TOOL_LABELS`, line in the prompt's tool guide, tests |
 | Data refresh | `pipeline/etl_v2.py`, `scripts/setup_cron.sh` (remember cron `add_job` only adds, never removes) |
 | A DB column or table | new file in `db/migrations/`, mirror in `db/schema.sql`, grants, `_EXCLUDED_TABLES` in `backup_db.py` if app-owned |
