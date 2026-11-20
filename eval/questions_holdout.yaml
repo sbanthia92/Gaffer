@@ -1,0 +1,25 @@
+# Hold-out questions: never tune prompts against these. Run with --holdout; the
+# summary reports their score separately and does not list which ones failed.
+# Same format as eval/questions.yaml.
+
+- id: hold-differential-captain
+  category: captaincy
+  tier: scored
+  manager: BALANCED
+  question: "Who's a good differential captain for me this week?"
+  checks:
+    - {type: tools, expect_any: [get_captain_options, get_player_xpts, search_players_by_criteria]}
+
+- id: hold-next-opponent
+  category: fixtures
+  tier: scored
+  question: "Who do Spurs play next?"
+  checks:
+    - {type: mentions, values: {key: next_opponents, args: {team: Spurs}}}
+
+- id: hold-top-forwards
+  category: player_stats
+  tier: scored
+  question: "Who are the three highest-scoring forwards this season?"
+  checks:
+    - {type: mentions, values: {key: top_players, args: {position: FWD, n: 3}}}

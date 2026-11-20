@@ -1,0 +1,86 @@
+{
+  "season": "2025/26",
+  "source": "Hand-entered: the FPL API has no endpoint for last season's clubs. Check against the production `teams` table (season 2025/26) when re-recording.",
+  "teams": [
+    {
+      "name": "Arsenal",
+      "short_name": "ARS"
+    },
+    {
+      "name": "Aston Villa",
+      "short_name": "AVL"
+    },
+    {
+      "name": "Bournemouth",
+      "short_name": "BOU"
+    },
+    {
+      "name": "Brentford",
+      "short_name": "BRE"
+    },
+    {
+      "name": "Brighton",
+      "short_name": "BHA"
+    },
+    {
+      "name": "Burnley",
+      "short_name": "BUR"
+    },
+    {
+      "name": "Chelsea",
+      "short_name": "CHE"
+    },
+    {
+      "name": "Crystal Palace",
+      "short_name": "CRY"
+    },
+    {
+      "name": "Everton",
+      "short_name": "EVE"
+    },
+    {
+      "name": "Fulham",
+      "short_name": "FUL"
+    },
+    {
+      "name": "Leeds",
+      "short_name": "LEE"
+    },
+    {
+      "name": "Liverpool",
+      "short_name": "LIV"
+    },
+    {
+      "name": "Man City",
+      "short_name": "MCI"
+    },
+    {
+      "name": "Man Utd",
+      "short_name": "MUN"
+    },
+    {
+      "name": "Newcastle",
+      "short_name": "NEW"
+    },
+    {
+      "name": "Nott'm Forest",
+      "short_name": "NFO"
+    },
+    {
+      "name": "Spurs",
+      "short_name": "TOT"
+    },
+    {
+      "name": "Sunderland",
+      "short_name": "SUN"
+    },
+    {
+      "name": "West Ham",
+      "short_name": "WHU"
+    },
+    {
+      "name": "Wolves",
+      "short_name": "WOL"
+    }
+  ]
+}

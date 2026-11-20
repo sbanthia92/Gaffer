@@ -8,6 +8,13 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: "0.111.0",
+    date: "20 Nov 2026",
+    added: [
+      "Internal: a set of test questions that checks Gaffer's answers against a frozen copy of the FPL data, so changes that make answers worse can be caught before release. No change to how Gaffer behaves.",
+    ],
+  },
+  {
     version: "0.110.0",
     date: "13 Nov 2026",
     changed: [

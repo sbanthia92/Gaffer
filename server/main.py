@@ -100,7 +100,7 @@ async def _is_exempt_from_daily_limit(request: Request) -> bool:
     """
     Owner/admin bypass. Either a signed-in Google account whose verified email is in
     daily_limit_exempt_emails, or the admin password sent as HTTP Basic auth — the same
-    credential as /admin, for scripts such as scripts/eval_stale_knowledge.py.
+    credential as /admin, for scripts that call a live deployment.
     """
     exempt_emails = {
         email.strip().lower()
